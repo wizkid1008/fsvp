@@ -1,0 +1,12 @@
+.next/
+.vercel/
+.wrangler/
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+types/database.generated.ts
+*.log
