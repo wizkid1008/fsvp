@@ -3,234 +3,196 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>FSVP Compliance Platform</title>
+    <title>ThrushCross Trading & Commodities</title>
     <meta
       name="description"
-      content="FSVP Compliance Platform static application preview for supplier readiness workflows."
+      content="ThrushCross Trading & Commodities helps food importers and suppliers verify readiness, trade confidently, and grow across regulated supply chains."
     />
+    <link rel="icon" href="./assets/thrushcross-mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="app">
-      <aside class="sidebar" aria-label="Primary navigation">
-        <a class="brand" href="#dashboard" data-view-link="dashboard">
-          <span class="brand-mark">FS</span>
-          <span>
-            <strong>FSVP Compliance Platform</strong>
-            <small>Supplier readiness workspace</small>
-          </span>
-        </a>
-        <nav class="nav">
-          <button class="active" data-view-link="dashboard">Dashboard</button>
-          <button data-view-link="supplier">Supplier</button>
-          <button data-view-link="products">Products</button>
-          <button data-view-link="facilities">Facilities</button>
-          <button data-view-link="documents">Documents</button>
-          <button data-view-link="assessment">Assessment</button>
-          <button data-view-link="reviewer">Reviewer</button>
-          <button data-view-link="reports">Reports</button>
-          <button data-view-link="notifications">Notifications</button>
-          <button data-view-link="settings">Settings</button>
-        </nav>
-      </aside>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="ThrushCross Trading & Commodities home">
+        <img src="./assets/thrushcross-mark.svg" alt="" width="42" height="42" />
+        <span>
+          <strong>ThrushCross</strong>
+          <small>Verify • Trade • Grow</small>
+        </span>
+      </a>
+      <nav aria-label="Landing page navigation">
+        <a href="#verify">Verify</a>
+        <a href="#platform">Platform</a>
+        <a href="#brand">Logo Direction</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </header>
 
-      <div class="workspace">
-        <header class="topbar">
-          <div>
-            <strong id="view-title">Dashboard</strong>
-            <span id="view-subtitle">Supplier readiness and review command center</span>
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-scene" aria-hidden="true">
+          <div class="interface large">
+            <div class="window-top">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="product-row">
+              <strong>Supplier Verification</strong>
+              <em>82%</em>
+            </div>
+            <div class="progress"><span style="width: 82%"></span></div>
+            <div class="check-grid">
+              <div><span class="tick">✓</span> FDA registration</div>
+              <div><span class="tick">✓</span> Audit evidence</div>
+              <div><span class="warn">!</span> Recall readiness</div>
+              <div><span class="tick">✓</span> Product specs</div>
+            </div>
           </div>
-          <div class="topbar-actions">
-            <span class="role-badge">Supplier</span>
-            <button id="submitReviewButton">Submit for review</button>
+          <div class="interface small">
+            <strong>ThrushCross Verify™</strong>
+            <p>FSVP evidence mapped to supplier, product, facility, reviewer, and readiness workflows.</p>
           </div>
-        </header>
+        </div>
 
-        <main class="content">
-          <section class="view active" id="dashboard" data-title="Dashboard" data-subtitle="Supplier readiness and review command center">
-            <div class="page-heading">
-              <div>
-                <h1>Dashboard</h1>
-                <p>Track supplier status, documentation, open gaps, reviewer actions, and upcoming compliance dates.</p>
-              </div>
-              <button class="primary" data-view-link="assessment">Open assessment</button>
-            </div>
+        <div class="hero-copy">
+          <p class="eyebrow">Trading infrastructure for verified supply chains</p>
+          <img class="hero-mark" src="./assets/thrushcross-logo.svg" alt="ThrushCross Trading & Commodities" />
+          <h1 id="hero-title">ThrushCross Trading & Commodities</h1>
+          <p class="lead">
+            A modern B2B platform for importers, suppliers, and compliance teams that need verified documentation,
+            reviewer-ready evidence, and cleaner trade operations across regulated food supply chains.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#contact">Request early access</a>
+            <a class="button secondary" href="#platform">Explore the platform</a>
+          </div>
+        </div>
+      </section>
 
-            <section class="metrics" aria-label="Readiness metrics">
-              <article>
-                <span>Readiness</span>
-                <strong id="overallScore">82%</strong>
-                <small>9 point gain this month</small>
-              </article>
-              <article>
-                <span>Documents</span>
-                <strong id="documentCount">47</strong>
-                <small>6 pending review</small>
-              </article>
-              <article>
-                <span>Open gaps</span>
-                <strong id="gapCount">12</strong>
-                <small>4 high priority</small>
-              </article>
-              <article>
-                <span>Upcoming</span>
-                <strong>8</strong>
-                <small>certifications and reassessments</small>
-              </article>
-            </section>
+      <section class="signal-band" aria-label="Brand promise">
+        <div>
+          <span>01</span>
+          <strong>Verify</strong>
+          <p>Turn supplier evidence into structured readiness signals.</p>
+        </div>
+        <div>
+          <span>02</span>
+          <strong>Trade</strong>
+          <p>Keep importer, supplier, and reviewer workflows aligned.</p>
+        </div>
+        <div>
+          <span>03</span>
+          <strong>Grow</strong>
+          <p>Build a scalable compliance operating system for expansion.</p>
+        </div>
+      </section>
 
-            <section class="split">
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>Readiness Categories</h2>
-                  <span class="status info">Assessment</span>
-                </div>
-                <div id="readinessBars" class="score-list"></div>
-              </div>
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>Next Actions</h2>
-                  <span class="status warning">Priority</span>
-                </div>
-                <ul class="action-list" id="nextActions"></ul>
-              </div>
-            </section>
-          </section>
+      <section class="section" id="verify">
+        <div class="section-heading">
+          <p class="eyebrow">Flagship product</p>
+          <h2>ThrushCross Verify™ starts with FSVP readiness.</h2>
+          <p>
+            The first product under the ThrushCross parent brand is a focused FSVP platform for documentation,
+            supplier review, readiness scoring, and audit-ready reporting.
+          </p>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <span class="feature-number">A</span>
+            <h3>Evidence Vault</h3>
+            <p>Classify food safety plans, HACCP/HARPC records, certificates, audits, COAs, recall files, and traceability evidence.</p>
+          </article>
+          <article>
+            <span class="feature-number">B</span>
+            <h3>Reviewer Workflows</h3>
+            <p>Route suppliers through draft, submitted, under review, revision required, and approved states.</p>
+          </article>
+          <article>
+            <span class="feature-number">C</span>
+            <h3>Readiness Scoring</h3>
+            <p>Score supplier identity, product information, hazard analysis, verification activities, labeling, and recall preparedness.</p>
+          </article>
+        </div>
+      </section>
 
-          <section class="view" id="supplier" data-title="Supplier" data-subtitle="Legal identity, contacts, approvals, and certifications">
-            <div class="page-heading">
-              <div>
-                <h1>Supplier Profile</h1>
-                <p>Maintain legal identity, FDA registration, export markets, contacts, certification status, and approval history.</p>
-              </div>
-              <button class="primary" id="saveSupplierButton">Save supplier</button>
-            </div>
-            <section class="form-grid panel">
-              <label>Company Name<input value="Pacific Valley Foods Ltd." /></label>
-              <label>Legal Entity Name<input value="Pacific Valley Foods Exportadora SpA" /></label>
-              <label>Registration Number<input value="FFR-123456" /></label>
-              <label>Country<input value="Chile" /></label>
-              <label>Website<input value="https://example-supplier.test" /></label>
-              <label>Primary Contact<input value="Maria Alvarez" /></label>
-              <label>Contact Email<input value="maria@example.com" /></label>
-              <label>Certification Status<select><option>Pending Review</option><option>Approved</option><option>Rejected</option><option>Suspended</option></select></label>
-            </section>
-            <section class="records" id="supplierRecords"></section>
-          </section>
+      <section class="section platform-section" id="platform">
+        <div class="section-heading">
+          <p class="eyebrow">Platform shape</p>
+          <h2>Enterprise software posture, trade-operator clarity.</h2>
+          <p>
+            The product surface is designed for repeated operational use: dense enough for reviewers, clear enough for suppliers,
+            and structured enough for future AI-assisted document mapping.
+          </p>
+        </div>
+        <div class="workflow">
+          <article>
+            <span>1</span>
+            <h3>Collect</h3>
+            <p>Supplier accounts, product data, facility records, and document uploads become one shared workspace.</p>
+          </article>
+          <article>
+            <span>2</span>
+            <h3>Review</h3>
+            <p>Importers, consultants, and auditors add comments, request revisions, and approve evidence.</p>
+          </article>
+          <article>
+            <span>3</span>
+            <h3>Report</h3>
+            <p>Teams generate readiness reports, gap reports, document status reports, and executive summaries.</p>
+          </article>
+          <article>
+            <span>4</span>
+            <h3>Scale</h3>
+            <p>The schema supports future classification, extraction, recommendations, and regulatory mapping.</p>
+          </article>
+        </div>
+      </section>
 
-          <section class="view" id="products" data-title="Products" data-subtitle="Product specifications, ingredients, allergens, and markets">
-            <div class="page-heading">
-              <div>
-                <h1>Product Management</h1>
-                <p>Track specifications, ingredients, origin, shelf life, packaging, intended U.S. market, and allergen declarations.</p>
-              </div>
-              <button class="primary" id="addProductButton">Add product</button>
-            </div>
-            <section class="records" id="productRecords"></section>
-          </section>
+      <section class="section brand-section" id="brand">
+        <div class="section-heading">
+          <p class="eyebrow">Logo direction</p>
+          <h2>A parent brand built around verification.</h2>
+          <p>
+            The mark uses a minimalist geometric T/X construction. The X contains a subtle checkmark signal, creating a path
+            from ThrushCross Trading & Commodities to ThrushCross Verify™ without commodity clichés.
+          </p>
+        </div>
+        <div class="brand-system">
+          <div class="logo-specimen">
+            <img src="./assets/thrushcross-logo.svg" alt="ThrushCross Trading & Commodities logo with Verify Trade Grow tagline" />
+          </div>
+          <div class="brand-notes">
+            <article>
+              <h3>Color</h3>
+              <p><strong>Azure #2DA8FF</strong> for verification energy. <strong>Navy #0A2540</strong> for enterprise trust.</p>
+            </article>
+            <article>
+              <h3>Mark</h3>
+              <p>Geometric T/X letterform with an integrated check. No birds, globes, leaves, shields, agriculture motifs, or commodity icons.</p>
+            </article>
+            <article>
+              <h3>Voice</h3>
+              <p>Clean, precise, and operational. Closer to Stripe, Flexport, Vanta, and Deel than traditional import/export branding.</p>
+            </article>
+          </div>
+        </div>
+      </section>
 
-          <section class="view" id="facilities" data-title="Facilities" data-subtitle="Facilities, registrations, capacity, and processes">
-            <div class="page-heading">
-              <div>
-                <h1>Facility Management</h1>
-                <p>Maintain facilities, FDA registration numbers, production capacity, manufacturing processes, and certifications.</p>
-              </div>
-              <button class="primary" id="addFacilityButton">Add facility</button>
-            </div>
-            <section class="records" id="facilityRecords"></section>
-          </section>
+      <section class="cta" id="contact">
+        <div>
+          <p class="eyebrow">Early access</p>
+          <h2>Launch the verification layer before the trade volume scales.</h2>
+          <p>
+            ThrushCross Verify™ is prepared as the first operational product: supplier evidence, FSVP readiness,
+            reviewer workflows, and reports under one parent brand.
+          </p>
+        </div>
+        <a class="button primary" href="https://github.com/wizkid1008/fsvp">View build repository</a>
+      </section>
+    </main>
 
-          <section class="view" id="documents" data-title="Documents" data-subtitle="Evidence upload, classification, review, and versioning">
-            <div class="page-heading">
-              <div>
-                <h1>Document Repository</h1>
-                <p>Classify supplier evidence, track version history, capture review notes, and monitor approval status.</p>
-              </div>
-            </div>
-            <section class="panel upload-panel">
-              <label>Document Category
-                <select id="documentCategory"></select>
-              </label>
-              <label class="file-input">Select Document
-                <input id="documentFile" type="file" />
-              </label>
-              <button class="primary" id="queueDocumentButton">Queue document</button>
-            </section>
-            <section class="records" id="documentRecords"></section>
-          </section>
-
-          <section class="view" id="assessment" data-title="Assessment" data-subtitle="Readiness scoring, gaps, and recommended actions">
-            <div class="page-heading">
-              <div>
-                <h1>FSVP Readiness Assessment</h1>
-                <p>Score categories, identify compliance gaps, assign actions, and prepare readiness reporting.</p>
-              </div>
-              <button class="primary" id="recalculateButton">Recalculate score</button>
-            </div>
-            <section class="panel">
-              <div id="assessmentList" class="assessment-list"></div>
-            </section>
-          </section>
-
-          <section class="view" id="reviewer" data-title="Reviewer" data-subtitle="Review queue, comments, revisions, and approvals">
-            <div class="page-heading">
-              <div>
-                <h1>Reviewer Dashboard</h1>
-                <p>Review submissions, leave comments, request revisions, approve documents, and advance supplier status.</p>
-              </div>
-              <button class="primary" id="approveSelectedButton">Approve selected</button>
-            </div>
-            <section class="records" id="reviewerRecords"></section>
-          </section>
-
-          <section class="view" id="reports" data-title="Reports" data-subtitle="Readiness, gap, document, audit, and executive reports">
-            <div class="page-heading">
-              <div>
-                <h1>Reports</h1>
-                <p>Generate downloadable supplier readiness, compliance gap, document status, audit, and executive summary reports.</p>
-              </div>
-              <button class="primary" id="generateReportButton">Generate report</button>
-            </div>
-            <section class="records" id="reportRecords"></section>
-          </section>
-
-          <section class="view" id="notifications" data-title="Notifications" data-subtitle="Uploads, reviews, approvals, expirations, and missing evidence">
-            <div class="page-heading">
-              <div>
-                <h1>Notifications</h1>
-                <p>Track review requests, approval notices, expiring certifications, and missing documentation alerts.</p>
-              </div>
-              <button class="primary" id="markReadButton">Mark all read</button>
-            </div>
-            <section class="records" id="notificationRecords"></section>
-          </section>
-
-          <section class="view" id="settings" data-title="Settings" data-subtitle="Profile, security, language, and notification preferences">
-            <div class="page-heading">
-              <div>
-                <h1>Account Settings</h1>
-                <p>Manage profile preferences, email verification status, password reset readiness, language, and notifications.</p>
-              </div>
-              <button class="primary" id="saveSettingsButton">Save settings</button>
-            </div>
-            <section class="form-grid panel">
-              <label>Full Name<input value="Supplier User" /></label>
-              <label>Email<input value="supplier@example.com" /></label>
-              <label>Organization<input value="Pacific Valley Foods" /></label>
-              <label>Preferred Language<select><option>English</option><option>Spanish</option><option>Portuguese</option></select></label>
-              <label>Notification Delivery<select><option>Email + in-app</option><option>In-app only</option><option>Email only</option></select></label>
-              <label>User Status<select><option>Active</option><option>Pending</option><option>Suspended</option></select></label>
-            </section>
-          </section>
-        </main>
-
-        <footer class="disclaimer">
-          This platform does not provide legal or regulatory advice. All FSVP determinations should be reviewed by qualified regulatory professionals and/or a qualified FSVP Individual.
-        </footer>
-      </div>
-    </div>
-
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js"></script>
+    <footer class="footer">
+      <span>© 2026 ThrushCross Trading & Commodities</span>
+      <span>Verify • Trade • Grow</span>
+    </footer>
   </body>
 </html>

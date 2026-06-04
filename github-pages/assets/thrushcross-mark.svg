@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">ThrushCross geometric T X mark</title>
+  <desc id="desc">A minimalist navy and azure T and X mark with a subtle verification checkmark inside the X.</desc>
+  <rect width="96" height="96" rx="22" fill="#0A2540"/>
+  <path d="M24 23h48v12H54v39H42V35H24V23Z" fill="#FFFFFF"/>
+  <path d="M31 72 46.7 50 31.8 29h14.4l8 12.3L62.5 29H77L62.2 49.8 78 72H63.2l-8.9-13.5L45.6 72H31Z" fill="#2DA8FF"/>
+  <path d="M44 50.8 51.3 58 67 39.5" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

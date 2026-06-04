@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 170" role="img" aria-labelledby="title desc">
+  <title id="title">ThrushCross Trading and Commodities logo</title>
+  <desc id="desc">ThrushCross wordmark with a geometric T X mark and Verify Trade Grow tagline.</desc>
+  <rect x="2" y="2" width="126" height="126" rx="28" fill="#0A2540"/>
+  <path d="M33 31h64v16H73v52H57V47H33V31Z" fill="#FFFFFF"/>
+  <path d="M42 98 62.9 68.7 43.1 40.7h19.2L73 57.1 84.1 40.7h19.3L83.7 68.4 104.8 98H85.1L73.2 80 61.6 98H42Z" fill="#2DA8FF"/>
+  <path d="M59.4 69.7 69.1 79.3 90 54.7" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="154" y="63" fill="#0A2540" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="760" letter-spacing="0">ThrushCross</text>
+  <text x="154" y="103" fill="#0A2540" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="650" letter-spacing="0">Trading &amp; Commodities</text>
+  <text x="154" y="139" fill="#2DA8FF" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="760" letter-spacing="0">Verify • Trade • Grow</text>
+</svg>

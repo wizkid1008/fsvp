@@ -1,9 +1,10 @@
-import { cp, mkdir } from "node:fs/promises";
+import { cp, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 
 const source = "github-pages";
 const output = "out";
 
+await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(source, output, { recursive: true });
 
