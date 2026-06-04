@@ -73,6 +73,12 @@ Output directory:
 
 Set the same environment variables in Cloudflare Pages project settings. Keep service-role usage server-only.
 
+## Initial GitHub Pages Preview
+
+This repo includes a static GitHub Pages preview in `github-pages/` and a workflow at `.github/workflows/github-pages.yml`. It deploys a lightweight landing page on each push to `main`.
+
+GitHub Pages is static hosting, so the full Supabase-backed app still belongs on Cloudflare Pages unless the app is refactored for static export.
+
 ## Key FSVP Modules
 
 - Supplier profile and approval status

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FSVP Compliance Platform</title>
+    <meta
+      name="description"
+      content="Initial GitHub Pages landing page for the FSVP Compliance Platform."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Initial GitHub Pages Preview</p>
+          <h1>FSVP Compliance Platform</h1>
+          <p class="lead">
+            A secure supplier readiness workspace for FSVP documentation, evidence review,
+            readiness scoring, reports, notifications, and administrator workflows.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/wizkid1008/fsvp">View Repository</a>
+            <a class="button" href="https://github.com/wizkid1008/fsvp/tree/main/docs">Read Setup Docs</a>
+          </div>
+        </div>
+        <div class="scorecard" aria-label="Readiness module preview">
+          <div class="score-row">
+            <span>Supplier Identity</span>
+            <strong>94%</strong>
+          </div>
+          <div class="bar"><span style="width: 94%"></span></div>
+          <div class="score-row">
+            <span>Product Information</span>
+            <strong>88%</strong>
+          </div>
+          <div class="bar"><span style="width: 88%"></span></div>
+          <div class="score-row">
+            <span>Hazard Analysis</span>
+            <strong>71%</strong>
+          </div>
+          <div class="bar"><span style="width: 71%"></span></div>
+          <div class="score-row">
+            <span>Recall Preparedness</span>
+            <strong>68%</strong>
+          </div>
+          <div class="bar"><span style="width: 68%"></span></div>
+        </div>
+      </section>
+
+      <section class="modules" aria-label="Platform modules">
+        <article>
+          <h2>Supplier Evidence</h2>
+          <p>Upload and version food safety plans, audit reports, COAs, certifications, recall records, and traceability evidence.</p>
+        </article>
+        <article>
+          <h2>Reviewer Workflow</h2>
+          <p>Route submissions through draft, submitted, under review, revision required, and approved states.</p>
+        </article>
+        <article>
+          <h2>Supabase Backend</h2>
+          <p>Use Auth, PostgreSQL, private storage buckets, row-level security, and audit logs for tenant-aware access.</p>
+        </article>
+      </section>
+
+      <section class="notice">
+        This GitHub Pages site is an initial static preview. The full application is designed for
+        Supabase-backed deployment on Cloudflare Pages because it includes protected routes,
+        middleware, and server-side upload handling.
+      </section>
+    </main>
+  </body>
+</html>

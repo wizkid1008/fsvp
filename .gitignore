@@ -3,6 +3,7 @@
 .wrangler/
 node_modules/
 dist/
+out/
 coverage/
 *.tsbuildinfo
 .env

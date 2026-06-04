@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "pages:build": "npx @cloudflare/next-on-pages",
     "pages:preview": "wrangler pages dev .vercel/output/static",
+    "github-pages:build": "node scripts/build-github-pages.mjs",
     "supabase:types": "supabase gen types typescript --local > types/database.generated.ts"
   },
   "dependencies": {

@@ -50,3 +50,18 @@ Output directory:
 ```bash
 .vercel/output/static
 ```
+
+## 7. Initial GitHub Pages Preview
+
+The repository also includes a static GitHub Pages preview under `github-pages/`.
+This is intentionally separate from the full Supabase-backed app because GitHub
+Pages cannot run Next.js middleware, protected server routes, or upload APIs.
+
+Build locally:
+
+```bash
+npm run github-pages:build
+```
+
+The GitHub Actions workflow in `.github/workflows/github-pages.yml` deploys the
+static preview on every push to `main`.
