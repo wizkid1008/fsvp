@@ -14,6 +14,8 @@ Output directory:
 .vercel/output/static
 ```
 
+Dependency note: `@cloudflare/next-on-pages` is pinned to `1.13.15` so Cloudflare's npm install does not float to `1.13.16`, which requires a newer Next.js peer range than this project currently uses.
+
 ## Environment Variables
 
 Set these in Cloudflare Pages:
