@@ -3,6 +3,14 @@ import { DOCUMENT_BUCKET } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
+type DocumentInsertResult = {
+  error: { message: string } | null;
+};
+
+type DocumentInsertTable = {
+  insert(values: Database["public"]["Tables"]["documents"]["Insert"]): Promise<DocumentInsertResult>;
+};
+
 export async function POST(request: Request) {
   const supabase = createServerSupabaseClient();
   const {
@@ -56,7 +64,8 @@ export async function POST(request: Request) {
     uploaded_via: "app"
   };
 
-  const document = await supabase.from("documents").insert(documentRecord);
+  const documentsTable = supabase.from("documents") as unknown as DocumentInsertTable;
+  const document = await documentsTable.insert(documentRecord);
 
   if (document.error) {
     return NextResponse.json({ error: document.error.message }, { status: 500 });
