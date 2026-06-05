@@ -19,7 +19,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-panel">
-      <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-line bg-white p-5 lg:block">
+      <aside className="fixed bottom-0 left-0 top-16 hidden w-72 overflow-y-auto border-r border-line bg-white p-5 lg:block">
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-forest text-sm font-bold text-white">FS</div>
           <div>
@@ -49,7 +49,7 @@ export function AppShell({
         </nav>
       </aside>
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-10 border-b border-line bg-white/95 px-5 py-3 backdrop-blur">
+        <header className="sticky top-[7.25rem] z-10 border-b border-line bg-white/95 px-5 py-3 backdrop-blur md:top-16">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-medium text-slate-600">Role: <span className="capitalize text-ink">{role}</span></p>
             <p className="hidden text-sm font-medium text-slate-500 md:block">{APP_SUBTITLE}</p>

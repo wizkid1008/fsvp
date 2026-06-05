@@ -185,13 +185,7 @@ h1 {
 }
 
 .hero-scene {
-  position: absolute;
-  right: clamp(20px, 4vw, 72px);
-  bottom: 48px;
-  z-index: 1;
-  width: min(600px, 46vw);
-  min-height: 410px;
-  pointer-events: none;
+  display: none;
 }
 
 .interface {

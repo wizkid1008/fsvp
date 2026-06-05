@@ -15,10 +15,10 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-white">
       <section className="border-b border-line bg-panel">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-          <div>
+        <div className="mx-auto max-w-7xl px-5 py-14">
+          <div className="max-w-4xl">
             <p className="text-sm font-semibold uppercase tracking-wide text-sky-600">{APP_NAME} • {BRAND_TAGLINE}</p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-normal text-ink md:text-5xl">
+            <h1 className="mt-4 text-4xl font-semibold leading-tight tracking-normal text-ink md:text-6xl">
               FSVP supplier verification for agricultural commodity imports into the United States.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
@@ -33,21 +33,6 @@ export default function HomePage() {
               <Link href="/assessment" className="rounded-md border border-line bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 View FSVP Readiness Checklist
               </Link>
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <div className="grid gap-3">
-              {["Commodity Risk", "FSVP Mapping", "Hazard Analysis", "Corrective Actions", "Import Readiness"].map((item, index) => (
-                <div key={item} className="rounded-md border border-line p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm font-semibold text-ink">{item}</span>
-                    <span className="text-sm text-slate-500">{88 - index * 7}%</span>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full bg-slate-100">
-                    <div className="h-2 rounded-full bg-[#2DA8FF]" style={{ width: `${88 - index * 7}%` }} />
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
