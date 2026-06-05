@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type AuthMode = "login" | "signup" | "forgot" | "reset";
@@ -30,7 +29,6 @@ const copy: Record<AuthMode, { title: string; button: string; helper: string }> 
 };
 
 export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; nextPath?: string }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -45,17 +43,19 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
     startTransition(async () => {
       try {
         const supabase = createBrowserSupabaseClient();
+        const emailValue = email.trim();
+        const passwordValue = password.trim();
 
         if (mode === "login") {
-          const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+          const { error: authError } = await supabase.auth.signInWithPassword({ email: emailValue, password: passwordValue });
           if (authError) throw authError;
-          router.push(nextPath);
+          window.location.assign(nextPath);
         }
 
         if (mode === "signup") {
           const { error: authError } = await supabase.auth.signUp({
-            email,
-            password,
+            email: emailValue,
+            password: passwordValue,
             options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
           });
           if (authError) throw authError;
@@ -63,7 +63,7 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
         }
 
         if (mode === "forgot") {
-          const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
+          const { error: authError } = await supabase.auth.resetPasswordForEmail(emailValue, {
             redirectTo: `${window.location.origin}/reset-password`
           });
           if (authError) throw authError;
@@ -71,15 +71,17 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
         }
 
         if (mode === "reset") {
-          const { error: authError } = await supabase.auth.updateUser({ password });
+          const { error: authError } = await supabase.auth.updateUser({ password: passwordValue });
           if (authError) throw authError;
-          router.push("/dashboard");
+          window.location.assign("/dashboard");
         }
       } catch (authError) {
         const message = authError instanceof Error ? authError.message : "Authentication failed.";
         setError(
           message === "Failed to fetch"
             ? "Could not reach Supabase. Check the Cloudflare Supabase URL/key values and redeploy."
+            : message.toLowerCase().includes("email not confirmed")
+              ? "Please verify your email before logging in. Check your inbox for the Supabase confirmation link."
             : message
         );
       }
