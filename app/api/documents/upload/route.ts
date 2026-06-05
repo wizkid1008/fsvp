@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DOCUMENT_BUCKET } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
 
 export async function POST(request: Request) {
   const supabase = createServerSupabaseClient();
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: upload.error.message }, { status: 500 });
   }
 
-  const document = await supabase.from("documents").insert({
+  const documentRecord: Database["public"]["Tables"]["documents"]["Insert"] = {
     importer_id: importerId,
     document_kind: documentKind,
     title: file.name,
@@ -53,7 +54,9 @@ export async function POST(request: Request) {
     linked_entity_type: supplierId ? "foreign_supplier" : null,
     linked_entity_id: supplierId || null,
     uploaded_via: "app"
-  });
+  };
+
+  const document = await supabase.from("documents").insert(documentRecord);
 
   if (document.error) {
     return NextResponse.json({ error: document.error.message }, { status: 500 });

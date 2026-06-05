@@ -55,12 +55,18 @@ export type Database = {
           uploaded_via?: string;
         };
         Update: Partial<Database["public"]["Tables"]["documents"]["Insert"]>;
+        Relationships: [];
       };
       profiles: {
         Row: Profile;
         Insert: Partial<Profile> & Pick<Profile, "id" | "email">;
         Update: Partial<Profile>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 };
