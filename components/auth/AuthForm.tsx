@@ -76,7 +76,12 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
           router.push("/dashboard");
         }
       } catch (authError) {
-        setError(authError instanceof Error ? authError.message : "Authentication failed.");
+        const message = authError instanceof Error ? authError.message : "Authentication failed.";
+        setError(
+          message === "Failed to fetch"
+            ? "Could not reach Supabase. Check the Cloudflare Supabase URL/key values and redeploy."
+            : message
+        );
       }
     });
   }
