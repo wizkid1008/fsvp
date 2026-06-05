@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/auth/AuthForm";
 
+export const runtime = "edge";
+
 export default function LoginPage({ searchParams }: { searchParams?: { next?: string } }) {
   return (
     <main className="grid min-h-screen place-items-center bg-panel px-5 py-12">

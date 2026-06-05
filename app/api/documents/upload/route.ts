@@ -3,6 +3,8 @@ import { DOCUMENT_BUCKET } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
+export const runtime = "edge";
+
 type DocumentInsertResult = {
   error: { message: string } | null;
 };
