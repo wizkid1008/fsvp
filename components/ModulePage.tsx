@@ -1,6 +1,5 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { ModuleConfig } from "@/types/platform";
 
 export function ModulePage({ config }: { config: ModuleConfig }) {
@@ -12,17 +11,12 @@ export function ModulePage({ config }: { config: ModuleConfig }) {
           <div className="border-b border-line px-5 py-4">
             <h2 className="text-base font-semibold text-ink">Current Records</h2>
           </div>
-          <div className="divide-y divide-line">
-            {config.records.map((record) => (
-              <article key={`${record.label}-${record.value}`} className="grid gap-3 px-5 py-4 md:grid-cols-[180px_1fr_auto] md:items-center">
-                <div>
-                  <p className="text-sm font-semibold text-ink">{record.label}</p>
-                  <p className="text-sm text-slate-500">{record.value}</p>
-                </div>
-                <p className="text-sm leading-6 text-slate-600">{record.detail}</p>
-                <StatusBadge tone={record.tone}>{record.status}</StatusBadge>
-              </article>
-            ))}
+          <div className="px-5 py-10 text-center">
+            <p className="text-base font-semibold text-ink">No Supabase records yet</p>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
+              This workspace is connected to Supabase. Records for this module will appear here after they are created
+              or imported for your account.
+            </p>
           </div>
         </section>
         <aside className="rounded-lg border border-line bg-white p-5 shadow-soft">

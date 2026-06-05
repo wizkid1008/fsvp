@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { fsvpRequirements, moduleConfigs } from "@/data/platform";
+import { moduleConfigs } from "@/data/platform";
 
 export default function RequirementsPage() {
   return (
@@ -14,29 +14,13 @@ export default function RequirementsPage() {
           <span>Status</span>
           <span>Determination</span>
         </div>
-        <div className="divide-y divide-line">
-          {fsvpRequirements.map((requirement) => (
-            <article key={requirement.name} className="grid gap-4 px-5 py-4 md:grid-cols-[1.1fr_1fr_160px_1fr]">
-              <div>
-                <h2 className="text-sm font-semibold text-ink">{requirement.name}</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-600">{requirement.description}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-700">{requirement.requiredEvidence}</p>
-                <p className="mt-1 text-sm text-slate-500">Uploaded: {requirement.uploadedEvidence}</p>
-              </div>
-              <div className="space-y-2">
-                <StatusBadge tone={requirement.gapStatus.includes("Critical") ? "danger" : requirement.gapStatus.includes("Complete") ? "success" : "warning"}>
-                  {requirement.reviewerStatus}
-                </StatusBadge>
-                <p className="text-xs text-slate-500">{requirement.gapStatus}</p>
-              </div>
-              <div>
-                <p className="text-sm leading-6 text-slate-600">{requirement.finalDetermination}</p>
-                <p className="mt-1 text-xs text-slate-500">Action: {requirement.correctiveAction}</p>
-              </div>
-            </article>
-          ))}
+        <div className="px-5 py-12 text-center">
+          <StatusBadge tone="neutral">No records</StatusBadge>
+          <p className="mt-4 text-base font-semibold text-ink">No requirement mappings yet</p>
+          <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            Requirement rows will populate from Supabase after suppliers, products, uploaded evidence, reviewer notes,
+            corrective actions, and final determinations are created for your workspace.
+          </p>
         </div>
       </section>
     </AppShell>

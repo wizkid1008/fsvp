@@ -1,51 +1,25 @@
-import { Activity, Bell, BookOpenCheck, Download, LockKeyhole, Plus, RefreshCw, Search, Settings2, ShieldCheck, UsersRound } from "lucide-react";
+import { Activity, Bell, BookOpenCheck, Download, LockKeyhole, Plus, RefreshCw, Search, Settings2, UsersRound } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { Profile, Database } from "@/types/database";
 import type { StatusTone } from "@/types/platform";
 
-const adminMetrics: Array<{ label: string; value: string; detail: string; tone: StatusTone }> = [
-  { label: "Active users", value: "24", detail: "3 pending verification", tone: "info" },
-  { label: "Open supplier gaps", value: "18", detail: "6 critical gaps", tone: "warning" },
-  { label: "Overdue actions", value: "5", detail: "2 need escalation", tone: "danger" },
-  { label: "Audit coverage", value: "100%", detail: "core actions logged", tone: "success" }
-];
+export const runtime = "edge";
 
-const users: Array<{ name: string; email: string; role: string; organization: string; status: string; tone: StatusTone; lastActive: string }> = [
-  {
-    name: "Kyle Newell",
-    email: "admin@thrushcross.com",
-    role: "Administrator",
-    organization: "ThrushCross Trading & Commodities",
-    status: "Active",
-    tone: "success",
-    lastActive: "Today"
-  },
-  {
-    name: "Maya Torres",
-    email: "maya.torres@example.com",
-    role: "Reviewer",
-    organization: "Importer review team",
-    status: "Invited",
-    tone: "info",
-    lastActive: "Pending"
-  },
-  {
-    name: "Luis Herrera",
-    email: "luis.herrera@example.com",
-    role: "Supplier",
-    organization: "Pacific Valley Foods",
-    status: "Email unverified",
-    tone: "warning",
-    lastActive: "Yesterday"
-  }
-];
+type ProfileLookup = {
+  data: Pick<Profile, "email" | "full_name" | "organization_name" | "role" | "user_status" | "last_login_at"> | null;
+};
 
-const supplierOversight: Array<{ supplier: string; country: string; queue: string; readiness: string; owner: string; tone: StatusTone }> = [
-  { supplier: "Coastal Preserves", country: "Argentina", queue: "Critical commodity review", readiness: "48%", owner: "Unassigned", tone: "danger" },
-  { supplier: "Pacific Valley Foods", country: "Chile", queue: "Corrective action follow-up", readiness: "67%", owner: "Maya Torres", tone: "warning" },
-  { supplier: "Andes Ingredients", country: "Colombia", queue: "Final importer review", readiness: "84%", owner: "Kyle Newell", tone: "success" }
-];
+type CountLookup = {
+  count: number | null;
+};
+
+async function getCount(table: keyof Database["public"]["Tables"], supabase: ReturnType<typeof createServerSupabaseClient>) {
+  const result = (await supabase.from(table).select("id", { count: "exact", head: true })) as unknown as CountLookup;
+  return result.count ?? 0;
+}
 
 const workflowSettings = [
   { label: "Require email verification", detail: "Block protected access until Supabase email confirmation completes.", enabled: true },
@@ -54,21 +28,36 @@ const workflowSettings = [
   { label: "Auto-generate audit events", detail: "Log role changes, document reviews, report exports, and corrective action updates.", enabled: true }
 ];
 
-const referenceLibrary = [
-  { item: "FSVP requirement library", version: "2026.06", status: "Published", tone: "success" as StatusTone },
-  { item: "Commodity risk prompts", version: "Draft 4", status: "Review", tone: "info" as StatusTone },
-  { item: "Email templates", version: "Baseline", status: "Needs setup", tone: "warning" as StatusTone }
-];
+export default async function AdminPage() {
+  const supabase = createServerSupabaseClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
 
-const auditEvents = [
-  { event: "Role updated", actor: "Kyle Newell", detail: "Assigned reviewer access to Pacific Valley Foods.", time: "12 min ago", tone: "info" as StatusTone },
-  { event: "Requirement changed", actor: "System", detail: "Commodity hazard analysis moved to Critical Gap.", time: "1 hr ago", tone: "warning" as StatusTone },
-  { event: "Report exported", actor: "Reviewer queue", detail: "Readiness report generated for Andes Ingredients.", time: "Today", tone: "success" as StatusTone }
-];
+  const { data: profile } = user
+    ? ((await supabase
+        .from("profiles")
+        .select("email,full_name,organization_name,role,user_status,last_login_at")
+        .eq("id", user.id)
+        .single()) as unknown as ProfileLookup)
+    : { data: null };
 
-export default function AdminPage() {
+  const userCount = await getCount("profiles", supabase);
+  const documentCount = await getCount("documents", supabase);
+  const role = profile?.role ?? "supplier";
+  const status = profile?.user_status ?? "pending";
+  const displayName = profile?.full_name || user?.email || "Current user";
+  const displayEmail = profile?.email || user?.email || "No email found";
+
+  const adminMetrics: Array<{ label: string; value: string; detail: string; tone: StatusTone }> = [
+    { label: "Supabase users", value: String(userCount || (user ? 1 : 0)), detail: "visible through RLS", tone: "info" },
+    { label: "Documents uploaded", value: String(documentCount), detail: "stored in Supabase", tone: documentCount > 0 ? "info" : "neutral" },
+    { label: "Supplier queues", value: "0", detail: "no records created yet", tone: "neutral" },
+    { label: "Audit events", value: "0", detail: "no app events logged yet", tone: "neutral" }
+  ];
+
   return (
-    <AppShell role="administrator">
+    <AppShell role={role}>
       <SectionHeader
         title="Admin Command Center"
         description="Manage users, roles, supplier queues, workflow rules, reference content, security settings, and audit visibility for ThrushCross Verify."
@@ -80,7 +69,7 @@ export default function AdminPage() {
           <article key={metric.label} className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <div className="flex items-start justify-between gap-3">
               <p className="text-sm font-medium text-slate-500">{metric.label}</p>
-              <StatusBadge tone={metric.tone}>{metric.detail.split(" ")[0]}</StatusBadge>
+              <StatusBadge tone={metric.tone}>{metric.value}</StatusBadge>
             </div>
             <p className="mt-3 text-3xl font-semibold text-ink">{metric.value}</p>
             <p className="mt-2 text-sm text-slate-600">{metric.detail}</p>
@@ -93,7 +82,7 @@ export default function AdminPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>
               <h2 className="text-base font-semibold text-ink">User & Role Management</h2>
-              <p className="mt-1 text-sm text-slate-500">Invite users, assign roles, and verify organization access.</p>
+              <p className="mt-1 text-sm text-slate-500">This table reflects the current Supabase profile visible to this session.</p>
             </div>
             <div className="flex gap-2">
               <button className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-line text-slate-600 hover:bg-slate-50" aria-label="Search users">
@@ -117,20 +106,18 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {users.map((user) => (
-                  <tr key={user.email}>
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-ink">{user.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">{user.email}</p>
-                    </td>
-                    <td className="px-5 py-4 text-slate-700">{user.role}</td>
-                    <td className="px-5 py-4 text-slate-600">{user.organization}</td>
-                    <td className="px-5 py-4">
-                      <StatusBadge tone={user.tone}>{user.status}</StatusBadge>
-                    </td>
-                    <td className="px-5 py-4 text-slate-500">{user.lastActive}</td>
-                  </tr>
-                ))}
+                <tr>
+                  <td className="px-5 py-4">
+                    <p className="font-semibold text-ink">{displayName}</p>
+                    <p className="mt-1 text-xs text-slate-500">{displayEmail}</p>
+                  </td>
+                  <td className="px-5 py-4 text-slate-700">{role}</td>
+                  <td className="px-5 py-4 text-slate-600">{profile?.organization_name || "Not linked"}</td>
+                  <td className="px-5 py-4">
+                    <StatusBadge tone={status === "active" ? "success" : "warning"}>{status}</StatusBadge>
+                  </td>
+                  <td className="px-5 py-4 text-slate-500">{profile?.last_login_at ? new Date(profile.last_login_at).toLocaleDateString("en-US") : "No login stamp"}</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -146,14 +133,14 @@ export default function AdminPage() {
           </div>
           <div className="mt-5 space-y-4">
             {[
-              ["Supabase Auth", "Connected"],
-              ["Protected routes", "Enabled"],
-              ["Node compatibility", "Enabled"],
-              ["Storage buckets", "Pending review"]
-            ].map(([label, status]) => (
+              ["Supabase Auth", user ? "Connected" : "No session"],
+              ["Profile role", role],
+              ["Profile status", status],
+              ["Storage documents", `${documentCount} visible`]
+            ].map(([label, value]) => (
               <div key={label} className="flex items-center justify-between gap-4 border-b border-line pb-3 last:border-0 last:pb-0">
                 <span className="text-sm font-medium text-slate-700">{label}</span>
-                <StatusBadge tone={status === "Pending review" ? "warning" : "success"}>{status}</StatusBadge>
+                <StatusBadge tone={value === "No session" || value === "pending" ? "warning" : "success"}>{value}</StatusBadge>
               </div>
             ))}
           </div>
@@ -165,27 +152,16 @@ export default function AdminPage() {
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>
               <h2 className="text-base font-semibold text-ink">Supplier Oversight Queue</h2>
-              <p className="mt-1 text-sm text-slate-500">Administrative view of risk, readiness, and ownership.</p>
+              <p className="mt-1 text-sm text-slate-500">Supplier rows will appear here after they are created in Supabase.</p>
             </div>
             <UsersRound className="h-5 w-5 text-[#2DA8FF]" />
           </div>
-          <div className="divide-y divide-line">
-            {supplierOversight.map((item) => (
-              <article key={item.supplier} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_120px_130px] md:items-center">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-semibold text-ink">{item.supplier}</h3>
-                    <StatusBadge tone={item.tone}>{item.readiness}</StatusBadge>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-500">{item.country} | {item.queue}</p>
-                </div>
-                <p className="text-sm text-slate-600">{item.owner}</p>
-                <button className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                  <ShieldCheck className="h-4 w-4" />
-                  Review
-                </button>
-              </article>
-            ))}
+          <div className="px-5 py-10 text-center">
+            <p className="text-base font-semibold text-ink">No suppliers yet</p>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
+              Create supplier, commodity, product, and facility records before this administrative queue begins tracking
+              readiness status.
+            </p>
           </div>
         </div>
 
@@ -193,7 +169,7 @@ export default function AdminPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-ink">Workflow Controls</h2>
-              <p className="mt-1 text-sm text-slate-500">Configure platform behavior for supplier and reviewer workflows.</p>
+              <p className="mt-1 text-sm text-slate-500">Default controls for supplier and reviewer workflows.</p>
             </div>
             <Settings2 className="h-5 w-5 text-[#2DA8FF]" />
           </div>
@@ -216,20 +192,13 @@ export default function AdminPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-ink">Reference Library</h2>
-              <p className="mt-1 text-sm text-slate-500">Maintain FSVP content, risk prompts, templates, and background documents.</p>
+              <p className="mt-1 text-sm text-slate-500">Reference documents will appear after upload to Supabase.</p>
             </div>
             <BookOpenCheck className="h-5 w-5 text-[#2DA8FF]" />
           </div>
-          <div className="mt-5 space-y-3">
-            {referenceLibrary.map((item) => (
-              <div key={item.item} className="grid gap-2 rounded-md border border-line p-3 sm:grid-cols-[1fr_auto] sm:items-center">
-                <div>
-                  <p className="text-sm font-semibold text-ink">{item.item}</p>
-                  <p className="mt-1 text-xs text-slate-500">Version {item.version}</p>
-                </div>
-                <StatusBadge tone={item.tone}>{item.status}</StatusBadge>
-              </div>
-            ))}
+          <div className="mt-5 rounded-md border border-dashed border-line bg-slate-50 px-5 py-8 text-center">
+            <p className="text-sm font-semibold text-ink">No reference documents yet</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Upload templates, regulatory references, and risk prompts to populate this library.</p>
           </div>
           <button className="mt-4 inline-flex h-10 items-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             <RefreshCw className="h-4 w-4" />
@@ -241,7 +210,7 @@ export default function AdminPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>
               <h2 className="text-base font-semibold text-ink">Audit & Notification Feed</h2>
-              <p className="mt-1 text-sm text-slate-500">Monitor high-value platform events and administrative changes.</p>
+              <p className="mt-1 text-sm text-slate-500">Audit events will populate from Supabase as users take actions.</p>
             </div>
             <div className="flex gap-2">
               <button className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-line text-slate-600 hover:bg-slate-50" aria-label="Notification settings">
@@ -252,22 +221,15 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
-          <div className="divide-y divide-line">
-            {auditEvents.map((event) => (
-              <article key={`${event.event}-${event.time}`} className="grid gap-3 px-5 py-4 md:grid-cols-[44px_1fr_auto] md:items-start">
-                <span className="grid h-10 w-10 place-items-center rounded-md bg-sky-50 text-[#0A2540]">
-                  <Activity className="h-4 w-4" />
-                </span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-semibold text-ink">{event.event}</h3>
-                    <StatusBadge tone={event.tone}>{event.actor}</StatusBadge>
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">{event.detail}</p>
-                </div>
-                <p className="text-xs font-medium text-slate-500">{event.time}</p>
-              </article>
-            ))}
+          <div className="px-5 py-10 text-center">
+            <span className="mx-auto grid h-10 w-10 place-items-center rounded-md bg-sky-50 text-[#0A2540]">
+              <Activity className="h-4 w-4" />
+            </span>
+            <p className="mt-3 text-base font-semibold text-ink">No audit events yet</p>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
+              Role changes, document reviews, report exports, and corrective action updates will appear here after
+              records exist.
+            </p>
           </div>
         </div>
       </section>
