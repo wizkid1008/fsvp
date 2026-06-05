@@ -30,6 +30,20 @@ Core app tables added by migration `013_app_auth_storage_readiness.sql`:
 
 The regulatory backbone is in migrations `001` through `012`.
 
+Risk-first product tables added by migration `014_thrushcross_verify_redesign.sql`:
+
+- `organizations`
+- `user_roles`
+- `suppliers`
+- `commodities`
+- `products_verify`
+- `facilities_verify`
+- `commodity_risks`
+- `fsvp_requirements`
+- `requirement_evidence`
+- `reviews`
+- `readiness_reports`
+
 ## Storage
 
 Buckets:
@@ -46,6 +60,8 @@ Policies allow:
 - Users to read and update their own profiles
 - Administrators to manage platform records
 - Tenant users to read/write records connected to their importer
+- Role-scoped users to read records for their organization or importer context
+- Authenticated users to read commodity and active FSVP requirement libraries
 - Authenticated users to read background references
 - Administrators to maintain background documents
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { APP_NAME, LEGAL_DISCLAIMER } from "@/lib/constants";
+import { APP_NAME, APP_SUBTITLE, BRAND_TAGLINE, LEGAL_DISCLAIMER, PARENT_BRAND } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { iconMap, navItems } from "@/data/platform";
 import type { AppRole } from "@/types/platform";
@@ -24,7 +24,8 @@ export function AppShell({
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-forest text-sm font-bold text-white">FS</div>
           <div>
             <p className="text-sm font-semibold text-ink">{APP_NAME}</p>
-            <p className="text-xs text-slate-500">Supplier readiness workspace</p>
+            <p className="text-xs text-slate-500">by {PARENT_BRAND}</p>
+            <p className="text-xs font-semibold text-sky-600">{BRAND_TAGLINE}</p>
           </div>
         </Link>
         <nav className="mt-8 space-y-1">
@@ -51,6 +52,7 @@ export function AppShell({
         <header className="sticky top-0 z-10 border-b border-line bg-white/95 px-5 py-3 backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-medium text-slate-600">Role: <span className="capitalize text-ink">{role}</span></p>
+            <p className="hidden text-sm font-medium text-slate-500 md:block">{APP_SUBTITLE}</p>
             <Link href="/settings" className="rounded-md border border-line px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
               Account Settings
             </Link>

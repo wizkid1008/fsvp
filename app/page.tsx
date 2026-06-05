@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { ClipboardCheck, FileArchive, Gauge, ShieldCheck } from "lucide-react";
-import { APP_NAME, LEGAL_DISCLAIMER } from "@/lib/constants";
+import { AlertTriangle, ClipboardCheck, FileArchive, FileSearch, Gauge, ShieldCheck } from "lucide-react";
+import { APP_NAME, APP_SUBTITLE, BRAND_TAGLINE, LEGAL_DISCLAIMER, PARENT_BRAND } from "@/lib/constants";
 
 const capabilities = [
-  { icon: FileArchive, title: "Document evidence", text: "Upload, version, classify, review, and retain supplier compliance records." },
-  { icon: Gauge, title: "Readiness scoring", text: "Track category scores, open gaps, recommendations, and supplier readiness status." },
-  { icon: ClipboardCheck, title: "Reviewer workflows", text: "Route submissions through draft, submitted, under review, revision required, and approved states." },
-  { icon: ShieldCheck, title: "RLS security", text: "Use Supabase Auth, role-based permissions, storage controls, and audit logging." }
+  { icon: AlertTriangle, title: "Commodity risk engine", text: "Ask commodity, origin, processing state, intended use, hazard, certification, allergen, and recall questions." },
+  { icon: FileSearch, title: "Requirement mapping", text: "Connect each document to the FSVP requirement it supports, with reviewer status and gap resolution." },
+  { icon: Gauge, title: "Readiness scoring", text: "Calculate a defensible 100-point readiness score with critical gaps and next actions." },
+  { icon: ClipboardCheck, title: "Reviewer workflows", text: "Accept, reject, comment, request revisions, create corrective actions, and approve reports." },
+  { icon: FileArchive, title: "Audit-ready records", text: "Preserve document versions, access logs, review history, and readiness reports." },
+  { icon: ShieldCheck, title: "Secure by role", text: "Use Supabase Auth, protected routes, row-level security, storage controls, and audit logs." }
 ];
 
 export default function HomePage() {
@@ -15,31 +17,34 @@ export default function HomePage() {
       <section className="border-b border-line bg-panel">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-forest">Supabase + Cloudflare Pages</p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-normal text-ink md:text-5xl">{APP_NAME}</h1>
+            <p className="text-sm font-semibold uppercase tracking-wide text-sky-600">{APP_NAME} • {BRAND_TAGLINE}</p>
+            <h1 className="mt-4 text-4xl font-semibold tracking-normal text-ink md:text-5xl">
+              FSVP supplier verification for agricultural commodity imports into the United States.
+            </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-              A secure workspace for foreign suppliers, importers, consultants, auditors, and administrators to manage
-              FSVP documentation, review activity, readiness scoring, reports, and notifications.
+              ThrushCross Verify helps importers and foreign suppliers organize documentation, assess commodity risk,
+              identify compliance gaps, and prepare audit-ready FSVP records.
             </p>
+            <p className="mt-3 text-sm font-semibold text-slate-500">{APP_SUBTITLE} by {PARENT_BRAND}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/signup" className="rounded-md bg-forest px-5 py-3 text-sm font-semibold text-white hover:bg-[#195f4d]">
-                Create account
+              <Link href="/signup" className="rounded-md bg-[#2DA8FF] px-5 py-3 text-sm font-semibold text-[#0A2540] hover:bg-sky-300">
+                Start Supplier Review
               </Link>
-              <Link href="/login" className="rounded-md border border-line bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Log in
+              <Link href="/assessment" className="rounded-md border border-line bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                View FSVP Readiness Checklist
               </Link>
             </div>
           </div>
           <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <div className="grid gap-3">
-              {["Supplier Identity", "Product Information", "Hazard Analysis", "Verification Activities", "Recall Preparedness"].map((item, index) => (
+              {["Commodity Risk", "FSVP Mapping", "Hazard Analysis", "Corrective Actions", "Import Readiness"].map((item, index) => (
                 <div key={item} className="rounded-md border border-line p-4">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-sm font-semibold text-ink">{item}</span>
-                    <span className="text-sm text-slate-500">{82 - index * 5}%</span>
+                    <span className="text-sm text-slate-500">{88 - index * 7}%</span>
                   </div>
                   <div className="mt-3 h-2 rounded-full bg-slate-100">
-                    <div className="h-2 rounded-full bg-forest" style={{ width: `${82 - index * 5}%` }} />
+                    <div className="h-2 rounded-full bg-[#2DA8FF]" style={{ width: `${88 - index * 7}%` }} />
                   </div>
                 </div>
               ))}
@@ -47,10 +52,10 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-      <section className="mx-auto grid max-w-7xl gap-4 px-5 py-10 md:grid-cols-2 lg:grid-cols-4">
+      <section className="mx-auto grid max-w-7xl gap-4 px-5 py-10 md:grid-cols-2 lg:grid-cols-3">
         {capabilities.map((item) => (
           <article key={item.title} className="rounded-lg border border-line bg-white p-5">
-            <item.icon className="h-5 w-5 text-forest" />
+            <item.icon className="h-5 w-5 text-[#2DA8FF]" />
             <h2 className="mt-4 text-base font-semibold text-ink">{item.title}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{item.text}</p>
           </article>

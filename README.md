@@ -1,8 +1,50 @@
-# FSVP Compliance Platform
+# ThrushCross Verify
 
-A production-oriented Next.js, TypeScript, Tailwind CSS, Supabase, and Cloudflare Pages starter for managing Foreign Supplier Verification Program support workflows.
+**FSVP Compliance & Supplier Verification Platform**  
+by **ThrushCross Trading & Commodities**  
+**Verify • Trade • Grow**
 
-The platform supports supplier accounts, protected dashboards, document evidence workflows, readiness assessment, reviewer queues, role-based access, reporting, notifications, Supabase storage, RLS policies, and background regulatory reference documents.
+ThrushCross Verify is a production-oriented Next.js, TypeScript, Tailwind CSS, Supabase, and Cloudflare Pages platform for risk-based FSVP supplier verification for agricultural commodity imports into the United States.
+
+The core product question is:
+
+> Can this U.S. importer reasonably rely on this foreign supplier for this specific agricultural commodity under the FDA FSVP process?
+
+## Product Focus
+
+ThrushCross Verify is designed as:
+
+- A risk-based supplier verification system
+- A commodity-specific FSVP workflow
+- A document-to-requirement mapping platform
+- An import readiness dashboard
+- An audit-ready reporting system
+
+It is not a generic trade website or simple document upload portal.
+
+## Core Modules
+
+- Supplier Intake
+- Product & Commodity Risk Assessment
+- Facility Profile
+- FDA Registration Tracking
+- FSVP Gap Assessment
+- Document-to-Requirement Mapping
+- Reviewer Workflow
+- Corrective Action Tracking
+- Certification & Expiration Monitoring
+- Import Readiness Report
+- Admin Dashboard
+- Audit Log
+
+## User Roles
+
+- Foreign Supplier
+- U.S. Importer
+- Reviewer / Consultant
+- Administrator
+
+Each role has distinct navigation, dashboard priorities, permissions, and available actions.
 
 ## Stack
 
@@ -11,6 +53,7 @@ The platform supports supplier accounts, protected dashboards, document evidence
 - Tailwind CSS
 - Supabase Auth, PostgreSQL, Storage, and RLS
 - Cloudflare Pages deployment via `@cloudflare/next-on-pages`
+- GitHub Pages static brand landing page
 
 ## Local Development
 
@@ -46,13 +89,14 @@ Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code.
    - Local: `http://localhost:3000/auth/callback`
    - Production: `https://<your-domain>/auth/callback`
 6. Upload FDA/background references to the `background-documents` bucket or keep the checked-in copies under `background-documents/` as repository references.
+7. Seed first administrator account and assign organization/user role.
 
 ## GitHub Workflow
 
 ```bash
 git init
 git add .
-git commit -m "Initial FSVP Platform"
+git commit -m "Initial ThrushCross Verify platform"
 git remote add origin [GitHub URL]
 git push -u origin main
 ```
@@ -77,23 +121,21 @@ Set the same environment variables in Cloudflare Pages project settings. Keep se
 
 This repo includes a static ThrushCross Trading & Commodities landing page in `github-pages/` and a workflow at `.github/workflows/github-pages.yml`. It deploys the brand landing page on each push to `main`.
 
-GitHub Pages is static hosting, so the full Supabase-backed app still belongs on Cloudflare Pages unless the app is refactored for static export.
+Build locally:
 
-## Key FSVP Modules
+```bash
+npm run github-pages:build
+```
 
-- Supplier profile and approval status
-- Product and facility management
-- Document repository with versioning support
-- Readiness assessment categories and scores
-- Reviewer comments, revision requests, and approvals
-- Supplier readiness, gap, document status, audit, and executive summary reports
-- In-app and email notification data model
-- Audit logging for major actions
-- Background document library for future requirement mapping
+GitHub Pages is static hosting, so the full Supabase-backed app still belongs on Cloudflare Pages.
 
-## Future AI Preparation
+## Design and Architecture Docs
 
-The schema includes structured document kinds, readiness scores, evidence summaries, reference documents, and audit records so future AI modules can classify documents, extract fields, map evidence to requirements, and suggest gaps. The application intentionally does not provide legal or regulatory advice.
+- `docs/thrushcross-verify-redesign.md`
+- `docs/architecture.md`
+- `docs/supabase.md`
+- `docs/cloudflare-pages.md`
+- `docs/setup.md`
 
 ## Production Checklist
 
@@ -107,3 +149,8 @@ The schema includes structured document kinds, readiness scores, evidence summar
 - Domain, TLS, and DNS configured
 - Audit log coverage extended for all write operations
 - Reviewer and administrator seed accounts created
+- PDF/Excel readiness report generation implemented server-side
+
+## Disclaimer
+
+This platform does not provide legal or regulatory advice. FSVP determinations should be reviewed by qualified regulatory professionals and/or a qualified FSVP Individual.

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FSVP Compliance Platform",
-  description: "Supplier documentation, readiness scoring, and reviewer workflows for FSVP programs."
+  title: "ThrushCross Verify",
+  description: "FSVP supplier verification for agricultural commodity imports into the United States."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
