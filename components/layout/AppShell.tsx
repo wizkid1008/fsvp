@@ -70,7 +70,14 @@ export function AppShell({
   }, []);
 
   const { locale, t } = useLocale();
-  const visibleItems = navItems.filter((item) => !item.roles || item.roles.includes(role));
+  // Filter nav by preview role, but always show admin link for real administrators
+  const visibleItems = navItems.filter((item) => {
+    if (!item.roles) return true;
+    if (item.roles.includes(role)) return true;
+    // Always show admin to real admins even when previewing another role
+    if (serverRole === "administrator" && item.href === "/admin") return true;
+    return false;
+  });
 
   return (
     <div className="min-h-screen bg-white text-black">
