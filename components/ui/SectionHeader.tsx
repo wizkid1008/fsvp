@@ -8,11 +8,13 @@ type Action =
 export function SectionHeader({
   title,
   description,
-  action
+  action,
+  actionSlot
 }: {
   title: string;
   description: string;
   action?: Action;
+  actionSlot?: React.ReactNode;
 }) {
   const btnClass =
     "inline-flex h-10 items-center justify-center rounded-md bg-forest px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]";
@@ -34,7 +36,7 @@ export function SectionHeader({
         <h1 className="text-3xl font-semibold tracking-normal text-ink">{title}</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{description}</p>
       </div>
-      {actionEl}
+      {actionSlot ?? actionEl}
     </div>
   );
 }

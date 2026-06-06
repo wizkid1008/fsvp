@@ -2,6 +2,7 @@ import { Activity, Bell, BookOpenCheck, Download, LockKeyhole, Plus, RefreshCw, 
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { InviteUserButton } from "@/components/admin/InviteUserButton";
 import { RolePreviewSelector } from "@/components/admin/RolePreview";
 import { UserManagement } from "@/components/admin/UserManagement";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -61,7 +62,7 @@ export default async function AdminPage() {
       <SectionHeader
         title="Admin Command Center"
         description="Manage users, roles, supplier queues, workflow rules, reference content, security settings, and audit visibility for ThrushCross Verify."
-        action="Invite User"
+        actionSlot={<InviteUserButton />}
       />
 
       <div className="mt-6">
