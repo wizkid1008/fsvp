@@ -67,7 +67,7 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
             return;
           }
           if (authError) throw authError;
-          setMessage("Check your email to verify the account before signing in.");
+          setMessage(VERIFICATION_HELP_MESSAGE);
         }
 
         if (mode === "forgot") {
