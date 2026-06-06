@@ -46,7 +46,12 @@ const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = 
 export function SiteMenu() {
   const pathname = usePathname();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("platform");
-  const [loggedIn, setLoggedIn] = useState(false);
+  // Pre-check: Supabase stores session in cookies starting with "sb-"
+  // This gives us the correct state on first render without a flash
+  const hasSessionCookie = typeof document !== "undefined"
+    ? document.cookie.split(";").some((c) => c.trim().startsWith("sb-"))
+    : false;
+  const [loggedIn, setLoggedIn] = useState(hasSessionCookie);
   const { locale } = useLocale();
 
   useEffect(() => {
