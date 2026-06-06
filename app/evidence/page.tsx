@@ -27,17 +27,7 @@ export default async function EvidencePage() {
   const { role } = await requireProfileRole("/evidence");
   const supabase = createServerSupabaseClient();
 
-  type DocumentRow = {
-    id: string;
-    title: string;
-    document_kind: string;
-    original_filename: string | null;
-    uploaded_at: string;
-    approval_status: string | null;
-    size_bytes: number;
-  };
-
-  const [docsResult, reqsResult] = await Promise.all([
+  const [{ data: documents }, { data: requirements }] = await Promise.all([
     supabase
       .from("documents")
       .select("id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes")
@@ -49,9 +39,6 @@ export default async function EvidencePage() {
       .eq("active", true)
       .order("sort_order"),
   ]);
-
-  const documents = docsResult.data as unknown as DocumentRow[] | null;
-  const requirements = reqsResult.data;
 
   return (
     <AppShell role={role}>

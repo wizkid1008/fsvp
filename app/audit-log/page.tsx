@@ -25,7 +25,7 @@ export default async function AuditLogPage() {
   const { role } = await requireProfileRole("/audit-log", ["reviewer", "administrator"]);
   const supabase = createServerSupabaseClient();
 
-  type AuditLog = {
+  type AuditLogRow = {
     id: string;
     action: string;
     record_type: string | null;
@@ -41,7 +41,7 @@ export default async function AuditLogPage() {
     .order("created_at", { ascending: false })
     .limit(100);
 
-  const logs = rawLogs as unknown as AuditLog[] | null;
+  const logs = rawLogs as unknown as AuditLogRow[] | null;
 
   return (
     <AppShell role={role}>
