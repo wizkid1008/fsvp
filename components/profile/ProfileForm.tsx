@@ -7,6 +7,26 @@ import type { Country, Profile } from "@/types/database";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
+type ProfileUpdate = Pick<
+  Profile,
+  "country" | "email" | "full_name" | "importer_type" | "organization_name" | "phone_number" | "position" | "preferred_language" | "supplier_type"
+>;
+type ProfileInsert = ProfileUpdate & Pick<Profile, "id" | "role" | "user_status">;
+type ProfileMutationResult = PromiseLike<{ error: Error | null }>;
+type ProfileMutationTable = {
+  update(values: ProfileUpdate): {
+    eq(column: "id", value: string): {
+      select(columns: "id"): {
+        single(): ProfileMutationResult;
+      };
+    };
+  };
+  insert(values: ProfileInsert): {
+    select(columns: "id"): {
+      single(): ProfileMutationResult;
+    };
+  };
+};
 
 function cleanFormValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -55,7 +75,7 @@ export function ProfileForm({
           return;
         }
 
-        const profileValues = {
+        const profileValues: ProfileUpdate = {
           email: authEmail,
           full_name: cleanFormValue(formData, "full_name"),
           organization_name: cleanFormValue(formData, "organization_name"),
@@ -68,18 +88,17 @@ export function ProfileForm({
         };
 
         const supabase = createBrowserSupabaseClient();
+        const profilesTable = supabase.from("profiles") as unknown as ProfileMutationTable;
 
         if (profile) {
-          const { error: updateError } = await supabase
-            .from("profiles")
+          const { error: updateError } = await profilesTable
             .update(profileValues)
             .eq("id", userId)
             .select("id")
             .single();
           if (updateError) throw updateError;
         } else {
-          const { error: insertError } = await supabase
-            .from("profiles")
+          const { error: insertError } = await profilesTable
             .insert({
               id: userId,
               ...profileValues,
