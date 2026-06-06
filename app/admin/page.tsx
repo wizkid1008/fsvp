@@ -2,6 +2,7 @@ import { Activity, Bell, BookOpenCheck, Download, LockKeyhole, Plus, RefreshCw, 
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Profile, Database } from "@/types/database";
 import type { StatusTone } from "@/types/platform";
@@ -29,22 +30,16 @@ const workflowSettings = [
 ];
 
 export default async function AdminPage() {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { supabase, user, role } = await requireProfileRole("/admin", ["administrator"]);
 
-  const { data: profile } = user
-    ? ((await supabase
-        .from("profiles")
-        .select("email,full_name,organization_name,role,user_status,last_login_at")
-        .eq("id", user.id)
-        .single()) as unknown as ProfileLookup)
-    : { data: null };
+  const { data: profile } = (await supabase
+    .from("profiles")
+    .select("email,full_name,organization_name,role,user_status,last_login_at")
+    .eq("id", user.id)
+    .maybeSingle()) as unknown as ProfileLookup;
 
   const userCount = await getCount("profiles", supabase);
   const documentCount = await getCount("documents", supabase);
-  const role = profile?.role ?? "supplier";
   const status = profile?.user_status ?? "pending";
   const displayName = profile?.full_name || user?.email || "Current user";
   const displayEmail = profile?.email || user?.email || "No email found";

@@ -1,7 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { Profile } from "@/types/database";
+import { requireProfileRole } from "@/lib/auth/protection";
 import type { AppRole } from "@/types/platform";
 
 type WorkflowCard = {
@@ -10,21 +9,9 @@ type WorkflowCard = {
   items: string[];
 };
 
-type ProfileLookup = {
-  data: Pick<Profile, "role"> | null;
-};
-
-export async function getCurrentProfileRole(): Promise<AppRole> {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  const { data: profile } = user
-    ? ((await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()) as unknown as ProfileLookup)
-    : { data: null };
-
-  return profile?.role ?? "supplier";
+export async function getCurrentProfileRole(nextPath: string): Promise<AppRole> {
+  const { role } = await requireProfileRole(nextPath);
+  return role;
 }
 
 export function WorkflowPage({

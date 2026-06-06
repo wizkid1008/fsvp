@@ -9,11 +9,11 @@ import { cn } from "@/lib/utils";
 
 type MenuKey = "platform" | "suppliers" | "evidence" | "reports";
 
-const menuItems: Array<{ href: string; label: string; key: MenuKey }> = [
-  { href: "/about", label: "Platform", key: "platform" },
-  { href: "/suppliers", label: "Suppliers", key: "suppliers" },
-  { href: "/evidence", label: "Evidence", key: "evidence" },
-  { href: "/reports", label: "Reports", key: "reports" }
+const menuItems: Array<{ href: string; activeHref: string; label: string; key: MenuKey }> = [
+  { href: "/about", activeHref: "/about", label: "Platform", key: "platform" },
+  { href: "/login?next=%2Fsuppliers", activeHref: "/suppliers", label: "Suppliers", key: "suppliers" },
+  { href: "/login?next=%2Fevidence", activeHref: "/evidence", label: "Evidence", key: "evidence" },
+  { href: "/login?next=%2Freports", activeHref: "/reports", label: "Reports", key: "reports" }
 ];
 
 const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = {
@@ -56,7 +56,7 @@ export function SiteMenu() {
         </Link>
         <nav className="group hidden items-center gap-8 md:flex" aria-label="Primary navigation">
           {menuItems.map((item) => {
-            const active = pathname === item.href;
+            const active = pathname === item.activeHref;
             return (
               <Link
                 key={item.href}
@@ -115,7 +115,7 @@ export function SiteMenu() {
             href={item.href}
             className={cn(
               "whitespace-nowrap px-3 py-2 text-xs font-black uppercase tracking-[0.04em]",
-              pathname === item.href ? "bg-white text-black" : "text-white/80"
+              pathname === item.activeHref ? "bg-white text-black" : "text-white/80"
             )}
           >
             {item.label}

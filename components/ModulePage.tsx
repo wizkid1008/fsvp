@@ -1,10 +1,10 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import type { ModuleConfig } from "@/types/platform";
+import type { AppRole, ModuleConfig } from "@/types/platform";
 
-export function ModulePage({ config }: { config: ModuleConfig }) {
+export function ModulePage({ config, role = "supplier" }: { config: ModuleConfig; role?: AppRole }) {
   return (
-    <AppShell>
+    <AppShell role={role}>
       <SectionHeader title={config.title} description={config.description} action={config.primaryAction} />
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
         <section className="rounded-lg border border-line bg-white shadow-soft">

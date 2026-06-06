@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { requireUser } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { APP_SUBTITLE } from "@/lib/constants";
 import type { Profile } from "@/types/database";
@@ -22,18 +23,13 @@ async function getCount(table: "documents", supabase: ReturnType<typeof createSe
 }
 
 export default async function DashboardPage() {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await requireUser("/dashboard");
 
-  const { data: profile } = user
-    ? ((await supabase
-        .from("profiles")
-        .select("email,full_name,organization_name,role,user_status")
-        .eq("id", user.id)
-        .single()) as unknown as ProfileLookup)
-    : { data: null };
+  const { data: profile } = (await supabase
+    .from("profiles")
+    .select("email,full_name,organization_name,role,user_status")
+    .eq("id", user.id)
+    .maybeSingle()) as unknown as ProfileLookup;
 
   const documentCount = await getCount("documents", supabase);
   const displayName = profile?.full_name || user?.email || "New user";

@@ -1,8 +1,7 @@
-import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProfileForm } from "@/components/profile/ProfileForm";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/protection";
 import type { Country, Profile } from "@/types/database";
 
 export const runtime = "edge";
@@ -34,14 +33,7 @@ const accountSections = [
 ];
 
 export default async function AccountPage() {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login?next=/account");
-  }
+  const { supabase, user } = await requireUser("/account");
 
   const [{ data: profile }, { data: countries }] = await Promise.all([
     (await supabase
