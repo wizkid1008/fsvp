@@ -12,12 +12,18 @@ export const runtime = "edge";
 
 type ProfileLookup = { data: Profile | null };
 
-const STEPS = [
+const IMPORTER_STEPS = [
   { label: "Complete your profile", href: "/account", key: "profile" },
   { label: "Add a supplier", href: "/suppliers", key: "supplier" },
   { label: "Add a product or facility", href: "/products", key: "product" },
   { label: "Upload evidence", href: "/evidence", key: "evidence" },
   { label: "Run readiness assessment", href: "/readiness", key: "readiness" },
+];
+
+const SUPPLIER_STEPS = [
+  { label: "Complete your profile", href: "/account", key: "profile" },
+  { label: "Upload your evidence", href: "/my-evidence", key: "evidence" },
+  { label: "Resolve open requests", href: "/my-requests", key: "readiness" },
 ];
 
 export default async function DashboardPage() {
@@ -44,29 +50,43 @@ export default async function DashboardPage() {
   const status = profile?.user_status ?? "pending";
   const profileComplete = !!(profile?.full_name && profile.organization_name);
 
-  const stepDone: Record<string, boolean> = {
-    profile: profileComplete,
-    supplier: (supplierCount ?? 0) > 0,
-    product: (productCount ?? 0) > 0,
-    evidence: (documentCount ?? 0) > 0,
-    readiness: (assessmentCount ?? 0) > 0,
-  };
+  const isSupplier = role === "supplier";
+  const STEPS = isSupplier ? SUPPLIER_STEPS : IMPORTER_STEPS;
+
+  const stepDone: Record<string, boolean> = isSupplier
+    ? {
+        profile: profileComplete,
+        evidence: (documentCount ?? 0) > 0,
+        readiness: (actionCount ?? 0) === 0,
+      }
+    : {
+        profile: profileComplete,
+        supplier: (supplierCount ?? 0) > 0,
+        product: (productCount ?? 0) > 0,
+        evidence: (documentCount ?? 0) > 0,
+        readiness: (assessmentCount ?? 0) > 0,
+      };
 
   const completedSteps = Object.values(stepDone).filter(Boolean).length;
   const progressPct = Math.round((completedSteps / STEPS.length) * 100);
 
-  const metrics = [
-    { label: "Suppliers", value: String(supplierCount ?? 0), href: "/suppliers", tone: (supplierCount ?? 0) > 0 ? "info" as const : "neutral" as const },
-    { label: "Documents", value: String(documentCount ?? 0), href: "/evidence", tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
-    { label: "Open Actions", value: String(actionCount ?? 0), href: "/gaps-actions", tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
-    { label: "Assessments", value: String(assessmentCount ?? 0), href: "/readiness", tone: (assessmentCount ?? 0) > 0 ? "success" as const : "neutral" as const },
-  ];
+  const metrics = isSupplier
+    ? [
+        { label: "Documents Submitted", value: String(documentCount ?? 0), href: "/my-evidence", tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
+        { label: "Open Requests", value: String(actionCount ?? 0), href: "/my-requests", tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
+      ]
+    : [
+        { label: "Suppliers", value: String(supplierCount ?? 0), href: "/suppliers", tone: (supplierCount ?? 0) > 0 ? "info" as const : "neutral" as const },
+        { label: "Documents", value: String(documentCount ?? 0), href: "/evidence", tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
+        { label: "Open Actions", value: String(actionCount ?? 0), href: "/gaps-actions", tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
+        { label: "Assessments", value: String(assessmentCount ?? 0), href: "/readiness", tone: (assessmentCount ?? 0) > 0 ? "success" as const : "neutral" as const },
+      ];
 
-  const showOnboarding = completedSteps === 0 || (!profileComplete && (supplierCount ?? 0) === 0);
+  const showOnboarding = completedSteps === 0;
 
   return (
     <AppShell role={role}>
-      {showOnboarding && <OnboardingModal />}
+      {showOnboarding && <OnboardingModal role={role} />}
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

@@ -39,16 +39,21 @@ export const iconMap = {
 
 export const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
-  { href: "/suppliers", label: "Suppliers", icon: "Building2" },
-  { href: "/products", label: "Products", icon: "PackageSearch" },
-  { href: "/facilities", label: "Facilities", icon: "Warehouse" },
-  { href: "/evidence", label: "Evidence", icon: "FileArchive" },
-  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle" },
-  { href: "/readiness", label: "Readiness", icon: "Gauge" },
-  { href: "/reports", label: "Reports", icon: "FileCheck2" },
+  // Supplier-only nav
+  { href: "/my-evidence", label: "My Evidence", icon: "FileArchive", roles: ["supplier"] },
+  { href: "/my-requests", label: "My Requests", icon: "AlertTriangle", roles: ["supplier"] },
+  // Reviewer + Admin nav
+  { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["reviewer", "administrator"] },
+  { href: "/products", label: "Products", icon: "PackageSearch", roles: ["reviewer", "administrator"] },
+  { href: "/facilities", label: "Facilities", icon: "Warehouse", roles: ["reviewer", "administrator"] },
+  { href: "/evidence", label: "Evidence", icon: "FileArchive", roles: ["reviewer", "administrator"] },
+  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["reviewer", "administrator"] },
+  { href: "/readiness", label: "Readiness", icon: "Gauge", roles: ["reviewer", "administrator"] },
+  { href: "/reports", label: "Reports", icon: "FileCheck2", roles: ["reviewer", "administrator"] },
   { href: "/reviewer", label: "Review Queue", icon: "ClipboardCheck", roles: ["reviewer", "administrator"] },
+  { href: "/audit-log", label: "Audit Log", icon: "ClipboardList", roles: ["reviewer", "administrator"] },
+  // Admin-only nav
   { href: "/admin", label: "Admin", icon: "ShieldCheck", roles: ["administrator"] },
-  { href: "/audit-log", label: "Audit Log", icon: "ClipboardList", roles: ["reviewer", "administrator"] }
 ];
 
 export const dashboardMetrics = [

@@ -12,6 +12,8 @@ export const BACKGROUND_DOCUMENT_BUCKET = "background-documents";
 export const protectedRoutes = [
   "/dashboard",
   "/account",
+  "/my-evidence",
+  "/my-requests",
   "/suppliers",
   "/products",
   "/facilities",
@@ -27,5 +29,14 @@ export const protectedRoutes = [
 export const roleProtectedRoutes: Record<string, string[]> = {
   "/admin": ["administrator"],
   "/audit-log": ["reviewer", "administrator"],
-  "/reviewer": ["reviewer", "administrator"]
+  "/reviewer": ["reviewer", "administrator"],
+  "/suppliers": ["reviewer", "administrator"],
+  "/products": ["reviewer", "administrator"],
+  "/facilities": ["reviewer", "administrator"],
+  "/evidence": ["reviewer", "administrator"],
+  "/gaps-actions": ["reviewer", "administrator"],
+  "/readiness": ["reviewer", "administrator"],
+  "/reports": ["reviewer", "administrator"],
+  "/my-evidence": ["supplier"],
+  "/my-requests": ["supplier"],
 };

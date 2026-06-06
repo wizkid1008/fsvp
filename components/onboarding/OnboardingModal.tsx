@@ -3,39 +3,27 @@
 import { useState } from "react";
 import Link from "next/link";
 import { X, CheckCircle2, ArrowRight } from "lucide-react";
+import type { AppRole } from "@/types/platform";
 
-const STEPS = [
-  {
-    title: "Complete your profile",
-    description: "Add your name, organization, and contact details so the platform can personalize your workflow.",
-    cta: { label: "Go to Account", href: "/account" },
-  },
-  {
-    title: "Add your first supplier",
-    description: "Create a supplier record with company name, country, and contact information.",
-    cta: { label: "Add Supplier", href: "/suppliers" },
-  },
-  {
-    title: "Add products & facilities",
-    description: "Link the food products your supplier exports and the facilities where they're produced.",
-    cta: { label: "Add Products", href: "/products" },
-  },
-  {
-    title: "Upload FSVP evidence",
-    description: "Upload COAs, audit reports, hazard analyses, and other documents required for FSVP compliance.",
-    cta: { label: "Upload Evidence", href: "/evidence" },
-  },
-  {
-    title: "Run a readiness assessment",
-    description: "Calculate your readiness score, identify gaps, and generate an audit-ready report.",
-    cta: { label: "Start Assessment", href: "/readiness" },
-  },
+const IMPORTER_STEPS = [
+  { title: "Complete your profile", description: "Add your name, organization, and contact details.", cta: { label: "Go to Account", href: "/account" } },
+  { title: "Add your first supplier", description: "Create a supplier record with company name, country, and contact information.", cta: { label: "Add Supplier", href: "/suppliers" } },
+  { title: "Add products & facilities", description: "Link the food products your supplier exports and the facilities where they're produced.", cta: { label: "Add Products", href: "/products" } },
+  { title: "Upload FSVP evidence", description: "Upload COAs, audit reports, hazard analyses, and other required documents.", cta: { label: "Upload Evidence", href: "/evidence" } },
+  { title: "Run a readiness assessment", description: "Calculate your readiness score, identify gaps, and generate audit-ready reports.", cta: { label: "Start Assessment", href: "/readiness" } },
 ];
 
-export function OnboardingModal() {
+const SUPPLIER_STEPS = [
+  { title: "Complete your profile", description: "Add your company name, contact details, and country so your importer can identify you.", cta: { label: "Go to Account", href: "/account" } },
+  { title: "Upload your evidence", description: "Upload the documents your importer has requested — COAs, certifications, food safety plans.", cta: { label: "Upload Evidence", href: "/my-evidence" } },
+  { title: "Check your open requests", description: "Review any corrective actions or revision requests from your importer.", cta: { label: "View Requests", href: "/my-requests" } },
+];
+
+export function OnboardingModal({ role = "supplier" }: { role?: AppRole }) {
   const [open, setOpen] = useState(true);
   const [step, setStep] = useState(0);
 
+  const STEPS = role === "supplier" ? SUPPLIER_STEPS : IMPORTER_STEPS;
   if (!open) return null;
 
   const current = STEPS[step];
@@ -59,29 +47,15 @@ export function OnboardingModal() {
 
           <div className="mt-6 flex gap-1.5">
             {STEPS.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setStep(i)}
-                className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-forest" : "bg-slate-200"}`}
-              />
+              <button key={i} onClick={() => setStep(i)} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-forest" : "bg-slate-200"}`} />
             ))}
           </div>
 
           <div className="mt-6 flex items-center justify-between gap-3">
-            <button
-              onClick={() => setOpen(false)}
-              className="text-sm text-slate-400 hover:text-slate-600 transition"
-            >
-              Skip for now
-            </button>
+            <button onClick={() => setOpen(false)} className="text-sm text-slate-400 hover:text-slate-600 transition">Skip for now</button>
             <div className="flex gap-2">
               {step > 0 && (
-                <button
-                  onClick={() => setStep((s) => s - 1)}
-                  className="h-10 rounded-md border border-line px-4 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
-                >
-                  Back
-                </button>
+                <button onClick={() => setStep((s) => s - 1)} className="h-10 rounded-md border border-line px-4 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">Back</button>
               )}
               <Link
                 href={current.cta.href}
@@ -89,8 +63,7 @@ export function OnboardingModal() {
                 className="inline-flex h-10 items-center gap-2 rounded-md bg-forest px-5 text-sm font-semibold text-white hover:bg-[#195f4d] transition"
               >
                 {current.cta.label}
-                {!isLast && <ArrowRight className="h-3.5 w-3.5" />}
-                {isLast && <CheckCircle2 className="h-3.5 w-3.5" />}
+                {isLast ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ArrowRight className="h-3.5 w-3.5" />}
               </Link>
             </div>
           </div>
