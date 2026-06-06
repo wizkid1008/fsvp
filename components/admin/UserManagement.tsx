@@ -51,8 +51,7 @@ function EditableRow({ user, onSaved }: { user: UserRow; onSaved: () => void }) 
     startTransition(async () => {
       try {
         const supabase = createBrowserSupabaseClient();
-        const { error: updateError } = await supabase
-          .from("profiles")
+        const { error: updateError } = await (supabase.from("profiles") as any)
           .update({ role, user_status: status, full_name: fullName || null, organization_name: orgName || null })
           .eq("id", user.id);
         if (updateError) throw updateError;
@@ -143,8 +142,7 @@ export function UserManagement({ users: initial }: { users: UserRow[] }) {
 
   async function reload() {
     const supabase = createBrowserSupabaseClient();
-    const { data } = await supabase
-      .from("profiles")
+    const { data } = await (supabase.from("profiles") as any)
       .select("id, email, full_name, organization_name, role, user_status, last_login_at")
       .order("created_at", { ascending: false });
     if (data) setUsers(data as UserRow[]);
