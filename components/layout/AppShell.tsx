@@ -7,6 +7,8 @@ import { APP_NAME, APP_SUBTITLE, BRAND_TAGLINE, LEGAL_DISCLAIMER, PARENT_BRAND }
 import { cn } from "@/lib/utils";
 import { iconMap, navItems } from "@/data/platform";
 import { RolePreviewBanner } from "@/components/admin/RolePreview";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { AppRole } from "@/types/platform";
 
@@ -67,6 +69,7 @@ export function AppShell({
     void loadUser();
   }, []);
 
+  const { locale, t } = useLocale();
   const visibleItems = navItems.filter((item) => !item.roles || item.roles.includes(role));
 
   return (
@@ -94,7 +97,7 @@ export function AppShell({
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {item.label}
+                {item.tKey ? t(item.tKey) : item.label}
               </Link>
             );
           })}
@@ -126,6 +129,7 @@ export function AppShell({
               {ROLE_LABELS[role]}
             </p>
             <p className="hidden text-sm font-medium text-black/50 md:block">{APP_SUBTITLE}</p>
+            <LanguageSwitcher currentLocale={locale} />
             <Link
               href="/account"
               className="flex items-center gap-2.5 border border-black/10 px-3 py-2 hover:border-black transition group"
@@ -150,7 +154,7 @@ export function AppShell({
                     : "border-black/10 bg-white text-black/60"
                 )}
               >
-                {item.label}
+                {item.tKey ? t(item.tKey) : item.label}
               </Link>
             ))}
           </nav>

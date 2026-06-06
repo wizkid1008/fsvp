@@ -8,6 +8,7 @@ export type NavItem = {
   icon: string;
   matches?: string[];
   roles?: AppRole[];
+  tKey?: string;
 };
 
 export type ModuleRecord = {

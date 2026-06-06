@@ -38,26 +38,20 @@ export const iconMap = {
 };
 
 export const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
-  // Supplier-only
-  { href: "/my-evidence", label: "My Evidence", icon: "FileArchive", roles: ["supplier"] },
-  { href: "/my-readiness", label: "My Readiness", icon: "Gauge", roles: ["supplier"] },
-  { href: "/my-requests", label: "Action Items", icon: "AlertTriangle", roles: ["supplier"] },
-  // US Importer + Reviewer + Admin
-  { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["us_importer", "reviewer", "administrator"] },
-  { href: "/products", label: "Products", icon: "PackageSearch", roles: ["us_importer", "reviewer", "administrator"] },
-  { href: "/facilities", label: "Facilities", icon: "Warehouse", roles: ["us_importer", "reviewer", "administrator"] },
-  { href: "/evidence", label: "Evidence", icon: "FileArchive", roles: ["us_importer", "reviewer", "administrator"] },
-  // US Importer + Admin only (reviewers don't manage gaps/readiness)
-  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer", "administrator"] },
-  { href: "/readiness", label: "Readiness", icon: "Gauge", roles: ["us_importer", "administrator"] },
-  // Reports: Importer + Reviewer + Admin
-  { href: "/reports", label: "Reports", icon: "FileCheck2", roles: ["us_importer", "reviewer", "administrator"] },
-  // Reviewer + Admin only
-  { href: "/reviewer", label: "Review Queue", icon: "ClipboardCheck", roles: ["reviewer", "administrator"] },
-  { href: "/audit-log", label: "Audit Log", icon: "ClipboardList", roles: ["reviewer", "administrator"] },
-  // Admin only
-  { href: "/admin", label: "Admin", icon: "ShieldCheck", roles: ["administrator"] },
+  { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", tKey: "nav.dashboard" },
+  { href: "/my-evidence", label: "My Evidence", icon: "FileArchive", roles: ["supplier"], tKey: "nav.myEvidence" },
+  { href: "/my-readiness", label: "My Readiness", icon: "Gauge", roles: ["supplier"], tKey: "nav.myReadiness" },
+  { href: "/my-requests", label: "Action Items", icon: "AlertTriangle", roles: ["supplier"], tKey: "nav.actionItems" },
+  { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.suppliers" },
+  { href: "/products", label: "Products", icon: "PackageSearch", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.products" },
+  { href: "/facilities", label: "Facilities", icon: "Warehouse", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.facilities" },
+  { href: "/evidence", label: "Evidence", icon: "FileArchive", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.evidence" },
+  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer", "administrator"], tKey: "nav.gapsActions" },
+  { href: "/readiness", label: "Readiness", icon: "Gauge", roles: ["us_importer", "administrator"], tKey: "nav.readiness" },
+  { href: "/reports", label: "Reports", icon: "FileCheck2", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.reports" },
+  { href: "/reviewer", label: "Review Queue", icon: "ClipboardCheck", roles: ["reviewer", "administrator"], tKey: "nav.reviewQueue" },
+  { href: "/audit-log", label: "Audit Log", icon: "ClipboardList", roles: ["reviewer", "administrator"], tKey: "nav.auditLog" },
+  { href: "/admin", label: "Admin", icon: "ShieldCheck", roles: ["administrator"], tKey: "nav.admin" },
 ];
 
 export const dashboardMetrics = [

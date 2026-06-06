@@ -18,7 +18,10 @@ const config: Config = {
       },
       boxShadow: {
         soft: "0 16px 40px rgba(31, 41, 51, 0.08)"
-      }
+      },
+      fontFamily: {
+        arabic: ["Noto Sans Arabic", "sans-serif"],
+      },
     }
   },
   plugins: []

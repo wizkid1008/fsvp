@@ -7,6 +7,9 @@ import { useState, useEffect } from "react";
 import { APP_NAME, PARENT_BRAND } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { useLocale } from "@/components/i18n/LocaleProvider";
+import { LOCALE_LABELS } from "@/lib/i18n/locales";
 
 type MenuKey = "platform" | "suppliers" | "evidence" | "reports";
 
@@ -44,6 +47,7 @@ export function SiteMenu() {
   const pathname = usePathname();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("platform");
   const [loggedIn, setLoggedIn] = useState(false);
+  const { locale } = useLocale();
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
@@ -109,7 +113,8 @@ export function SiteMenu() {
             </div>
           </div>
         </nav>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-3">
+          <LanguageSwitcher currentLocale={locale} variant="menu" />
           {loggedIn ? (
             <Link href="/dashboard" className="inline-flex h-14 items-center border border-white bg-white px-6 text-xs font-black uppercase tracking-[0.04em] text-black hover:bg-black hover:text-white">
               Dashboard
