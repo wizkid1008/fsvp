@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/types/database";
 import type { AppRole } from "@/types/platform";
 
@@ -15,7 +16,7 @@ function restrictedRedirect(nextPath: string) {
   redirect(`/dashboard?restricted=${encodeURIComponent(nextPath)}`);
 }
 
-export async function requireUser(nextPath: string) {
+export async function requireUser(nextPath: string): Promise<{ supabase: ReturnType<typeof createServerSupabaseClient>; user: User }> {
   const supabase = createServerSupabaseClient();
   const {
     data: { user }
@@ -23,22 +24,24 @@ export async function requireUser(nextPath: string) {
 
   if (!user) {
     loginRedirect(nextPath);
+    throw new Error("unreachable");
   }
 
   return { supabase, user };
 }
 
-export async function requireProfileRole(nextPath: string, allowedRoles?: AppRole[]) {
+export async function requireProfileRole(nextPath: string, allowedRoles?: AppRole[]): Promise<{ supabase: ReturnType<typeof createServerSupabaseClient>; user: User; role: AppRole }> {
   const { supabase, user } = await requireUser(nextPath);
   const { data: profile } = (await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle()) as unknown as RoleLookup;
-  const role = profile?.role ?? "supplier";
+  const role: AppRole = profile?.role ?? "supplier";
 
   if (allowedRoles && !allowedRoles.includes(role)) {
     restrictedRedirect(nextPath);
+    throw new Error("unreachable");
   }
 
   return { supabase, user, role };
