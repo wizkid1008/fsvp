@@ -29,7 +29,7 @@ export function AddSupplierForm({ onClose }: { onClose: () => void }) {
         const contactName = formData.get("contact_name")?.toString().trim() || null;
         const contactEmail = formData.get("contact_email")?.toString().trim() || null;
 
-        const { error: insertError } = await supabase.from("suppliers").insert({
+        const { error: insertError } = await (supabase.from("suppliers") as any).insert({
           company_name: formData.get("company_name")?.toString().trim() ?? "",
           legal_entity_name: formData.get("legal_entity_name")?.toString().trim() || null,
           country: formData.get("country")?.toString().trim() ?? "",

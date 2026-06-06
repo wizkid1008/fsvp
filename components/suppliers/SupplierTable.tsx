@@ -7,7 +7,7 @@ import { AddSupplierForm } from "@/components/suppliers/AddSupplierForm";
 import { Building2 } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 
-type Supplier = {
+export type SupplierRow = {
   id: string;
   company_name: string;
   country: string;
@@ -29,7 +29,7 @@ function approvalLabel(status: string) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
+export function SupplierTable({ suppliers }: { suppliers: SupplierRow[] }) {
   const [showForm, setShowForm] = useState(false);
 
   if (suppliers.length === 0) {
