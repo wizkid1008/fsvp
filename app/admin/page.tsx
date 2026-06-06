@@ -2,6 +2,7 @@ import { Activity, Bell, BookOpenCheck, Download, LockKeyhole, Plus, RefreshCw, 
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { RolePreviewSelector } from "@/components/admin/RolePreview";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Profile, Database } from "@/types/database";
@@ -58,6 +59,10 @@ export default async function AdminPage() {
         description="Manage users, roles, supplier queues, workflow rules, reference content, security settings, and audit visibility for ThrushCross Verify."
         action="Invite User"
       />
+
+      <div className="mt-6">
+        <RolePreviewSelector />
+      </div>
 
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {adminMetrics.map((metric) => (

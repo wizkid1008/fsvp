@@ -1,4 +1,4 @@
-export type AppRole = "supplier" | "reviewer" | "administrator";
+export type AppRole = "supplier" | "us_importer" | "reviewer" | "administrator";
 
 export type StatusTone = "neutral" | "success" | "warning" | "danger" | "info";
 

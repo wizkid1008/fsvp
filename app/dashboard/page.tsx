@@ -51,6 +51,7 @@ export default async function DashboardPage() {
   const profileComplete = !!(profile?.full_name && profile.organization_name);
 
   const isSupplier = role === "supplier";
+  const isImporter = role === "us_importer";
   const STEPS = isSupplier ? SUPPLIER_STEPS : IMPORTER_STEPS;
 
   const stepDone: Record<string, boolean> = isSupplier

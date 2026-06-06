@@ -39,20 +39,23 @@ export const iconMap = {
 
 export const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
-  // Supplier-only nav
+  // Supplier-only
   { href: "/my-evidence", label: "My Evidence", icon: "FileArchive", roles: ["supplier"] },
   { href: "/my-requests", label: "My Requests", icon: "AlertTriangle", roles: ["supplier"] },
-  // Reviewer + Admin nav
-  { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["reviewer", "administrator"] },
-  { href: "/products", label: "Products", icon: "PackageSearch", roles: ["reviewer", "administrator"] },
-  { href: "/facilities", label: "Facilities", icon: "Warehouse", roles: ["reviewer", "administrator"] },
-  { href: "/evidence", label: "Evidence", icon: "FileArchive", roles: ["reviewer", "administrator"] },
-  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["reviewer", "administrator"] },
-  { href: "/readiness", label: "Readiness", icon: "Gauge", roles: ["reviewer", "administrator"] },
-  { href: "/reports", label: "Reports", icon: "FileCheck2", roles: ["reviewer", "administrator"] },
+  // US Importer + Reviewer + Admin
+  { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["us_importer", "reviewer", "administrator"] },
+  { href: "/products", label: "Products", icon: "PackageSearch", roles: ["us_importer", "reviewer", "administrator"] },
+  { href: "/facilities", label: "Facilities", icon: "Warehouse", roles: ["us_importer", "reviewer", "administrator"] },
+  { href: "/evidence", label: "Evidence", icon: "FileArchive", roles: ["us_importer", "reviewer", "administrator"] },
+  // US Importer + Admin only (reviewers don't manage gaps/readiness)
+  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer", "administrator"] },
+  { href: "/readiness", label: "Readiness", icon: "Gauge", roles: ["us_importer", "administrator"] },
+  // Reports: Importer + Reviewer + Admin
+  { href: "/reports", label: "Reports", icon: "FileCheck2", roles: ["us_importer", "reviewer", "administrator"] },
+  // Reviewer + Admin only
   { href: "/reviewer", label: "Review Queue", icon: "ClipboardCheck", roles: ["reviewer", "administrator"] },
   { href: "/audit-log", label: "Audit Log", icon: "ClipboardList", roles: ["reviewer", "administrator"] },
-  // Admin-only nav
+  // Admin only
   { href: "/admin", label: "Admin", icon: "ShieldCheck", roles: ["administrator"] },
 ];
 

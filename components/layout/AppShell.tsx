@@ -2,19 +2,33 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { APP_NAME, APP_SUBTITLE, BRAND_TAGLINE, LEGAL_DISCLAIMER, PARENT_BRAND } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { iconMap, navItems } from "@/data/platform";
+import { RolePreviewBanner } from "@/components/admin/RolePreview";
 import type { AppRole } from "@/types/platform";
+
+const PREVIEW_KEY = "fsvp_preview_role";
 
 export function AppShell({
   children,
-  role = "supplier"
+  role: serverRole = "supplier"
 }: {
   children: React.ReactNode;
   role?: AppRole;
 }) {
   const pathname = usePathname();
+  const [role, setRole] = useState<AppRole>(serverRole);
+
+  useEffect(() => {
+    // Admins can preview as other roles — only applies to admin users
+    if (serverRole === "administrator") {
+      const preview = localStorage.getItem(PREVIEW_KEY) as AppRole | null;
+      if (preview) setRole(preview);
+    }
+  }, [serverRole]);
+
   const visibleItems = navItems.filter((item) => !item.roles || item.roles.includes(role));
 
   return (
@@ -49,6 +63,7 @@ export function AppShell({
         </nav>
       </aside>
       <div className="lg:pl-72">
+        {serverRole === "administrator" && <RolePreviewBanner />}
         <header className="sticky top-[7.25rem] z-10 border-b border-black/10 bg-white/95 px-5 py-3 backdrop-blur md:top-[72px]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs font-black uppercase tracking-[0.08em] text-black/50">Role: <span className="text-black">{role}</span></p>
