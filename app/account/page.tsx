@@ -5,6 +5,8 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Country, Profile } from "@/types/database";
 
+export const runtime = "edge";
+
 type ProfileLookup = {
   data: Profile | null;
 };

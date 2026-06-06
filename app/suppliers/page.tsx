@@ -1,5 +1,7 @@
 import { getCurrentProfileRole, WorkflowPage } from "@/components/WorkflowPage";
 
+export const runtime = "edge";
+
 export default async function SuppliersPage() {
   const role = await getCurrentProfileRole();
 
