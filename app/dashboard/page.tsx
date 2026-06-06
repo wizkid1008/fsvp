@@ -114,8 +114,8 @@ export default async function DashboardPage() {
               </label>
             ))}
           </div>
-          <Link href="/supplier" className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-forest px-4 text-sm font-semibold text-white hover:bg-[#195f4d]">
-            Add supplier
+          <Link href="/suppliers" className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-forest px-4 text-sm font-semibold text-white hover:bg-[#195f4d]">
+            Open suppliers
           </Link>
         </aside>
       </section>

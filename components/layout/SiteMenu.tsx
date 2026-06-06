@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 
 const menuItems = [
   { href: "/about", label: "Platform", hasDropdown: true },
-  { href: "/supplier", label: "Suppliers", hasDropdown: true },
-  { href: "/requirements", label: "Requirements" },
+  { href: "/suppliers", label: "Suppliers", hasDropdown: true },
+  { href: "/evidence", label: "Evidence" },
   { href: "/reports", label: "Reports" }
 ];
 

@@ -31,7 +31,7 @@ export function AppShell({
         <nav className="mt-8 space-y-1">
           {visibleItems.map((item) => {
             const Icon = iconMap[item.icon as keyof typeof iconMap];
-            const active = pathname === item.href;
+            const active = pathname === item.href || item.matches?.some((route) => pathname.startsWith(route));
             return (
               <Link
                 key={item.href}
@@ -53,8 +53,8 @@ export function AppShell({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-medium text-slate-600">Role: <span className="capitalize text-ink">{role}</span></p>
             <p className="hidden text-sm font-medium text-slate-500 md:block">{APP_SUBTITLE}</p>
-            <Link href="/settings" className="rounded-md border border-line px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-              Account Settings
+            <Link href="/account" className="rounded-md border border-line px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              Account
             </Link>
           </div>
           <nav className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
@@ -64,7 +64,9 @@ export function AppShell({
                 href={item.href}
                 className={cn(
                   "whitespace-nowrap rounded-md border px-3 py-2 text-sm",
-                  pathname === item.href ? "border-forest bg-emerald-50 text-forest" : "border-line bg-white text-slate-600"
+                  pathname === item.href || item.matches?.some((route) => pathname.startsWith(route))
+                    ? "border-forest bg-emerald-50 text-forest"
+                    : "border-line bg-white text-slate-600"
                 )}
               >
                 {item.label}

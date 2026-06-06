@@ -38,22 +38,16 @@ export const iconMap = {
 };
 
 export const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Risk Dashboard", icon: "LayoutDashboard" },
-  { href: "/profile", label: "Profile", icon: "UserRound" },
-  { href: "/supplier", label: "Supplier Intake", icon: "Building2" },
-  { href: "/products", label: "Products", icon: "PackageSearch" },
-  { href: "/commodities", label: "Commodity Risk", icon: "AlertTriangle" },
-  { href: "/facilities", label: "Facilities", icon: "Warehouse" },
-  { href: "/documents", label: "Documents", icon: "FileArchive" },
-  { href: "/requirements", label: "FSVP Mapping", icon: "FileSearch" },
-  { href: "/assessment", label: "Gap Assessment", icon: "Gauge" },
-  { href: "/corrective-actions", label: "Corrective Actions", icon: "ClipboardList" },
-  { href: "/reviewer", label: "Reviewer", icon: "ClipboardCheck", roles: ["reviewer", "administrator"] },
+  { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
+  { href: "/account", label: "Account", icon: "UserRound", matches: ["/profile", "/settings", "/notifications"] },
+  { href: "/suppliers", label: "Suppliers", icon: "Building2", matches: ["/supplier"] },
+  { href: "/products-facilities", label: "Products & Facilities", icon: "PackageSearch", matches: ["/products", "/commodities", "/facilities"] },
+  { href: "/evidence", label: "Evidence", icon: "FileArchive", matches: ["/documents", "/requirements"] },
+  { href: "/readiness", label: "Readiness", icon: "Gauge", matches: ["/assessment", "/corrective-actions"] },
+  { href: "/reports", label: "Reports", icon: "FileCheck2" },
+  { href: "/reviewer", label: "Review Queue", icon: "ClipboardCheck", roles: ["reviewer", "administrator"] },
   { href: "/admin", label: "Admin", icon: "ShieldCheck", roles: ["administrator"] },
-  { href: "/reports", label: "Readiness Reports", icon: "FileCheck2" },
-  { href: "/notifications", label: "Notifications", icon: "Bell" },
-  { href: "/audit-log", label: "Audit Log", icon: "ShieldCheck", roles: ["reviewer", "administrator"] },
-  { href: "/settings", label: "Settings", icon: "Settings" }
+  { href: "/audit-log", label: "Audit Log", icon: "ShieldCheck", roles: ["reviewer", "administrator"] }
 ];
 
 export const dashboardMetrics = [
