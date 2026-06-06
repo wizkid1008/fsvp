@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { APP_NAME, PARENT_BRAND } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type MenuKey = "platform" | "suppliers" | "evidence" | "reports";
 
@@ -42,6 +43,18 @@ const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = 
 export function SiteMenu() {
   const pathname = usePathname();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("platform");
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const supabase = createBrowserSupabaseClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setLoggedIn(!!session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setLoggedIn(!!session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-black text-white" onMouseLeave={() => setActiveMenu("platform")}>
@@ -97,15 +110,23 @@ export function SiteMenu() {
           </div>
         </nav>
         <div className="flex shrink-0 items-center gap-2">
-          <Link
-            href="/login"
-            className="hidden px-4 py-3 text-xs font-black uppercase tracking-[0.04em] text-white/85 hover:text-white sm:inline-flex"
-          >
-            Log in
-          </Link>
-          <Link href="/signup" className="inline-flex h-14 items-center border border-white bg-white px-6 text-xs font-black uppercase tracking-[0.04em] text-black hover:bg-black hover:text-white">
-            Get started
-          </Link>
+          {loggedIn ? (
+            <Link href="/dashboard" className="inline-flex h-14 items-center border border-white bg-white px-6 text-xs font-black uppercase tracking-[0.04em] text-black hover:bg-black hover:text-white">
+              Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="hidden px-4 py-3 text-xs font-black uppercase tracking-[0.04em] text-white/85 hover:text-white sm:inline-flex"
+              >
+                Log in
+              </Link>
+              <Link href="/signup" className="inline-flex h-14 items-center border border-white bg-white px-6 text-xs font-black uppercase tracking-[0.04em] text-black hover:bg-black hover:text-white">
+                Get started
+              </Link>
+            </>
+          )}
         </div>
       </div>
       <nav className="flex gap-2 overflow-x-auto border-t border-white/15 px-5 py-2 md:hidden" aria-label="Mobile primary navigation">
