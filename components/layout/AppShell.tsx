@@ -7,7 +7,6 @@ import { APP_NAME, APP_SUBTITLE, BRAND_TAGLINE, LEGAL_DISCLAIMER, PARENT_BRAND }
 import { cn } from "@/lib/utils";
 import { iconMap, navItems } from "@/data/platform";
 import { RolePreviewBanner } from "@/components/admin/RolePreview";
-import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { AppRole } from "@/types/platform";
@@ -41,7 +40,7 @@ export function AppShell({
   const pathname = usePathname();
   const [role, setRole] = useState<AppRole>(serverRole);
   const [displayName, setDisplayName] = useState<string | null>(null);
-  const [userInitials, setUserInitials] = useState<string>("··");
+  const [userInitials, setUserInitials] = useState<string>("..");
 
   useEffect(() => {
     if (serverRole === "administrator") {
@@ -69,7 +68,7 @@ export function AppShell({
     void loadUser();
   }, []);
 
-  const { locale, t } = useLocale();
+  const { t } = useLocale();
   // Filter nav by preview role, but always show admin link for real administrators
   const visibleItems = navItems.filter((item) => {
     if (!item.roles) return true;
@@ -118,7 +117,7 @@ export function AppShell({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-bold text-black group-hover:text-black/70 transition">
-                {displayName ?? "···"}
+                {displayName ?? "..."}
               </p>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-black/40">
                 {ROLE_LABELS[role]}
@@ -136,18 +135,6 @@ export function AppShell({
               {ROLE_LABELS[role]}
             </p>
             <p className="hidden text-sm font-medium text-black/50 md:block">{APP_SUBTITLE}</p>
-            <LanguageSwitcher currentLocale={locale} />
-            <Link
-              href="/account"
-              className="flex items-center gap-2.5 border border-black/10 px-3 py-2 hover:border-black transition group"
-            >
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-black text-[10px] font-black text-white">
-                {userInitials}
-              </div>
-              <span className="text-xs font-bold uppercase tracking-[0.06em] text-black group-hover:text-black/70 transition">
-                {displayName ?? "Account"}
-              </span>
-            </Link>
           </div>
           <nav className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
             {visibleItems.map((item) => (

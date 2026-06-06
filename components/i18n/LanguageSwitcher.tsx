@@ -18,7 +18,7 @@ export function LanguageSwitcher({ currentLocale, variant = "header" }: { curren
       <div className="relative">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-1.5 border border-white/30 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white/80 hover:border-white hover:text-white transition"
+          className="flex h-14 min-w-[136px] items-center justify-center gap-1.5 border border-white/30 px-4 text-xs font-bold uppercase tracking-wider text-white/80 transition hover:border-white hover:text-white"
         >
           <Globe className="h-3.5 w-3.5" />
           {LOCALE_LABELS[currentLocale]}
@@ -54,7 +54,7 @@ export function LanguageSwitcher({ currentLocale, variant = "header" }: { curren
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 border border-black/10 px-3 py-2 text-xs font-bold uppercase tracking-wider text-black/60 hover:border-black hover:text-black transition"
+        className="flex h-10 items-center gap-1.5 border border-black/10 px-3 text-xs font-bold uppercase tracking-wider text-black/60 transition hover:border-black hover:text-black"
       >
         <Globe className="h-3.5 w-3.5" />
         {LOCALE_LABELS[currentLocale]}

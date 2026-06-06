@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { useLocale } from "@/components/i18n/LocaleProvider";
-import { LOCALE_LABELS } from "@/lib/i18n/locales";
 
 type MenuKey = "platform" | "suppliers" | "evidence" | "reports";
 
@@ -43,6 +42,17 @@ const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = 
   ]
 };
 
+function initials(name: string | null, email: string): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    return parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return email.slice(0, 2).toUpperCase();
+}
+
 export function SiteMenu() {
   const pathname = usePathname();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("platform");
@@ -52,15 +62,41 @@ export function SiteMenu() {
     ? document.cookie.split(";").some((c) => c.trim().startsWith("sb-"))
     : false;
   const [loggedIn, setLoggedIn] = useState(hasSessionCookie);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [userInitials, setUserInitials] = useState<string>("..");
   const { locale } = useLocale();
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
+
+    async function loadUser() {
+      const { data: { session } } = await supabase.auth.getSession();
       setLoggedIn(!!session);
-    });
+      if (!session?.user) {
+        setDisplayName(null);
+        setUserInitials("..");
+        return;
+      }
+
+      const { data: profile } = await (supabase.from("profiles") as any)
+        .select("full_name")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      const email = session.user.email ?? "";
+      const name = profile?.full_name ?? null;
+      setDisplayName(name || email.split("@")[0]);
+      setUserInitials(initials(name, email));
+    }
+
+    void loadUser();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setLoggedIn(!!session);
+      if (!session?.user) {
+        setDisplayName(null);
+        setUserInitials("..");
+      } else {
+        void loadUser();
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -79,10 +115,11 @@ export function SiteMenu() {
         <nav className="group hidden items-center gap-8 md:flex" aria-label="Primary navigation">
           {menuItems.map((item) => {
             const active = pathname === item.activeHref;
+            const href = loggedIn ? item.activeHref : item.href;
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 onMouseEnter={() => setActiveMenu(item.key)}
                 className={cn(
                   "inline-flex items-center gap-1 py-7 text-xs font-black uppercase tracking-[0.04em] transition",
@@ -119,13 +156,25 @@ export function SiteMenu() {
           </div>
         </nav>
         <div className="flex shrink-0 items-center gap-3">
-          <LanguageSwitcher currentLocale={locale} variant="menu" />
           {loggedIn ? (
-            <Link href="/dashboard" className="inline-flex h-14 items-center border border-white bg-white px-6 text-xs font-black uppercase tracking-[0.04em] text-black hover:bg-black hover:text-white">
-              Dashboard
-            </Link>
+            <>
+              <Link
+                href="/account"
+                className="inline-flex h-14 min-w-[148px] max-w-[220px] items-center gap-2 border border-white/30 px-4 text-xs font-black uppercase tracking-[0.04em] text-white/90 hover:border-white hover:text-white"
+              >
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-[10px] text-black">
+                  {userInitials}
+                </span>
+                <span className="truncate">{displayName ?? "Account"}</span>
+              </Link>
+              <Link href="/dashboard" className="inline-flex h-14 min-w-[136px] items-center justify-center border border-white bg-white px-6 text-xs font-black uppercase tracking-[0.04em] text-black hover:bg-black hover:text-white">
+                Dashboard
+              </Link>
+              <LanguageSwitcher currentLocale={locale} variant="menu" />
+            </>
           ) : (
             <>
+              <LanguageSwitcher currentLocale={locale} variant="menu" />
               <Link
                 href="/login"
                 className="hidden px-4 py-3 text-xs font-black uppercase tracking-[0.04em] text-white/85 hover:text-white sm:inline-flex"
@@ -140,18 +189,21 @@ export function SiteMenu() {
         </div>
       </div>
       <nav className="flex gap-2 overflow-x-auto border-t border-white/15 px-5 py-2 md:hidden" aria-label="Mobile primary navigation">
-        {menuItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "whitespace-nowrap px-3 py-2 text-xs font-black uppercase tracking-[0.04em]",
-              pathname === item.activeHref ? "bg-white text-black" : "text-white/80"
-            )}
-          >
-            {item.label}
-          </Link>
-        ))}
+        {menuItems.map((item) => {
+          const href = loggedIn ? item.activeHref : item.href;
+          return (
+            <Link
+              key={item.href}
+              href={href}
+              className={cn(
+                "whitespace-nowrap px-3 py-2 text-xs font-black uppercase tracking-[0.04em]",
+                pathname === item.activeHref ? "bg-white text-black" : "text-white/80"
+              )}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
     </header>
   );
