@@ -25,11 +25,23 @@ export default async function AuditLogPage() {
   const { role } = await requireProfileRole("/audit-log", ["reviewer", "administrator"]);
   const supabase = createServerSupabaseClient();
 
-  const { data: logs } = await supabase
+  type AuditLog = {
+    id: string;
+    action: string;
+    record_type: string | null;
+    record_id: string | null;
+    created_at: string;
+    actor_profile_id: string | null;
+    profiles: { email: string; full_name: string | null } | null;
+  };
+
+  const { data: rawLogs } = await supabase
     .from("audit_logs")
     .select("id, action, record_type, record_id, created_at, actor_profile_id, profiles(email, full_name)")
     .order("created_at", { ascending: false })
     .limit(100);
+
+  const logs = rawLogs as unknown as AuditLog[] | null;
 
   return (
     <AppShell role={role}>
@@ -50,7 +62,7 @@ export default async function AuditLogPage() {
           <div className="divide-y divide-line">
             {logs.map((log, i) => {
               const Icon = getIcon(log.record_type);
-              const actor = log.profiles as { email: string; full_name: string | null } | null;
+              const actor = log.profiles;
               const isLast = i === logs.length - 1;
 
               return (
