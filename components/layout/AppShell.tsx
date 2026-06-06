@@ -7,9 +7,27 @@ import { APP_NAME, APP_SUBTITLE, BRAND_TAGLINE, LEGAL_DISCLAIMER, PARENT_BRAND }
 import { cn } from "@/lib/utils";
 import { iconMap, navItems } from "@/data/platform";
 import { RolePreviewBanner } from "@/components/admin/RolePreview";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { AppRole } from "@/types/platform";
 
 const PREVIEW_KEY = "fsvp_preview_role";
+
+const ROLE_LABELS: Record<AppRole, string> = {
+  supplier: "Supplier",
+  us_importer: "US Importer",
+  reviewer: "Reviewer",
+  administrator: "Administrator",
+};
+
+function initials(name: string | null, email: string): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    return parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : parts[0].slice(0, 2).toUpperCase();
+  }
+  return email.slice(0, 2).toUpperCase();
+}
 
 export function AppShell({
   children,
@@ -20,14 +38,34 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [role, setRole] = useState<AppRole>(serverRole);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [userInitials, setUserInitials] = useState<string>("··");
 
   useEffect(() => {
-    // Admins can preview as other roles — only applies to admin users
     if (serverRole === "administrator") {
       const preview = localStorage.getItem(PREVIEW_KEY) as AppRole | null;
       if (preview) setRole(preview);
     }
   }, [serverRole]);
+
+  useEffect(() => {
+    async function loadUser() {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await (supabase.from("profiles") as any)
+        .select("full_name, organization_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const name = profile?.full_name ?? null;
+      const email = user.email ?? "";
+      setUserInitials(initials(name, email));
+      setDisplayName(name || email.split("@")[0]);
+    }
+    void loadUser();
+  }, []);
 
   const visibleItems = navItems.filter((item) => !item.roles || item.roles.includes(role));
 
@@ -61,15 +99,43 @@ export function AppShell({
             );
           })}
         </nav>
+
+        {/* User identity at sidebar bottom */}
+        <div className="absolute bottom-0 left-0 right-0 border-t border-black/10 p-4">
+          <Link href="/account" className="flex items-center gap-3 group">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-xs font-black text-white">
+              {userInitials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-bold text-black group-hover:text-black/70 transition">
+                {displayName ?? "···"}
+              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-black/40">
+                {ROLE_LABELS[role]}
+              </p>
+            </div>
+          </Link>
+        </div>
       </aside>
+
       <div className="lg:pl-72">
         {serverRole === "administrator" && <RolePreviewBanner />}
         <header className="sticky top-[7.25rem] z-10 border-b border-black/10 bg-white/95 px-5 py-3 backdrop-blur md:top-[72px]">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-black uppercase tracking-[0.08em] text-black/50">Role: <span className="text-black">{role}</span></p>
+            <p className="text-xs font-black uppercase tracking-[0.08em] text-black/40">
+              {ROLE_LABELS[role]}
+            </p>
             <p className="hidden text-sm font-medium text-black/50 md:block">{APP_SUBTITLE}</p>
-            <Link href="/account" className="border border-black px-3 py-2 text-sm font-black uppercase tracking-[0.04em] text-black hover:bg-black hover:text-white">
-              Account
+            <Link
+              href="/account"
+              className="flex items-center gap-2.5 border border-black/10 px-3 py-2 hover:border-black transition group"
+            >
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-black text-[10px] font-black text-white">
+                {userInitials}
+              </div>
+              <span className="text-xs font-bold uppercase tracking-[0.06em] text-black group-hover:text-black/70 transition">
+                {displayName ?? "Account"}
+              </span>
             </Link>
           </div>
           <nav className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
