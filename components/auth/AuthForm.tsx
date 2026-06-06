@@ -28,6 +28,9 @@ const copy: Record<AuthMode, { title: string; button: string; helper: string }> 
   }
 };
 
+const VERIFICATION_HELP_MESSAGE =
+  "If there is an account with this email address, you can request a verification email.";
+
 export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; nextPath?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -53,11 +56,16 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
         }
 
         if (mode === "signup") {
-          const { error: authError } = await supabase.auth.signUp({
+          const { data, error: authError } = await supabase.auth.signUp({
             email: emailValue,
             password: passwordValue,
             options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/verified` }
           });
+          const accountAlreadyExists = data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0;
+          if (accountAlreadyExists) {
+            setMessage(VERIFICATION_HELP_MESSAGE);
+            return;
+          }
           if (authError) throw authError;
           setMessage("Check your email to verify the account before signing in.");
         }
@@ -77,6 +85,11 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
         }
       } catch (authError) {
         const message = authError instanceof Error ? authError.message : "Authentication failed.";
+        if (mode === "signup" && message.toLowerCase().includes("already")) {
+          setMessage(VERIFICATION_HELP_MESSAGE);
+          return;
+        }
+
         setError(
           message === "Failed to fetch"
             ? "Could not reach Supabase. Check the Cloudflare Supabase URL/key values and redeploy."
@@ -102,7 +115,7 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
           options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/verified` }
         });
         if (resendError) throw resendError;
-        setMessage("Verification email resent. Check inbox, spam, and any mail filters.");
+        setMessage("Verification email requested. Check inbox, spam, and any mail filters.");
       } catch (resendError) {
         setError(resendError instanceof Error ? resendError.message : "Could not resend verification email.");
       }
