@@ -15,6 +15,7 @@ const ROLES: { value: AppRole; label: string; description: string }[] = [
 
 export function RolePreviewSelector() {
   const [current, setCurrent] = useState<AppRole | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(PREVIEW_KEY) as AppRole | null;
@@ -29,45 +30,68 @@ export function RolePreviewSelector() {
       localStorage.setItem(PREVIEW_KEY, role);
       setCurrent(role);
     }
+    setOpen(false);
     window.location.reload();
   }
 
+  const activeRole = ROLES.find((r) => r.value === (current ?? "administrator"));
+
   return (
-    <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-      <div className="flex items-center gap-2 mb-4">
-        <Eye className="h-4 w-4 text-slate-500" />
-        <h3 className="text-sm font-semibold text-ink">View Site As Role</h3>
-        {current && (
-          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-            Previewing as {ROLES.find((r) => r.value === current)?.label}
-          </span>
+    <div className="flex items-center gap-3 rounded-lg border border-line bg-white px-4 py-3 shadow-soft">
+      <Eye className="h-4 w-4 shrink-0 text-slate-400" />
+      <span className="text-sm font-medium text-slate-600">View site as:</span>
+
+      <div className="relative">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 rounded-md border border-line bg-slate-50 px-3 py-1.5 text-sm font-semibold text-ink hover:border-forest transition"
+        >
+          {activeRole?.label}
+          {current && (
+            <span className="rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+              preview
+            </span>
+          )}
+          <svg className="h-3.5 w-3.5 text-slate-400" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        {open && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-line bg-white shadow-xl overflow-hidden">
+              {ROLES.map((role) => {
+                const active = (current ?? "administrator") === role.value;
+                return (
+                  <button
+                    key={role.value}
+                    onClick={() => select(role.value)}
+                    className={`w-full px-4 py-3 text-left transition ${
+                      active ? "bg-emerald-50" : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <p className={`text-sm font-semibold ${active ? "text-forest" : "text-ink"}`}>
+                      {role.label}
+                      {active && <span className="ml-2 text-xs font-normal text-forest">(active)</span>}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">{role.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
-      <p className="text-xs text-slate-500 mb-4">
-        Preview how the platform looks and behaves for each role. This only affects your view — your actual role and data access remain unchanged.
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {ROLES.map((role) => {
-          const active = (current ?? "administrator") === role.value;
-          return (
-            <button
-              key={role.value}
-              onClick={() => select(role.value)}
-              className={`flex flex-col items-start rounded-lg border p-3 text-left transition ${
-                active
-                  ? "border-forest bg-emerald-50"
-                  : "border-line bg-white hover:border-forest hover:bg-slate-50"
-              }`}
-            >
-              <span className={`text-sm font-semibold ${active ? "text-forest" : "text-ink"}`}>
-                {role.label}
-                {active && <span className="ml-2 text-xs font-normal text-forest">(active)</span>}
-              </span>
-              <span className="mt-0.5 text-xs text-slate-500">{role.description}</span>
-            </button>
-          );
-        })}
-      </div>
+
+      {current && (
+        <button
+          onClick={() => select("administrator")}
+          className="ml-auto flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-slate-600 transition"
+        >
+          <X className="h-3.5 w-3.5" /> Exit preview
+        </button>
+      )}
     </div>
   );
 }
