@@ -1,28 +1,27 @@
-import { getCurrentProfileRole, WorkflowPage } from "@/components/WorkflowPage";
+import { AppShell } from "@/components/layout/AppShell";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SupplierTable } from "@/components/suppliers/SupplierTable";
+import { requireProfileRole } from "@/lib/auth/protection";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const runtime = "edge";
 
 export default async function SuppliersPage() {
-  const role = await getCurrentProfileRole("/suppliers");
+  const { role } = await requireProfileRole("/suppliers");
+  const supabase = createServerSupabaseClient();
+
+  const { data: suppliers } = await supabase
+    .from("suppliers")
+    .select("id, company_name, country, approval_status, certification_status, fda_registration_number, contact_json, updated_at")
+    .order("updated_at", { ascending: false });
 
   return (
-    <WorkflowPage
-      role={role}
-      title="Suppliers"
-      description="Start with the foreign supplier company profile, contacts, certifications, FDA registration, and importer relationship."
-      primaryAction="Add supplier"
-      cards={[
-        {
-          title: "Supplier Intake",
-          description: "Capture the supplier legal entity, contacts, export markets, certifications, and FSVP relationship.",
-          items: ["Legal entity", "Primary contacts", "Export markets", "FDA registration"]
-        },
-        {
-          title: "Supplier Evidence Snapshot",
-          description: "Jump into the evidence and readiness areas once the supplier profile exists.",
-          items: ["Supplier questionnaire", "Certifications", "Registration documents", "Ownership attestation"]
-        }
-      ]}
-    />
+    <AppShell role={role}>
+      <SectionHeader
+        title="Suppliers"
+        description="Manage your foreign supplier records, contacts, approval status, and FSVP compliance standing."
+      />
+      <SupplierTable suppliers={suppliers ?? []} />
+    </AppShell>
   );
 }

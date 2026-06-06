@@ -39,15 +39,16 @@ export const iconMap = {
 
 export const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
-  { href: "/account", label: "Account", icon: "UserRound" },
   { href: "/suppliers", label: "Suppliers", icon: "Building2" },
-  { href: "/products-facilities", label: "Products & Facilities", icon: "PackageSearch" },
+  { href: "/products", label: "Products", icon: "PackageSearch" },
+  { href: "/facilities", label: "Facilities", icon: "Warehouse" },
   { href: "/evidence", label: "Evidence", icon: "FileArchive" },
+  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle" },
   { href: "/readiness", label: "Readiness", icon: "Gauge" },
   { href: "/reports", label: "Reports", icon: "FileCheck2" },
   { href: "/reviewer", label: "Review Queue", icon: "ClipboardCheck", roles: ["reviewer", "administrator"] },
   { href: "/admin", label: "Admin", icon: "ShieldCheck", roles: ["administrator"] },
-  { href: "/audit-log", label: "Audit Log", icon: "ShieldCheck", roles: ["reviewer", "administrator"] }
+  { href: "/audit-log", label: "Audit Log", icon: "ClipboardList", roles: ["reviewer", "administrator"] }
 ];
 
 export const dashboardMetrics = [

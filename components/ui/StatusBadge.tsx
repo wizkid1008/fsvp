@@ -9,9 +9,9 @@ const toneClasses: Record<StatusTone, string> = {
   info: "border-sky-200 bg-sky-50 text-sky-700"
 };
 
-export function StatusBadge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: StatusTone }) {
+export function StatusBadge({ children, tone = "neutral", className }: { children: React.ReactNode; tone?: StatusTone; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold", toneClasses[tone])}>
+    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold", toneClasses[tone], className)}>
       {children}
     </span>
   );
