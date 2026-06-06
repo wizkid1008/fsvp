@@ -3,6 +3,7 @@
 import { useState, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, FileText } from "lucide-react";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 const DOCUMENT_CATEGORIES = [
   "Food Safety Plan", "HACCP Plan", "Certificate of Analysis", "Audit Report",
@@ -37,10 +38,25 @@ export function EvidenceUploadPanel() {
 
     startTransition(async () => {
       try {
+        // Fetch user's importer_id from their profile
+        const supabase = createBrowserSupabaseClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Not authenticated.");
+
+        const { data: profile } = await (supabase.from("profiles") as any)
+          .select("importer_id")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (!profile?.importer_id) {
+          throw new Error("Your account is not linked to an importer organization. Ask your administrator to link your account before uploading documents.");
+        }
+
         const body = new FormData();
         body.append("file", file);
         body.append("title", title);
-        body.append("category", category);
+        body.append("document_kind", category);
+        body.append("importer_id", profile.importer_id);
 
         const res = await fetch("/api/documents/upload", { method: "POST", body });
         const json = await res.json() as { error?: string };
