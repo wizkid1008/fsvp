@@ -444,7 +444,7 @@ const en = {
     unauthorized: "You are not authorized to view this page.",
     selectCountry: "Select a country from the dropdown list.",
   },
-} as const;
+};
 
 export default en;
 export type Messages = typeof en;
