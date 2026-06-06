@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { Globe } from "lucide-react";
-import { LOCALES, LOCALE_LABELS, type Locale } from "@/lib/i18n/locales";
-import { LOCALE_COOKIE } from "@/lib/i18n/server";
+import { LOCALES, LOCALE_LABELS, LOCALE_COOKIE, type Locale } from "@/lib/i18n/locales";
 
 export function LanguageSwitcher({ currentLocale, variant = "header" }: { currentLocale: Locale; variant?: "header" | "menu" }) {
   const [open, setOpen] = useState(false);

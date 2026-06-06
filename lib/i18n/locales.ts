@@ -1,3 +1,4 @@
+export const LOCALE_COOKIE = "fsvp_locale";
 export const LOCALES = ["en", "ar", "fr", "es"] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = "en";
