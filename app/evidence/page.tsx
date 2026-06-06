@@ -27,7 +27,17 @@ export default async function EvidencePage() {
   const { role } = await requireProfileRole("/evidence");
   const supabase = createServerSupabaseClient();
 
-  const [{ data: documents }, { data: requirements }, { data: suppliers }] = await Promise.all([
+  type DocumentRow = {
+    id: string;
+    title: string;
+    document_kind: string;
+    original_filename: string | null;
+    uploaded_at: string;
+    approval_status: string | null;
+    size_bytes: number;
+  };
+
+  const [docsResult, reqsResult] = await Promise.all([
     supabase
       .from("documents")
       .select("id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes")
@@ -38,12 +48,10 @@ export default async function EvidencePage() {
       .select("id, requirement_name, requirement_key, sort_order")
       .eq("active", true)
       .order("sort_order"),
-    supabase
-      .from("suppliers")
-      .select("id, company_name")
-      .eq("approval_status", "approved")
-      .order("company_name"),
   ]);
+
+  const documents = docsResult.data as unknown as DocumentRow[] | null;
+  const requirements = reqsResult.data;
 
   return (
     <AppShell role={role}>
