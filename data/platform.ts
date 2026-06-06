@@ -41,7 +41,8 @@ export const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
   // Supplier-only
   { href: "/my-evidence", label: "My Evidence", icon: "FileArchive", roles: ["supplier"] },
-  { href: "/my-requests", label: "My Requests", icon: "AlertTriangle", roles: ["supplier"] },
+  { href: "/my-readiness", label: "My Readiness", icon: "Gauge", roles: ["supplier"] },
+  { href: "/my-requests", label: "Action Items", icon: "AlertTriangle", roles: ["supplier"] },
   // US Importer + Reviewer + Admin
   { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["us_importer", "reviewer", "administrator"] },
   { href: "/products", label: "Products", icon: "PackageSearch", roles: ["us_importer", "reviewer", "administrator"] },

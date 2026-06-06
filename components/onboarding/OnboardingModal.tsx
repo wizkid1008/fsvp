@@ -16,7 +16,7 @@ const IMPORTER_STEPS = [
 const SUPPLIER_STEPS = [
   { title: "Complete your profile", description: "Add your company name, contact details, and country so your importer can identify you.", cta: { label: "Go to Account", href: "/account" } },
   { title: "Upload your evidence", description: "Upload the documents your importer has requested — COAs, certifications, food safety plans.", cta: { label: "Upload Evidence", href: "/my-evidence" } },
-  { title: "Check your open requests", description: "Review any corrective actions or revision requests from your importer.", cta: { label: "View Requests", href: "/my-requests" } },
+  { title: "Review your action items", description: "Check for any corrective actions, revision requests, or additional documents your importer has asked for.", cta: { label: "View Action Items", href: "/my-requests" } },
 ];
 
 export function OnboardingModal({ role = "supplier" }: { role?: AppRole }) {

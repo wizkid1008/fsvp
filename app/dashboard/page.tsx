@@ -23,7 +23,7 @@ const IMPORTER_STEPS = [
 const SUPPLIER_STEPS = [
   { label: "Complete your profile", href: "/account", key: "profile" },
   { label: "Upload your evidence", href: "/my-evidence", key: "evidence" },
-  { label: "Resolve open requests", href: "/my-requests", key: "readiness" },
+  { label: "Review action items", href: "/my-requests", key: "readiness" },
 ];
 
 export default async function DashboardPage() {
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
   const metrics = isSupplier
     ? [
         { label: "Documents Submitted", value: String(documentCount ?? 0), href: "/my-evidence", tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
-        { label: "Open Requests", value: String(actionCount ?? 0), href: "/my-requests", tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
+        { label: "Action Items", value: String(actionCount ?? 0), href: "/my-requests", tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
       ]
     : [
         { label: "Suppliers", value: String(supplierCount ?? 0), href: "/suppliers", tone: (supplierCount ?? 0) > 0 ? "info" as const : "neutral" as const },

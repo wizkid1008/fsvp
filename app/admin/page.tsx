@@ -3,10 +3,11 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { RolePreviewSelector } from "@/components/admin/RolePreview";
+import { UserManagement } from "@/components/admin/UserManagement";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Profile, Database } from "@/types/database";
-import type { StatusTone } from "@/types/platform";
+import type { StatusTone, AppRole } from "@/types/platform";
 
 export const runtime = "edge";
 
@@ -39,11 +40,14 @@ export default async function AdminPage() {
     .eq("id", user.id)
     .maybeSingle()) as unknown as ProfileLookup;
 
+  const { data: allUsers } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, organization_name, role, user_status, last_login_at")
+    .order("created_at", { ascending: false });
+
   const userCount = await getCount("profiles", supabase);
   const documentCount = await getCount("documents", supabase);
   const status = profile?.user_status ?? "pending";
-  const displayName = profile?.full_name || user?.email || "Current user";
-  const displayEmail = profile?.email || user?.email || "No email found";
 
   const adminMetrics: Array<{ label: string; value: string; detail: string; tone: StatusTone }> = [
     { label: "Supabase users", value: String(userCount || (user ? 1 : 0)), detail: "visible through RLS", tone: "info" },
@@ -77,51 +81,12 @@ export default async function AdminPage() {
         ))}
       </section>
 
+      <section className="mt-6">
+        <UserManagement users={(allUsers ?? []) as any} />
+      </section>
+
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-        <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
-            <div>
-              <h2 className="text-base font-semibold text-ink">User & Role Management</h2>
-              <p className="mt-1 text-sm text-slate-500">This table reflects the current Supabase profile visible to this session.</p>
-            </div>
-            <div className="flex gap-2">
-              <button className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-line text-slate-600 hover:bg-slate-50" aria-label="Search users">
-                <Search className="h-4 w-4" />
-              </button>
-              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-[#2DA8FF] px-3 text-sm font-semibold text-[#0A2540] hover:bg-sky-300">
-                <Plus className="h-4 w-4" />
-                Invite
-              </button>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">User</th>
-                  <th className="px-5 py-3">Role</th>
-                  <th className="px-5 py-3">Organization</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Last active</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                <tr>
-                  <td className="px-5 py-4">
-                    <p className="font-semibold text-ink">{displayName}</p>
-                    <p className="mt-1 text-xs text-slate-500">{displayEmail}</p>
-                  </td>
-                  <td className="px-5 py-4 text-slate-700">{role}</td>
-                  <td className="px-5 py-4 text-slate-600">{profile?.organization_name || "Not linked"}</td>
-                  <td className="px-5 py-4">
-                    <StatusBadge tone={status === "active" ? "success" : "warning"}>{status}</StatusBadge>
-                  </td>
-                  <td className="px-5 py-4 text-slate-500">{profile?.last_login_at ? new Date(profile.last_login_at).toLocaleDateString("en-US") : "No login stamp"}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <div className="hidden" />
 
         <aside className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="flex items-center justify-between gap-3">
