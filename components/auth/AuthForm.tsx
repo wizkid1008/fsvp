@@ -72,7 +72,7 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
 
         if (mode === "forgot") {
           const { error: authError } = await supabase.auth.resetPasswordForEmail(emailValue, {
-            redirectTo: `${window.location.origin}/reset-password`
+            redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`
           });
           if (authError) throw authError;
           setMessage("Password reset email sent. If it does not arrive, check spam and confirm the address is registered.");
