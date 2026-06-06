@@ -3,36 +3,48 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
+import { useState } from "react";
 import { APP_NAME, PARENT_BRAND } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-const menuItems = [
-  { href: "/about", label: "Platform", hasDropdown: true },
-  { href: "/suppliers", label: "Suppliers", hasDropdown: true },
-  { href: "/evidence", label: "Evidence" },
-  { href: "/reports", label: "Reports" }
+type MenuKey = "platform" | "suppliers" | "evidence" | "reports";
+
+const menuItems: Array<{ href: string; label: string; key: MenuKey }> = [
+  { href: "/about", label: "Platform", key: "platform" },
+  { href: "/suppliers", label: "Suppliers", key: "suppliers" },
+  { href: "/evidence", label: "Evidence", key: "evidence" },
+  { href: "/reports", label: "Reports", key: "reports" }
 ];
 
-const megaColumns = [
-  {
-    heading: "VERIFY",
-    links: ["Supplier Records", "Commodity Risk", "Document Reviews", "Readiness Scoring", "Audit Trail"]
-  },
-  {
-    heading: "WORKFLOWS",
-    links: ["Foreign Supplier Portal", "Importer Review", "Corrective Actions", "Background Library", "Reports"]
-  },
-  {
-    heading: "COMPLIANCE",
-    links: ["FSVP Requirements", "Hazard Analysis", "Written Assurances", "Verification Activities", "FDA Records"]
-  }
-];
+const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = {
+  platform: [
+    { heading: "OVERVIEW", links: ["Risk dashboard", "Workflow navigation", "Role-based access", "Audit-ready records"] },
+    { heading: "TEAMS", links: ["Foreign suppliers", "U.S. importers", "Reviewers", "Administrators"] },
+    { heading: "SYSTEM", links: ["Supabase Auth", "Private document storage", "RLS policies", "Cloudflare Pages"] }
+  ],
+  suppliers: [
+    { heading: "SUPPLIER PROFILE", links: ["Legal entity", "Contacts", "Export markets", "FDA registration"] },
+    { heading: "COMPLIANCE STATUS", links: ["Certifications", "Supplier questionnaire", "Importer relationship", "Ownership attestation"] },
+    { heading: "NEXT STEPS", links: ["Create supplier", "Attach evidence", "Review readiness", "Resolve gaps"] }
+  ],
+  evidence: [
+    { heading: "DOCUMENTS", links: ["Evidence uploads", "Document versions", "Categories", "Review status"] },
+    { heading: "FSVP MAPPING", links: ["Required evidence", "Uploaded evidence", "Reviewer decision", "Gap status"] },
+    { heading: "LIBRARY", links: ["FDA references", "Background documents", "Audit packet", "Requirement index"] }
+  ],
+  reports: [
+    { heading: "READINESS", links: ["Readiness score", "Critical gaps", "Corrective actions", "Final status"] },
+    { heading: "EXPORTS", links: ["Readiness report", "Gap report", "Audit report", "Evidence index"] },
+    { heading: "REVIEW", links: ["Reviewer notes", "Approvals", "Open findings", "Report history"] }
+  ]
+};
 
 export function SiteMenu() {
   const pathname = usePathname();
+  const [activeMenu, setActiveMenu] = useState<MenuKey>("platform");
 
   return (
-    <header className="sticky top-0 z-50 bg-black text-white">
+    <header className="sticky top-0 z-50 bg-black text-white" onMouseLeave={() => setActiveMenu("platform")}>
       <div className="mx-auto flex h-[72px] max-w-[1600px] items-center justify-between gap-4 px-5 md:px-8">
         <Link href="/" className="group flex min-w-0 items-center gap-3" aria-label={`${PARENT_BRAND} home`}>
           <span className="grid h-8 w-8 shrink-0 place-items-center border border-white text-xs font-black tracking-[-0.08em]">
@@ -49,19 +61,20 @@ export function SiteMenu() {
               <Link
                 key={item.href}
                 href={item.href}
+                onMouseEnter={() => setActiveMenu(item.key)}
                 className={cn(
                   "inline-flex items-center gap-1 py-7 text-xs font-black uppercase tracking-[0.04em] transition",
                   active ? "text-white" : "text-white/80 hover:text-white"
                 )}
               >
                 {item.label}
-                {item.hasDropdown ? <ChevronDown className="h-3 w-3" strokeWidth={3} /> : null}
+                <ChevronDown className="h-3 w-3" strokeWidth={3} />
               </Link>
             );
           })}
           <div className="pointer-events-none absolute left-1/2 top-[72px] hidden w-[min(980px,calc(100vw-48px))] -translate-x-1/2 rounded-b-sm bg-black p-8 text-white opacity-0 shadow-[0_28px_80px_rgba(0,0,0,0.35)] transition group-hover:pointer-events-auto group-hover:block group-hover:opacity-100">
             <div className="grid gap-8 md:grid-cols-[1fr_1fr_1fr_280px]">
-              {megaColumns.map((column) => (
+              {megaMenus[activeMenu].map((column) => (
                 <div key={column.heading}>
                   <p className="mb-5 text-[11px] font-black uppercase tracking-[0.08em] text-white/40">{column.heading}</p>
                   <div className="space-y-3">
@@ -72,16 +85,12 @@ export function SiteMenu() {
                 </div>
               ))}
               <div className="border-l border-white/15 pl-7">
-                <p className="mb-5 text-[11px] font-black uppercase tracking-[0.08em] text-white/40">FOR IMPORT TEAMS</p>
-                <div className="space-y-3">
-                  <div className="rounded bg-white/10 p-4">
-                    <p className="text-sm font-black">ThrushCross Verify</p>
-                    <p className="mt-1 text-xs leading-5 text-white/55">Supplier verification, evidence review, and readiness reporting.</p>
-                  </div>
-                  <div className="rounded bg-white/10 p-4">
-                    <p className="text-sm font-black">Compliance Library</p>
-                    <p className="mt-1 text-xs leading-5 text-white/55">Reference documents and FSVP requirement mapping.</p>
-                  </div>
+                <p className="mb-5 text-[11px] font-black uppercase tracking-[0.08em] text-white/40">CURRENT AREA</p>
+                <div className="rounded bg-white/10 p-4">
+                  <p className="text-sm font-black">{menuItems.find((item) => item.key === activeMenu)?.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-white/55">
+                    Hover another top-level title to preview its workflow-specific menu.
+                  </p>
                 </div>
               </div>
             </div>

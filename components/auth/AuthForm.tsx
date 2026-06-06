@@ -56,7 +56,7 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
           const { error: authError } = await supabase.auth.signUp({
             email: emailValue,
             password: passwordValue,
-            options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
+            options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/verified` }
           });
           if (authError) throw authError;
           setMessage("Check your email to verify the account before signing in.");
@@ -64,10 +64,10 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
 
         if (mode === "forgot") {
           const { error: authError } = await supabase.auth.resetPasswordForEmail(emailValue, {
-            redirectTo: `${window.location.origin}/reset-password`
+            redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`
           });
           if (authError) throw authError;
-          setMessage("Password reset email sent.");
+          setMessage("Password reset email sent. If it does not arrive, check spam and confirm the address is registered.");
         }
 
         if (mode === "reset") {
@@ -88,24 +88,45 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
     });
   }
 
+  function resendVerification() {
+    setError(null);
+    setMessage(null);
+
+    startTransition(async () => {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const emailValue = email.trim();
+        const { error: resendError } = await supabase.auth.resend({
+          type: "signup",
+          email: emailValue,
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/verified` }
+        });
+        if (resendError) throw resendError;
+        setMessage("Verification email resent. Check inbox, spam, and any mail filters.");
+      } catch (resendError) {
+        setError(resendError instanceof Error ? resendError.message : "Could not resend verification email.");
+      }
+    });
+  }
+
   return (
-    <form onSubmit={submit} className="w-full max-w-md rounded-lg border border-line bg-white p-6 shadow-soft">
-      <h1 className="text-2xl font-semibold text-ink">{copy[mode].title}</h1>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{copy[mode].helper}</p>
+    <form onSubmit={submit} className="w-full max-w-md border border-black/10 bg-white p-6 shadow-soft">
+      <h1 className="text-5xl font-normal leading-[0.95] tracking-[-0.045em] text-black">{copy[mode].title}</h1>
+      <p className="mt-4 text-base leading-7 text-black/60">{copy[mode].helper}</p>
       {mode !== "reset" ? (
-        <label className="mt-6 block text-sm font-medium text-slate-700">
+        <label className="mt-6 block text-sm font-bold text-black">
           Email
           <input
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             type="email"
             required
-            className="mt-2 h-11 w-full rounded-md border border-line px-3 outline-none focus:border-forest"
+            className="mt-2 h-12 w-full border border-black/15 px-3 outline-none focus:border-black"
           />
         </label>
       ) : null}
       {mode !== "forgot" ? (
-        <label className="mt-4 block text-sm font-medium text-slate-700">
+        <label className="mt-4 block text-sm font-bold text-black">
           Password
           <input
             value={password}
@@ -113,18 +134,28 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
             type="password"
             required
             minLength={8}
-            className="mt-2 h-11 w-full rounded-md border border-line px-3 outline-none focus:border-forest"
+            className="mt-2 h-12 w-full border border-black/15 px-3 outline-none focus:border-black"
           />
         </label>
       ) : null}
       <button
         disabled={pending}
-        className="mt-6 h-11 w-full rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-6 h-12 w-full bg-black px-4 text-sm font-black uppercase tracking-[0.04em] text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? "Working..." : copy[mode].button}
       </button>
-      {message ? <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">{message}</p> : null}
-      {error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+      {message ? <p className="mt-4 bg-emerald-50 p-3 text-sm text-emerald-700">{message}</p> : null}
+      {error ? <p className="mt-4 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+      {mode === "signup" && email.trim() ? (
+        <button
+          type="button"
+          onClick={resendVerification}
+          disabled={pending}
+          className="mt-4 text-sm font-black uppercase tracking-[0.04em] text-black underline-offset-4 hover:underline disabled:opacity-60"
+        >
+          Resend verification email
+        </button>
+      ) : null}
     </form>
   );
 }
