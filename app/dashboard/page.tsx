@@ -32,11 +32,11 @@ export default async function DashboardPage() {
     { count: actionCount },
   ] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle() as unknown as Promise<ProfileLookup>,
-    supabase.from("suppliers").select("id", { count: "exact", head: true }),
-    supabase.from("products_verify").select("id", { count: "exact", head: true }),
-    supabase.from("documents").select("id", { count: "exact", head: true }),
-    supabase.from("readiness_assessments").select("id", { count: "exact", head: true }),
-    supabase.from("corrective_actions").select("id", { count: "exact", head: true }).eq("status", "open"),
+    supabase.from("suppliers").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>,
+    supabase.from("products_verify").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>,
+    supabase.from("documents").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>,
+    supabase.from("readiness_assessments").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>,
+    supabase.from("corrective_actions").select("id", { count: "exact", head: true }).eq("status", "open") as unknown as Promise<{ count: number | null }>,
   ]);
 
   const displayName = profile?.full_name || user.email || "New user";

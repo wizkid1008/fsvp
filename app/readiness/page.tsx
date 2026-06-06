@@ -53,13 +53,14 @@ export default async function ReadinessPage() {
   const { role } = await requireProfileRole("/readiness");
   const supabase = createServerSupabaseClient();
 
-  const { data: assessments } = await supabase
+  type AssessmentRow = { id: string; overall_score: number; status: string; gap_summary: string | null; recommended_actions: string | null; submitted_at: string | null; created_at: string; supplier_id: string; foreign_suppliers: { supplier_name: string } | null };
+
+  const { data: rawAssessments } = await supabase
     .from("readiness_assessments")
-    .select(`
-      id, overall_score, status, gap_summary, recommended_actions, submitted_at, created_at,
-      supplier_id, foreign_suppliers(supplier_name)
-    `)
+    .select("id, overall_score, status, gap_summary, recommended_actions, submitted_at, created_at, supplier_id")
     .order("created_at", { ascending: false });
+
+  const assessments = (rawAssessments ?? []) as unknown as AssessmentRow[];
 
   const latest = assessments?.[0] ?? null;
   const score = latest ? Number(latest.overall_score) : 0;

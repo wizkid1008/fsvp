@@ -11,10 +11,14 @@ export default async function ProductsPage() {
   const { user, role } = await requireProfileRole("/products");
   const supabase = createServerSupabaseClient();
 
-  const { data: products } = await supabase
+  type ProductRow = { id: string; product_name: string; country_of_origin: string | null; intended_use: string | null; allergen_information: string | null; supplier_id: string | null; suppliers: { company_name: string } | null };
+
+  const { data: rawProducts } = await supabase
     .from("products_verify")
-    .select("id, product_name, country_of_origin, intended_use, allergen_information, created_at, supplier_id, suppliers(company_name)")
+    .select("id, product_name, country_of_origin, intended_use, allergen_information, supplier_id")
     .order("created_at", { ascending: false });
+
+  const products = (rawProducts ?? []) as unknown as ProductRow[];
 
   return (
     <AppShell role={role}>

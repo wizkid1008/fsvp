@@ -20,10 +20,14 @@ export default async function FacilitiesPage() {
   const { role } = await requireProfileRole("/facilities");
   const supabase = createServerSupabaseClient();
 
-  const { data: facilities } = await supabase
+  type FacilityRow = { id: string; facility_name: string; facility_type: string; fda_registration_number: string | null; food_safety_certifications: string[] | null; supplier_id: string | null; suppliers: { company_name: string } | null };
+
+  const { data: rawFacilities } = await supabase
     .from("facilities_verify")
-    .select("id, facility_name, facility_type, fda_registration_number, food_safety_certifications, created_at, supplier_id, suppliers(company_name)")
+    .select("id, facility_name, facility_type, fda_registration_number, food_safety_certifications, supplier_id")
     .order("created_at", { ascending: false });
+
+  const facilities = (rawFacilities ?? []) as unknown as FacilityRow[];
 
   return (
     <AppShell role={role}>

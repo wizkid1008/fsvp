@@ -23,14 +23,14 @@ export default async function GapsActionsPage() {
   const { role } = await requireProfileRole("/gaps-actions");
   const supabase = createServerSupabaseClient();
 
-  const { data: actions } = await supabase
+  type ActionRow = { id: string; issue_description: string; triggered_by: string; status: string; triggered_at: string; closed_at: string | null; supplier_id: string; food_id: string | null; foreign_suppliers: { supplier_name: string } | null; foods: { food_name: string } | null };
+
+  const { data: rawActions } = await supabase
     .from("corrective_actions")
-    .select(`
-      id, issue_description, triggered_by, status, triggered_at, closed_at,
-      supplier_id, foreign_suppliers(supplier_name),
-      food_id, foods(food_name)
-    `)
+    .select("id, issue_description, triggered_by, status, triggered_at, closed_at, supplier_id, food_id")
     .order("triggered_at", { ascending: false });
+
+  const actions = (rawActions ?? []) as unknown as ActionRow[];
 
   return (
     <AppShell role={role}>

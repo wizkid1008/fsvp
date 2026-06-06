@@ -14,10 +14,14 @@ export default async function ReportsPage() {
   const { role } = await requireProfileRole("/reports");
   const supabase = createServerSupabaseClient();
 
-  const { data: reports } = await supabase
+  type ReportRow = { id: string; title: string; report_type: string; export_format: string; generated_at: string };
+
+  const { data: rawReports } = await supabase
     .from("generated_reports")
-    .select("id, title, report_type, export_format, generated_at, supplier_id, foreign_suppliers(supplier_name)")
+    .select("id, title, report_type, export_format, generated_at")
     .order("generated_at", { ascending: false });
+
+  const reports = (rawReports ?? []) as unknown as ReportRow[];
 
   return (
     <AppShell role={role}>

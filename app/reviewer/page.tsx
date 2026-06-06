@@ -20,14 +20,14 @@ export default async function ReviewerPage() {
   const { role } = await requireProfileRole("/reviewer", ["reviewer", "administrator"]);
   const supabase = createServerSupabaseClient();
 
-  const { data: reviews } = await supabase
+  type ReviewRow = { id: string; review_type: string; status: string; notes: string | null; created_at: string; supplier_id: string | null; reviewer_profile_id: string | null; suppliers: { company_name: string } | null; profiles: { full_name: string | null; email: string } | null };
+
+  const { data: rawReviews } = await supabase
     .from("reviews")
-    .select(`
-      id, review_type, status, notes, created_at,
-      supplier_id, suppliers(company_name),
-      reviewer_profile_id, profiles(full_name, email)
-    `)
+    .select("id, review_type, status, notes, created_at, supplier_id, reviewer_profile_id")
     .order("created_at", { ascending: false });
+
+  const reviews = (rawReviews ?? []) as unknown as ReviewRow[];
 
   return (
     <AppShell role={role}>
