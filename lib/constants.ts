@@ -12,25 +12,14 @@ export const BACKGROUND_DOCUMENT_BUCKET = "background-documents";
 export const protectedRoutes = [
   "/dashboard",
   "/account",
-  "/profile",
   "/suppliers",
-  "/supplier",
   "/products-facilities",
-  "/products",
-  "/commodities",
-  "/facilities",
   "/evidence",
-  "/documents",
-  "/requirements",
   "/readiness",
-  "/assessment",
-  "/corrective-actions",
   "/reviewer",
   "/admin",
   "/reports",
-  "/notifications",
   "/audit-log",
-  "/settings"
 ];
 
 export const roleProtectedRoutes: Record<string, string[]> = {

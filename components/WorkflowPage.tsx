@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -8,8 +7,6 @@ import type { AppRole } from "@/types/platform";
 type WorkflowCard = {
   title: string;
   description: string;
-  href: string;
-  action: string;
   items: string[];
 };
 
@@ -48,15 +45,12 @@ export function WorkflowPage({
       <SectionHeader title={title} description={description} action={primaryAction} />
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         {cards.map((card) => (
-          <article key={card.href} className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <article key={card.title} className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-ink">{card.title}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{card.description}</p>
               </div>
-              <Link href={card.href} className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-4 text-sm font-semibold text-white hover:bg-[#195f4d]">
-                {card.action}
-              </Link>
             </div>
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
               {card.items.map((item) => (

@@ -13,15 +13,11 @@ export default async function EvidencePage() {
         {
           title: "Documents",
           description: "Upload and classify evidence, preserve versions, and track review status.",
-          href: "/documents",
-          action: "Open documents",
           items: ["Evidence uploads", "Document versions", "Categories", "Review status"]
         },
         {
           title: "FSVP Mapping",
           description: "Map each document to the FSVP requirement it supports and track gap status.",
-          href: "/requirements",
-          action: "Map evidence",
           items: ["Required evidence", "Uploaded evidence", "Reviewer decision", "Gap status"]
         }
       ]}

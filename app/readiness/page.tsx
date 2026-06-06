@@ -13,22 +13,16 @@ export default async function ReadinessPage() {
         {
           title: "Gap Assessment",
           description: "Calculate readiness across supplier, product, facility, hazard analysis, verification, and recall categories.",
-          href: "/assessment",
-          action: "Open assessment",
           items: ["Readiness score", "Critical gaps", "Evidence sources", "Recommended actions"]
         },
         {
           title: "Corrective Actions",
           description: "Create and close follow-up tasks for rejected evidence, missing records, and unresolved findings.",
-          href: "/corrective-actions",
-          action: "Open actions",
           items: ["Issue owner", "Due date", "Closure evidence", "Escalation status"]
         },
         {
           title: "Reports",
           description: "Export the readiness, gap, and audit packets once the assessment is ready.",
-          href: "/reports",
-          action: "Generate reports",
           items: ["Readiness report", "Gap report", "Audit packet", "Evidence index"]
         }
       ]}

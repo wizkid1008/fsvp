@@ -13,15 +13,11 @@ export default async function SuppliersPage() {
         {
           title: "Supplier Intake",
           description: "Capture the supplier legal entity, contacts, export markets, certifications, and FSVP relationship.",
-          href: "/supplier",
-          action: "Open intake",
           items: ["Legal entity", "Primary contacts", "Export markets", "FDA registration"]
         },
         {
           title: "Supplier Evidence Snapshot",
           description: "Jump into the evidence and readiness areas once the supplier profile exists.",
-          href: "/evidence",
-          action: "Review evidence",
           items: ["Supplier questionnaire", "Certifications", "Registration documents", "Ownership attestation"]
         }
       ]}
