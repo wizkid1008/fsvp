@@ -89,7 +89,7 @@ Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code.
    - Local: `http://localhost:3000/auth/callback`
    - Production: `https://<your-domain>/auth/callback`
 6. Upload FDA/background references to the `background-documents` bucket or keep the checked-in copies under `background-documents/` as repository references.
-7. Seed first administrator account and assign organization/user role.
+7. Seed first administrator account and assign organization/user role by running `supabase/seed/promote_first_admin.sql` after replacing the placeholder email.
 
 ## GitHub Workflow
 

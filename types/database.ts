@@ -9,12 +9,23 @@ export type Profile = {
   phone_number: string | null;
   country: string | null;
   preferred_language: string | null;
+  supplier_type: string | null;
+  importer_type: string | null;
   role: "supplier" | "reviewer" | "administrator";
   supplier_id: string | null;
   importer_id: string | null;
   user_status: "active" | "pending" | "suspended";
   last_login_at: string | null;
   created_at: string;
+  updated_at: string;
+};
+
+export type Country = {
+  country_code: string;
+  country_name: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Database = {
@@ -61,6 +72,12 @@ export type Database = {
         Row: Profile;
         Insert: Partial<Profile> & Pick<Profile, "id" | "email">;
         Update: Partial<Profile>;
+        Relationships: [];
+      };
+      countries: {
+        Row: Country;
+        Insert: Partial<Country> & Pick<Country, "country_code" | "country_name">;
+        Update: Partial<Country>;
         Relationships: [];
       };
     };
