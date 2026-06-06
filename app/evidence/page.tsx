@@ -29,13 +29,15 @@ export default async function EvidencePage() {
 
   type DocRow = { id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; size_bytes: number };
 
+  type ReqRow = { id: string; requirement_name: string; requirement_key: string; sort_order: number };
+
   const [docsRes, reqsRes] = await Promise.all([
     supabase.from("documents").select("id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes").order("uploaded_at", { ascending: false }),
     supabase.from("fsvp_requirements").select("id, requirement_name, requirement_key, sort_order").eq("active", true).order("sort_order"),
   ]);
 
   const documents = (docsRes.data ?? []) as unknown as DocRow[];
-  const requirements = reqsRes.data;
+  const requirements = (reqsRes.data ?? []) as unknown as ReqRow[];
 
   return (
     <AppShell role={role}>
