@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Check, ShieldCheck } from "lucide-react";
+
+export const runtime = "edge";
 import { APP_NAME, APP_SUBTITLE, LEGAL_DISCLAIMER, PARENT_BRAND } from "@/lib/constants";
 
 const proofPoints = [

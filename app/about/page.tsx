@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+export const runtime = "edge";
+
 export default function AboutPage() {
   return (
     <main className="min-h-screen bg-white px-5 py-16 text-black md:px-8">
