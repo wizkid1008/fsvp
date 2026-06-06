@@ -161,15 +161,19 @@ export function ProfileForm({
           <input name="preferred_language" defaultValue={profile?.preferred_language ?? "en"} className={fieldClassName()} placeholder="en" />
         </label>
 
-        <label className="text-sm font-medium text-slate-700">
-          Supplier Type
-          <input name="supplier_type" defaultValue={profile?.supplier_type ?? ""} className={fieldClassName()} placeholder="Supplier type" />
-        </label>
+        {role === "supplier" && (
+          <label className="text-sm font-medium text-slate-700">
+            Supplier Type
+            <input name="supplier_type" defaultValue={profile?.supplier_type ?? ""} className={fieldClassName()} placeholder="e.g. Manufacturer, Processor, Farm" />
+          </label>
+        )}
 
-        <label className="text-sm font-medium text-slate-700">
-          Importer Type
-          <input name="importer_type" defaultValue={profile?.importer_type ?? ""} className={fieldClassName()} placeholder="Importer type" />
-        </label>
+        {role === "us_importer" && (
+          <label className="text-sm font-medium text-slate-700">
+            Importer Type
+            <input name="importer_type" defaultValue={profile?.importer_type ?? ""} className={fieldClassName()} placeholder="e.g. Direct importer, Broker" />
+          </label>
+        )}
 
         <label className="text-sm font-medium text-slate-700">
           Role
