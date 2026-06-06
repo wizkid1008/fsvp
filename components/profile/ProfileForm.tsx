@@ -113,7 +113,8 @@ export function ProfileForm({
         setMessage("Profile saved.");
         router.refresh();
       } catch (saveError) {
-        setError(saveError instanceof Error ? saveError.message : "Profile could not be saved.");
+        const msg = saveError instanceof Error ? saveError.message : JSON.stringify(saveError);
+        setError(`Profile could not be saved: ${msg}`);
       } finally {
         setSaving(false);
       }
