@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AddSupplierForm } from "@/components/suppliers/AddSupplierForm";
-import { Building2 } from "lucide-react";
+import { Building2, Pencil } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 import type { Country } from "@/types/database";
 
@@ -12,7 +12,9 @@ type CountryOption = Pick<Country, "country_code" | "country_name">;
 export type SupplierRow = {
   id: string;
   company_name: string;
+  legal_entity_name: string | null;
   country: string;
+  website: string | null;
   approval_status: string;
   certification_status: string;
   fda_registration_number: string | null;
@@ -34,11 +36,22 @@ function approvalLabel(status: string) {
 
 export function SupplierTable({ countries, suppliers }: { countries: CountryOption[]; suppliers: SupplierRow[] }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<SupplierRow | null>(null);
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingSupplier(null);
+  }
+
+  function editSupplier(supplier: SupplierRow) {
+    setEditingSupplier(supplier);
+    setShowForm(true);
+  }
 
   if (suppliers.length === 0) {
     return (
       <>
-        {showForm && <AddSupplierForm countries={countries} onClose={() => setShowForm(false)} />}
+        {showForm && <AddSupplierForm countries={countries} onClose={closeForm} />}
         <div className="mt-6 flex flex-col items-center justify-center rounded-lg border border-dashed border-line bg-slate-50 px-8 py-16 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full border border-line bg-white shadow-soft">
             <Building2 className="h-6 w-6 text-slate-400" />
@@ -61,7 +74,7 @@ export function SupplierTable({ countries, suppliers }: { countries: CountryOpti
 
   return (
     <>
-      {showForm && <AddSupplierForm countries={countries} onClose={() => setShowForm(false)} />}
+      {showForm && <AddSupplierForm countries={countries} supplier={editingSupplier} onClose={closeForm} />}
       <div className="mt-6">
         <div className="mb-4 flex justify-end">
           <button
@@ -81,6 +94,7 @@ export function SupplierTable({ countries, suppliers }: { countries: CountryOpti
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Last Updated</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -115,6 +129,16 @@ export function SupplierTable({ countries, suppliers }: { countries: CountryOpti
                     </td>
                     <td className="px-4 py-3 text-slate-500">
                       {new Date(supplier.updated_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => editSupplier(supplier)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-slate-600 transition hover:border-forest hover:text-forest"
+                        aria-label={`Edit ${supplier.company_name}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
                     </td>
                   </tr>
                 );
