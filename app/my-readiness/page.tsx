@@ -90,7 +90,7 @@ export default async function MyReadinessPage() {
 
   const acceptedRequirements = requirements.filter((requirement) => {
     const status = statusForRequirement(requirement.id);
-    return status === "accepted" || status === "complete";
+    return status === "accepted";
   }).length;
 
   const scoreRaw = requirements.length === 0 ? 0 : Math.round((acceptedRequirements / requirements.length) * 100);
