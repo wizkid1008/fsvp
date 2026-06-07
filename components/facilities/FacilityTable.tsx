@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Warehouse, X } from "lucide-react";
+import { Edit2, MapPin, Warehouse, X } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -21,6 +21,8 @@ export type FacilityRow = {
   facility_type: string;
   facility_address_json: Json;
   fda_registration_number: string | null;
+  production_capacity: string | null;
+  manufacturing_processes: string | null;
   food_safety_certifications: string[] | null;
   supplier_id: string | null;
   suppliers: { company_name: string } | null;
@@ -51,19 +53,36 @@ function labelize(value: string) {
   return value.replace(/_/g, " ");
 }
 
-function parseFacilityAddress(value: Json) {
+function readJsonString(value: Json | undefined) {
+  return typeof value === "string" ? value : "";
+}
+
+function readJsonNumber(value: Json | undefined) {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string" || !value.trim()) return null;
+
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function readFacilityAddress(value: Json) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
+    return {
+      addressLine1: "",
+      city: "",
+      country: "",
+      latitude: null,
+      longitude: null
+    };
   }
 
-  const latitude = typeof value.latitude === "number" ? value.latitude : null;
-  const longitude = typeof value.longitude === "number" ? value.longitude : null;
-
-  if (latitude === null || longitude === null) {
-    return null;
-  }
-
-  return { latitude, longitude };
+  return {
+    addressLine1: readJsonString(value.address_line_1),
+    city: readJsonString(value.city),
+    country: readJsonString(value.country),
+    latitude: readJsonNumber(value.latitude),
+    longitude: readJsonNumber(value.longitude)
+  };
 }
 
 function mapUrl(latitude: number, longitude: number) {
@@ -84,16 +103,22 @@ function readCoordinate(value: FormDataEntryValue | null, min: number, max: numb
 
 function AddFacilityForm({
   countries,
+  facility,
   onClose,
   suppliers
 }: {
   countries: CountryOption[];
+  facility?: FacilityRow | null;
   onClose: () => void;
   suppliers: SupplierOption[];
 }) {
   const router = useRouter();
+  const address = readFacilityAddress(facility?.facility_address_json ?? null);
   const [error, setError] = useState<string | null>(null);
-  const [coordinates, setCoordinates] = useState({ latitude: "", longitude: "" });
+  const [coordinates, setCoordinates] = useState({
+    latitude: address.latitude?.toString() ?? "",
+    longitude: address.longitude?.toString() ?? ""
+  });
   const [locationPending, setLocationPending] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -160,8 +185,7 @@ function AddFacilityForm({
           latitude,
           longitude
         };
-        const supabase = createBrowserSupabaseClient();
-        const { error: insertError } = await (supabase.from("facilities_verify") as any).insert({
+        const payload = {
           facility_name: formData.get("facility_name")?.toString().trim() ?? "",
           facility_type: formData.get("facility_type")?.toString().trim() ?? "",
           supplier_id: supplierId,
@@ -170,9 +194,13 @@ function AddFacilityForm({
           production_capacity: clean(formData.get("production_capacity")),
           manufacturing_processes: clean(formData.get("manufacturing_processes")),
           food_safety_certifications: splitCertifications(clean(formData.get("food_safety_certifications")))
-        });
+        };
+        const supabase = createBrowserSupabaseClient();
+        const { error: saveError } = facility
+          ? await (supabase.from("facilities_verify") as any).update(payload).eq("id", facility.id)
+          : await (supabase.from("facilities_verify") as any).insert(payload);
 
-        if (insertError) throw insertError;
+        if (saveError) throw saveError;
         router.refresh();
         onClose();
       } catch (err) {
@@ -187,9 +215,9 @@ function AddFacilityForm({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl rounded-lg border border-line bg-white shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-line bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
-          <h2 className="text-lg font-semibold text-ink">Add Facility</h2>
+          <h2 className="text-lg font-semibold text-ink">{facility ? "Edit Facility" : "Add Facility"}</h2>
           <button type="button" onClick={onClose} className="rounded p-1 transition hover:bg-slate-100">
             <X className="h-4 w-4 text-slate-500" />
           </button>
@@ -199,11 +227,11 @@ function AddFacilityForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={labelClass}>
               Facility Name <span className="text-red-500">*</span>
-              <input name="facility_name" required className={inputClass} placeholder="Santiago Plant 2" />
+              <input name="facility_name" required defaultValue={facility?.facility_name ?? ""} className={inputClass} placeholder="Santiago Plant 2" />
             </label>
             <label className={labelClass}>
               Supplier <span className="text-red-500">*</span>
-              <select name="supplier_id" required className={inputClass} defaultValue="">
+              <select name="supplier_id" required className={inputClass} defaultValue={facility?.supplier_id ?? ""}>
                 <option value="">Select supplier</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>
@@ -212,7 +240,7 @@ function AddFacilityForm({
             </label>
             <label className={labelClass}>
               Facility Type <span className="text-red-500">*</span>
-              <select name="facility_type" required className={inputClass} defaultValue="">
+              <select name="facility_type" required className={inputClass} defaultValue={facility?.facility_type ?? ""}>
                 {FACILITY_TYPES.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
@@ -220,20 +248,20 @@ function AddFacilityForm({
             </label>
             <label className={labelClass}>
               FDA Registration #
-              <input name="fda_registration_number" className={inputClass} placeholder="Optional" />
+              <input name="fda_registration_number" defaultValue={facility?.fda_registration_number ?? ""} className={inputClass} placeholder="Optional" />
             </label>
             <label className={labelClass}>
               Address
-              <input name="address_line_1" className={inputClass} placeholder="Street address" />
+              <input name="address_line_1" defaultValue={address.addressLine1} className={inputClass} placeholder="Street address" />
             </label>
             <label className={labelClass}>
               City
-              <input name="city" className={inputClass} placeholder="City" />
+              <input name="city" defaultValue={address.city} className={inputClass} placeholder="City" />
             </label>
-            <CountryCombobox countries={countries} required />
+            <CountryCombobox countries={countries} defaultValue={address.country} required />
             <label className={labelClass}>
               Production Capacity
-              <input name="production_capacity" className={inputClass} placeholder="Optional" />
+              <input name="production_capacity" defaultValue={facility?.production_capacity ?? ""} className={inputClass} placeholder="Optional" />
             </label>
             <label className={labelClass}>
               Latitude
@@ -281,11 +309,11 @@ function AddFacilityForm({
 
           <label className={labelClass}>
             Manufacturing Processes
-            <textarea name="manufacturing_processes" className={textareaClass} placeholder="Process summary or notes" />
+            <textarea name="manufacturing_processes" defaultValue={facility?.manufacturing_processes ?? ""} className={textareaClass} placeholder="Process summary or notes" />
           </label>
           <label className={labelClass}>
             Food Safety Certifications
-            <input name="food_safety_certifications" className={inputClass} placeholder="BRCGS, SQF, GMP" />
+            <input name="food_safety_certifications" defaultValue={facility?.food_safety_certifications?.join(", ") ?? ""} className={inputClass} placeholder="BRCGS, SQF, GMP" />
             <span className="mt-1 block text-xs text-slate-500">Separate multiple certifications with commas.</span>
           </label>
 
@@ -296,7 +324,7 @@ function AddFacilityForm({
               Cancel
             </button>
             <button disabled={pending} className="h-10 rounded-md bg-forest px-5 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60">
-              {pending ? "Saving..." : "Add facility"}
+              {pending ? "Saving..." : facility ? "Save facility" : "Add facility"}
             </button>
           </div>
         </form>
@@ -315,18 +343,36 @@ export function FacilityTable({
   suppliers: SupplierOption[];
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingFacility, setEditingFacility] = useState<FacilityRow | null>(null);
   const canAddFacility = suppliers.length > 0;
   const addButtonClass = "inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500";
 
+  function openAddForm() {
+    setEditingFacility(null);
+    setShowForm(true);
+  }
+
+  function openEditForm(facility: FacilityRow) {
+    setEditingFacility(facility);
+    setShowForm(true);
+  }
+
   return (
     <>
-      {showForm ? <AddFacilityForm countries={countries} onClose={() => setShowForm(false)} suppliers={suppliers} /> : null}
+      {showForm ? (
+        <AddFacilityForm
+          countries={countries}
+          facility={editingFacility}
+          onClose={() => setShowForm(false)}
+          suppliers={suppliers}
+        />
+      ) : null}
 
       <div className="mt-6 flex justify-end">
         <button
           type="button"
           disabled={!canAddFacility}
-          onClick={() => setShowForm(true)}
+          onClick={openAddForm}
           className={addButtonClass}
         >
           Add facility
@@ -347,7 +393,7 @@ export function FacilityTable({
           {canAddFacility ? (
             <button
               type="button"
-              onClick={() => setShowForm(true)}
+              onClick={openAddForm}
               className={`mt-6 ${addButtonClass}`}
             >
               Add your first facility
@@ -372,11 +418,15 @@ export function FacilityTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Location</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Certifications</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {facilities.map((facility) => {
-                const coordinates = parseFacilityAddress(facility.facility_address_json);
+                const address = readFacilityAddress(facility.facility_address_json);
+                const coordinates = address.latitude !== null && address.longitude !== null
+                  ? { latitude: address.latitude, longitude: address.longitude }
+                  : null;
 
                 return (
                   <tr key={facility.id} className="transition-colors hover:bg-slate-50">
@@ -409,6 +459,16 @@ export function FacilityTable({
                       ) : (
                         <span className="text-slate-400">None on file</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(facility)}
+                        className="inline-flex h-8 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold text-slate-600 transition hover:border-forest hover:text-forest"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
                     </td>
                   </tr>
                 );
