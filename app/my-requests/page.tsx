@@ -25,7 +25,7 @@ function statusTone(status: string): StatusTone {
 }
 
 export default async function ActionItemsPage() {
-  const { role } = await requireProfileRole("/my-requests", ["supplier"]);
+  const { role } = await requireProfileRole("/my-requests", ["supplier", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   type ActionRow = {

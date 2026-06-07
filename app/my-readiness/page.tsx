@@ -32,7 +32,7 @@ function StatusIcon({ status }: { status: string | null }) {
 }
 
 export default async function MyReadinessPage() {
-  const { role } = await requireProfileRole("/my-readiness", ["supplier"]);
+  const { role } = await requireProfileRole("/my-readiness", ["supplier", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   const [reqsRes, docsRes] = await Promise.all([

@@ -24,7 +24,7 @@ function statusLabel(status: string | null) {
 }
 
 export default async function MyEvidencePage() {
-  const { role, user } = await requireProfileRole("/my-evidence", ["supplier"]);
+  const { role, user } = await requireProfileRole("/my-evidence", ["supplier", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   type DocRow = { id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; review_notes: string | null };
@@ -46,13 +46,13 @@ export default async function MyEvidencePage() {
       .order("uploaded_at", { ascending: false }),
     supplierId
       ? (supabase.from("suppliers") as any).select("id, company_name").eq("id", supplierId)
-      : Promise.resolve({ data: [] }),
+      : (supabase.from("suppliers") as any).select("id, company_name").order("company_name"),
     supplierId
       ? (supabase.from("products_verify") as any).select("id, product_name, supplier_id").eq("supplier_id", supplierId).order("product_name")
-      : Promise.resolve({ data: [] }),
+      : (supabase.from("products_verify") as any).select("id, product_name, supplier_id").order("product_name"),
     supplierId
       ? (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").eq("supplier_id", supplierId).order("facility_name")
-      : Promise.resolve({ data: [] }),
+      : (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
     supabase.from("fsvp_requirements").select("id, requirement_name").eq("active", true).order("sort_order"),
   ]);
 
