@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Warehouse, X } from "lucide-react";
+import { MapPin, Warehouse, X } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -19,6 +19,7 @@ export type FacilityRow = {
   id: string;
   facility_name: string;
   facility_type: string;
+  facility_address_json: Json;
   fda_registration_number: string | null;
   food_safety_certifications: string[] | null;
   supplier_id: string | null;
@@ -50,6 +51,37 @@ function labelize(value: string) {
   return value.replace(/_/g, " ");
 }
 
+function parseFacilityAddress(value: Json) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const latitude = typeof value.latitude === "number" ? value.latitude : null;
+  const longitude = typeof value.longitude === "number" ? value.longitude : null;
+
+  if (latitude === null || longitude === null) {
+    return null;
+  }
+
+  return { latitude, longitude };
+}
+
+function mapUrl(latitude: number, longitude: number) {
+  return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=12/${latitude}/${longitude}`;
+}
+
+function readCoordinate(value: FormDataEntryValue | null, min: number, max: number) {
+  const text = value?.toString().trim() ?? "";
+  if (!text) return null;
+
+  const numeric = Number(text);
+  if (!Number.isFinite(numeric) || numeric < min || numeric > max) {
+    return Number.NaN;
+  }
+
+  return numeric;
+}
+
 function AddFacilityForm({
   countries,
   onClose,
@@ -61,7 +93,34 @@ function AddFacilityForm({
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [coordinates, setCoordinates] = useState({ latitude: "", longitude: "" });
+  const [locationPending, setLocationPending] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  function useCurrentLocation() {
+    setError(null);
+
+    if (!navigator.geolocation) {
+      setError("Your browser does not support location capture. Enter latitude and longitude manually.");
+      return;
+    }
+
+    setLocationPending(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoordinates({
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6)
+        });
+        setLocationPending(false);
+      },
+      () => {
+        setError("Could not capture your location. Enter latitude and longitude manually.");
+        setLocationPending(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,10 +142,23 @@ function AddFacilityForm({
           return;
         }
 
+        const latitude = readCoordinate(formData.get("latitude"), -90, 90);
+        const longitude = readCoordinate(formData.get("longitude"), -180, 180);
+        if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+          setError("Enter valid GPS coordinates: latitude between -90 and 90, longitude between -180 and 180.");
+          return;
+        }
+        if ((latitude === null && longitude !== null) || (latitude !== null && longitude === null)) {
+          setError("Enter both latitude and longitude, or leave both blank.");
+          return;
+        }
+
         const addressJson: Json = {
           address_line_1: clean(formData.get("address_line_1")),
           city: clean(formData.get("city")),
-          country
+          country,
+          latitude,
+          longitude
         };
         const supabase = createBrowserSupabaseClient();
         const { error: insertError } = await (supabase.from("facilities_verify") as any).insert({
@@ -163,6 +235,48 @@ function AddFacilityForm({
               Production Capacity
               <input name="production_capacity" className={inputClass} placeholder="Optional" />
             </label>
+            <label className={labelClass}>
+              Latitude
+              <input
+                name="latitude"
+                inputMode="decimal"
+                value={coordinates.latitude}
+                onChange={(event) => setCoordinates((current) => ({ ...current, latitude: event.target.value }))}
+                className={inputClass}
+                placeholder="e.g. 15.500654"
+              />
+            </label>
+            <label className={labelClass}>
+              Longitude
+              <input
+                name="longitude"
+                inputMode="decimal"
+                value={coordinates.longitude}
+                onChange={(event) => setCoordinates((current) => ({ ...current, longitude: event.target.value }))}
+                className={inputClass}
+                placeholder="e.g. 32.559899"
+              />
+            </label>
+          </div>
+
+          <div className="rounded-md border border-line bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-ink">Map location</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Capture the current GPS point or paste coordinates from a map. These coordinates are saved into the facility record.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={useCurrentLocation}
+                disabled={locationPending}
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-forest hover:text-forest disabled:opacity-60"
+              >
+                <MapPin className="h-4 w-4" />
+                {locationPending ? "Locating..." : "Use current location"}
+              </button>
+            </div>
           </div>
 
           <label className={labelClass}>
@@ -256,29 +370,49 @@ export function FacilityTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Type</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Location</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Certifications</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {facilities.map((facility) => (
-                <tr key={facility.id} className="transition-colors hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-ink">{facility.facility_name}</td>
-                  <td className="px-4 py-3 text-slate-600">{facility.suppliers?.company_name ?? "-"}</td>
-                  <td className="px-4 py-3 text-slate-600 capitalize">{labelize(facility.facility_type)}</td>
-                  <td className="px-4 py-3 text-slate-600">{facility.fda_registration_number ?? "-"}</td>
-                  <td className="px-4 py-3">
-                    {facility.food_safety_certifications && facility.food_safety_certifications.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {facility.food_safety_certifications.map((cert) => (
-                          <StatusBadge key={cert} tone="success">{cert}</StatusBadge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-slate-400">None on file</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {facilities.map((facility) => {
+                const coordinates = parseFacilityAddress(facility.facility_address_json);
+
+                return (
+                  <tr key={facility.id} className="transition-colors hover:bg-slate-50">
+                    <td className="px-4 py-3 font-medium text-ink">{facility.facility_name}</td>
+                    <td className="px-4 py-3 text-slate-600">{facility.suppliers?.company_name ?? "-"}</td>
+                    <td className="px-4 py-3 text-slate-600 capitalize">{labelize(facility.facility_type)}</td>
+                    <td className="px-4 py-3 text-slate-600">{facility.fda_registration_number ?? "-"}</td>
+                    <td className="px-4 py-3">
+                      {coordinates ? (
+                        <a
+                          href={mapUrl(coordinates.latitude, coordinates.longitude)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-sm font-semibold text-forest hover:underline"
+                        >
+                          <MapPin className="h-3.5 w-3.5" />
+                          View map
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">No GPS</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {facility.food_safety_certifications && facility.food_safety_certifications.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {facility.food_safety_certifications.map((cert) => (
+                            <StatusBadge key={cert} tone="success">{cert}</StatusBadge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">None on file</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
