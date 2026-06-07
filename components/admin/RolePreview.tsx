@@ -114,7 +114,7 @@ export function RolePreviewBanner() {
   }
 
   return (
-    <div className="sticky top-[72px] z-40 flex items-center justify-between gap-3 bg-amber-400 px-5 py-2 text-sm font-semibold text-amber-950">
+    <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm font-semibold text-amber-950">
       <span className="flex items-center gap-2">
         <Eye className="h-4 w-4" />
         Previewing as: {label}
