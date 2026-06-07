@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { PackageSearch, X } from "lucide-react";
+import { Edit2, PackageSearch, X } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
 import type { Country } from "@/types/database";
@@ -17,8 +17,11 @@ type SupplierOption = {
 export type ProductRow = {
   id: string;
   product_name: string;
+  product_description: string | null;
   country_of_origin: string | null;
   intended_use: string | null;
+  raw_or_processed: string | null;
+  ingredient_list: string | null;
   allergen_information: string | null;
   supplier_id: string | null;
   suppliers: { company_name: string } | null;
@@ -51,10 +54,12 @@ function labelize(value: string | null) {
 
 function AddProductForm({
   countries,
+  product,
   onClose,
   suppliers
 }: {
   countries: CountryOption[];
+  product?: ProductRow | null;
   onClose: () => void;
   suppliers: SupplierOption[];
 }) {
@@ -76,8 +81,7 @@ function AddProductForm({
           return;
         }
 
-        const supabase = createBrowserSupabaseClient();
-        const { error: insertError } = await (supabase.from("products_verify") as any).insert({
+        const payload = {
           product_name: formData.get("product_name")?.toString().trim() ?? "",
           supplier_id: clean(formData.get("supplier_id")),
           country_of_origin: country,
@@ -86,9 +90,13 @@ function AddProductForm({
           ingredient_list: clean(formData.get("ingredient_list")),
           allergen_information: clean(formData.get("allergen_information")),
           product_description: clean(formData.get("product_description"))
-        });
+        };
+        const supabase = createBrowserSupabaseClient();
+        const { error: saveError } = product
+          ? await (supabase.from("products_verify") as any).update(payload).eq("id", product.id)
+          : await (supabase.from("products_verify") as any).insert(payload);
 
-        if (insertError) throw insertError;
+        if (saveError) throw saveError;
         router.refresh();
         onClose();
       } catch (err) {
@@ -105,7 +113,7 @@ function AddProductForm({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-2xl rounded-lg border border-line bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
-          <h2 className="text-lg font-semibold text-ink">Add Product</h2>
+          <h2 className="text-lg font-semibold text-ink">{product ? "Edit Product" : "Add Product"}</h2>
           <button type="button" onClick={onClose} className="rounded p-1 transition hover:bg-slate-100">
             <X className="h-4 w-4 text-slate-500" />
           </button>
@@ -115,21 +123,21 @@ function AddProductForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={labelClass}>
               Product Name <span className="text-red-500">*</span>
-              <input name="product_name" required className={inputClass} placeholder="Mango puree" />
+              <input name="product_name" required defaultValue={product?.product_name ?? ""} className={inputClass} placeholder="Mango puree" />
             </label>
             <label className={labelClass}>
               Supplier
-              <select name="supplier_id" className={inputClass} defaultValue="">
+              <select name="supplier_id" className={inputClass} defaultValue={product?.supplier_id ?? ""}>
                 <option value="">Unassigned</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>
                 ))}
               </select>
             </label>
-            <CountryCombobox countries={countries} label="Country of origin" name="country_of_origin" required />
+            <CountryCombobox countries={countries} defaultValue={product?.country_of_origin ?? ""} label="Country of origin" name="country_of_origin" required />
             <label className={labelClass}>
               Intended Use
-              <select name="intended_use" className={inputClass} defaultValue="">
+              <select name="intended_use" className={inputClass} defaultValue={product?.intended_use ?? ""}>
                 {INTENDED_USES.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
@@ -137,7 +145,7 @@ function AddProductForm({
             </label>
             <label className={labelClass}>
               Processing State
-              <select name="raw_or_processed" className={inputClass} defaultValue="">
+              <select name="raw_or_processed" className={inputClass} defaultValue={product?.raw_or_processed ?? ""}>
                 {PROCESSING_STATES.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
@@ -145,17 +153,17 @@ function AddProductForm({
             </label>
             <label className={labelClass}>
               Allergen Details
-              <input name="allergen_information" className={inputClass} placeholder="None declared, milk, peanuts..." />
+              <input name="allergen_information" defaultValue={product?.allergen_information ?? ""} className={inputClass} placeholder="None declared, milk, peanuts..." />
             </label>
           </div>
 
           <label className={labelClass}>
             Ingredients
-            <textarea name="ingredient_list" className={textareaClass} placeholder="Ingredient list or short description" />
+            <textarea name="ingredient_list" defaultValue={product?.ingredient_list ?? ""} className={textareaClass} placeholder="Ingredient list or short description" />
           </label>
           <label className={labelClass}>
             Product Description
-            <textarea name="product_description" className={textareaClass} placeholder="Optional product notes" />
+            <textarea name="product_description" defaultValue={product?.product_description ?? ""} className={textareaClass} placeholder="Optional product notes" />
           </label>
 
           {error ? <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
@@ -165,7 +173,7 @@ function AddProductForm({
               Cancel
             </button>
             <button disabled={pending} className="h-10 rounded-md bg-forest px-5 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60">
-              {pending ? "Saving..." : "Add product"}
+              {pending ? "Saving..." : product ? "Save product" : "Add product"}
             </button>
           </div>
         </form>
@@ -184,15 +192,33 @@ export function ProductTable({
   suppliers: SupplierOption[];
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
+
+  function openAddForm() {
+    setEditingProduct(null);
+    setShowForm(true);
+  }
+
+  function openEditForm(product: ProductRow) {
+    setEditingProduct(product);
+    setShowForm(true);
+  }
 
   return (
     <>
-      {showForm ? <AddProductForm countries={countries} onClose={() => setShowForm(false)} suppliers={suppliers} /> : null}
+      {showForm ? (
+        <AddProductForm
+          countries={countries}
+          onClose={() => setShowForm(false)}
+          product={editingProduct}
+          suppliers={suppliers}
+        />
+      ) : null}
 
       <div className="mt-6 flex justify-end">
         <button
           type="button"
-          onClick={() => setShowForm(true)}
+          onClick={openAddForm}
           className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
         >
           Add product
@@ -210,7 +236,7 @@ export function ProductTable({
           </p>
           <button
             type="button"
-            onClick={() => setShowForm(true)}
+            onClick={openAddForm}
             className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
           >
             Add your first product
@@ -226,6 +252,7 @@ export function ProductTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Origin</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Intended Use</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Allergens</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -236,6 +263,16 @@ export function ProductTable({
                   <td className="px-4 py-3 text-slate-600">{product.country_of_origin ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600 capitalize">{labelize(product.intended_use)}</td>
                   <td className="px-4 py-3 text-slate-600">{product.allergen_information ?? "None declared"}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => openEditForm(product)}
+                      className="inline-flex h-8 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold text-slate-600 transition hover:border-forest hover:text-forest"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -13,7 +13,7 @@ export default async function ProductsPage() {
 
   const [{ data: rawProducts }, { data: countries }, { data: suppliers }] = await Promise.all([
     (supabase.from("products_verify") as any)
-      .select("id, product_name, country_of_origin, intended_use, allergen_information, supplier_id, suppliers(company_name)")
+      .select("id, product_name, product_description, country_of_origin, raw_or_processed, intended_use, ingredient_list, allergen_information, supplier_id, suppliers(company_name)")
       .order("created_at", { ascending: false }),
     (supabase.from("countries") as any)
       .select("country_code,country_name")
