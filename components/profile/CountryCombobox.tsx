@@ -9,10 +9,16 @@ type CountryOption = {
 
 export function CountryCombobox({
   countries,
-  defaultValue
+  defaultValue = "",
+  name = "country",
+  label = "Country",
+  required = false
 }: {
   countries: CountryOption[];
-  defaultValue: string;
+  defaultValue?: string;
+  name?: string;
+  label?: string;
+  required?: boolean;
 }) {
   const [query, setQuery] = useState(defaultValue);
   const [selectedCountry, setSelectedCountry] = useState(defaultValue);
@@ -44,12 +50,12 @@ export function CountryCombobox({
 
   return (
     <div className="relative">
-      <label className="text-sm font-medium text-slate-700" htmlFor="country">
-        Country
+      <label className="text-sm font-medium text-slate-700" htmlFor={name}>
+        {label} {required ? <span className="text-red-500">*</span> : null}
       </label>
-      <input name="country" type="hidden" value={submittedCountry} />
+      <input name={name} type="hidden" value={submittedCountry} required={required} />
       <input
-        id="country"
+        id={name}
         value={query}
         onBlur={() => {
           window.setTimeout(() => setOpen(false), 150);

@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { AddSupplierForm } from "@/components/suppliers/AddSupplierForm";
 import { Building2 } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
+import type { Country } from "@/types/database";
+
+type CountryOption = Pick<Country, "country_code" | "country_name">;
 
 export type SupplierRow = {
   id: string;
@@ -29,23 +31,25 @@ function approvalLabel(status: string) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function SupplierTable({ suppliers }: { suppliers: SupplierRow[] }) {
+export function SupplierTable({ countries, suppliers }: { countries: CountryOption[]; suppliers: SupplierRow[] }) {
   const [showForm, setShowForm] = useState(false);
 
   if (suppliers.length === 0) {
     return (
       <>
-        {showForm && <AddSupplierForm onClose={() => setShowForm(false)} />}
-        <EmptyState
-          icon={Building2}
-          title="No suppliers yet"
-          description="Add your first foreign supplier to begin tracking FSVP compliance, evidence, and verification activities."
-          action={{ label: "Add your first supplier", href: "#" }}
-        />
-        <div className="mt-4 flex justify-center">
+        {showForm && <AddSupplierForm countries={countries} onClose={() => setShowForm(false)} />}
+        <div className="mt-6 flex flex-col items-center justify-center rounded-lg border border-dashed border-line bg-slate-50 px-8 py-16 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-line bg-white shadow-soft">
+            <Building2 className="h-6 w-6 text-slate-400" />
+          </div>
+          <h3 className="mt-4 text-base font-semibold text-ink">No suppliers yet</h3>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+            Add your first foreign supplier to begin tracking FSVP compliance, evidence, and verification activities.
+          </p>
           <button
+            type="button"
             onClick={() => setShowForm(true)}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
+            className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
           >
             Add your first supplier
           </button>
@@ -56,7 +60,7 @@ export function SupplierTable({ suppliers }: { suppliers: SupplierRow[] }) {
 
   return (
     <>
-      {showForm && <AddSupplierForm onClose={() => setShowForm(false)} />}
+      {showForm && <AddSupplierForm countries={countries} onClose={() => setShowForm(false)} />}
       <div className="mt-6">
         <div className="mb-4 flex justify-end">
           <button

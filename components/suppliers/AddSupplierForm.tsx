@@ -4,15 +4,24 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { X } from "lucide-react";
+import { CountryCombobox } from "@/components/profile/CountryCombobox";
+import type { Country } from "@/types/database";
 
-const SUPPLIER_CLASSIFICATIONS = [
-  { value: "standard", label: "Standard" },
-  { value: "qualified_facility", label: "Qualified Facility" },
-  { value: "small_produce_farm", label: "Small Produce Farm" },
-  { value: "small_shell_egg_producer", label: "Small Shell Egg Producer" },
-];
+type CountryOption = Pick<Country, "country_code" | "country_name">;
 
-export function AddSupplierForm({ onClose }: { onClose: () => void }) {
+function normalizeWebsite(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    return new URL(withScheme).toString();
+  } catch {
+    throw new Error("Enter a valid website domain, such as nubiancheese.com.");
+  }
+}
+
+export function AddSupplierForm({ countries, onClose }: { countries: CountryOption[]; onClose: () => void }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -28,13 +37,20 @@ export function AddSupplierForm({ onClose }: { onClose: () => void }) {
 
         const contactName = formData.get("contact_name")?.toString().trim() || null;
         const contactEmail = formData.get("contact_email")?.toString().trim() || null;
+        const country = formData.get("country")?.toString().trim() ?? "";
+        const website = normalizeWebsite(formData.get("website")?.toString() ?? "");
+
+        if (!countries.some((option) => option.country_name.toLowerCase() === country.toLowerCase())) {
+          setError("Select a country from the dropdown list.");
+          return;
+        }
 
         const { error: insertError } = await (supabase.from("suppliers") as any).insert({
           company_name: formData.get("company_name")?.toString().trim() ?? "",
           legal_entity_name: formData.get("legal_entity_name")?.toString().trim() || null,
-          country: formData.get("country")?.toString().trim() ?? "",
+          country,
           fda_registration_number: formData.get("fda_registration_number")?.toString().trim() || null,
-          website: formData.get("website")?.toString().trim() || null,
+          website,
           contact_json: contactName || contactEmail ? { name: contactName, email: contactEmail } : {},
           address_json: {},
           approval_status: "pending_review",
@@ -73,17 +89,14 @@ export function AddSupplierForm({ onClose }: { onClose: () => void }) {
               Legal Entity Name
               <input name="legal_entity_name" className={inputClass} placeholder="Legal name if different" />
             </label>
-            <label className={labelClass}>
-              Country <span className="text-red-500">*</span>
-              <input name="country" required className={inputClass} placeholder="e.g. Chile" />
-            </label>
+            <CountryCombobox countries={countries} required />
             <label className={labelClass}>
               FDA Registration #
               <input name="fda_registration_number" className={inputClass} placeholder="Optional" />
             </label>
             <label className={labelClass}>
               Website
-              <input name="website" type="url" className={inputClass} placeholder="https://" />
+              <input name="website" type="text" inputMode="url" className={inputClass} placeholder="nubiancheese.com" />
             </label>
           </div>
 
