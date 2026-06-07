@@ -36,6 +36,7 @@ export function FacilityMapPicker({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchPending, setSearchPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
@@ -89,6 +90,7 @@ export function FacilityMapPicker({
             const point = markerRef.current?.getLatLng();
             if (point) {
               onChange({ latitude: toFixedCoordinate(point.lat), longitude: toFixedCoordinate(point.lng) });
+              setSelectedPlace("Marker position selected on the map");
             }
           });
         }
@@ -105,6 +107,7 @@ export function FacilityMapPicker({
           latitude: toFixedCoordinate(event.latlng.lat),
           longitude: toFixedCoordinate(event.latlng.lng)
         });
+        setSelectedPlace("Map position selected manually");
       });
 
       mapRef.current = map;
@@ -132,12 +135,26 @@ export function FacilityMapPicker({
     placeMarkerRef.current(latitude, longitude);
   }, [coordinates.latitude, coordinates.longitude, open]);
 
-  async function searchLocation(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function previewLocation(result: SearchResult) {
+    const latitude = Number(result.lat);
+    const longitude = Number(result.lon);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+    onChange({
+      latitude: toFixedCoordinate(latitude),
+      longitude: toFixedCoordinate(longitude)
+    });
+    placeMarkerRef.current?.(latitude, longitude);
+    mapRef.current?.setView([latitude, longitude], 13);
+    setSelectedPlace(result.display_name);
+  }
+
+  async function searchLocation() {
     const query = searchQuery.trim();
     if (!query) return;
 
     setError(null);
+    setSelectedPlace(null);
     setSearchPending(true);
     setSearchResults([]);
 
@@ -147,6 +164,8 @@ export function FacilityMapPicker({
       setSearchResults(results);
       if (results.length === 0) {
         setError("No map matches found. Try a more specific address or city.");
+      } else {
+        previewLocation(results[0]);
       }
     } catch {
       setError("Could not search the map right now. You can still click the map or enter GPS manually.");
@@ -170,6 +189,7 @@ export function FacilityMapPicker({
           longitude: toFixedCoordinate(position.coords.longitude)
         };
         onChange(next);
+        setSelectedPlace("Current browser location");
         placeMarkerRef.current?.(position.coords.latitude, position.coords.longitude);
         mapRef.current?.setView([position.coords.latitude, position.coords.longitude], 13);
       },
@@ -179,17 +199,7 @@ export function FacilityMapPicker({
   }
 
   function selectResult(result: SearchResult) {
-    const latitude = Number(result.lat);
-    const longitude = Number(result.lon);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-
-    onChange({
-      latitude: toFixedCoordinate(latitude),
-      longitude: toFixedCoordinate(longitude)
-    });
-    placeMarkerRef.current?.(latitude, longitude);
-    mapRef.current?.setView([latitude, longitude], 13);
-    setSearchResults([]);
+    previewLocation(result);
     setSearchQuery(result.display_name);
   }
 
@@ -219,25 +229,33 @@ export function FacilityMapPicker({
 
             <div className="grid min-h-0 flex-1 gap-4 p-5 lg:grid-cols-[320px_1fr]">
               <div className="space-y-4">
-                <form onSubmit={searchLocation} className="space-y-2">
+                <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
                     Type a location
                     <div className="mt-1.5 flex gap-2">
                       <input
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void searchLocation();
+                          }
+                        }}
                         className="h-10 min-w-0 flex-1 rounded-md border border-line px-3 text-sm outline-none focus:border-forest"
                         placeholder="Facility address, city, country"
                       />
                       <button
+                        type="button"
                         disabled={searchPending}
+                        onClick={() => void searchLocation()}
                         className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-3 text-sm font-semibold text-white hover:bg-[#195f4d] disabled:opacity-60"
                       >
                         <Search className="h-4 w-4" />
                       </button>
                     </div>
                   </label>
-                </form>
+                </div>
 
                 <button
                   type="button"
@@ -249,6 +267,14 @@ export function FacilityMapPicker({
                 </button>
 
                 {error ? <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+
+                {selectedPlace ? (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm leading-5 text-emerald-900">
+                    <p className="font-semibold">Confirm this location</p>
+                    <p className="mt-1">{selectedPlace}</p>
+                    <p className="mt-1 text-xs text-emerald-700">Review the marker on the map, then choose "Use this location" to keep it.</p>
+                  </div>
+                ) : null}
 
                 {searchResults.length > 0 ? (
                   <div className="space-y-2">
