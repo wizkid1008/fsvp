@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Edit2, MapPin, Warehouse, X } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
+import { FacilityMapPicker } from "@/components/facilities/FacilityMapPicker";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Country, Json } from "@/types/database";
 
@@ -120,33 +121,7 @@ function AddFacilityForm({
     latitude: address.latitude?.toString() ?? "",
     longitude: address.longitude?.toString() ?? ""
   });
-  const [locationPending, setLocationPending] = useState(false);
   const [pending, startTransition] = useTransition();
-
-  function useCurrentLocation() {
-    setError(null);
-
-    if (!navigator.geolocation) {
-      setError("Your browser does not support location capture. Enter latitude and longitude manually.");
-      return;
-    }
-
-    setLocationPending(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCoordinates({
-          latitude: position.coords.latitude.toFixed(6),
-          longitude: position.coords.longitude.toFixed(6)
-        });
-        setLocationPending(false);
-      },
-      () => {
-        setError("Could not capture your location. Enter latitude and longitude manually.");
-        setLocationPending(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -293,18 +268,10 @@ function AddFacilityForm({
               <div>
                 <p className="text-sm font-semibold text-ink">Map location</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Capture the current GPS point or paste coordinates from a map. These coordinates are saved into the facility record.
+                  Open the map to search for a place, click the facility location, or drag the marker. Coordinates are saved into the facility record.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={useCurrentLocation}
-                disabled={locationPending}
-                className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-forest hover:text-forest disabled:opacity-60"
-              >
-                <MapPin className="h-4 w-4" />
-                {locationPending ? "Locating..." : "Use current location"}
-              </button>
+              <FacilityMapPicker coordinates={coordinates} onChange={setCoordinates} />
             </div>
           </div>
 

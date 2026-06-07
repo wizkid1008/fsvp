@@ -3,6 +3,7 @@ import { SiteMenu } from "@/components/layout/SiteMenu";
 import { LocaleProvider } from "@/components/i18n/LocaleProvider";
 import { getLocale } from "@/lib/i18n/server";
 import { getMessages, isRTL } from "@/lib/i18n";
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
