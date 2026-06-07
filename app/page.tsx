@@ -67,7 +67,7 @@ export default function HomePage() {
             </div>
 
             <div className="mt-10 flex flex-wrap items-center gap-5">
-              <Link href="/signup" className="inline-flex h-16 items-center bg-black px-8 text-sm font-black uppercase tracking-[0.04em] text-white hover:bg-neutral-800">
+              <Link href="/dashboard" className="inline-flex h-16 items-center bg-black px-8 text-sm font-black uppercase tracking-[0.04em] text-white hover:bg-neutral-800">
                 Start review
               </Link>
               <p className="max-w-[220px] text-xs font-medium leading-5 text-black/55">
