@@ -9,7 +9,8 @@ import type { StatusTone } from "@/types/platform";
 export const runtime = "edge";
 
 type ReqRow = { id: string; requirement_name: string; requirement_description: string; required_evidence: string; sort_order: number };
-type DocRow = { id: string; document_kind: string; approval_status: string | null };
+type DocRow = { id: string; title: string; document_kind: string; approval_status: string | null; related_requirement_id: string | null };
+type RequirementEvidenceRow = { id: string; requirement_id: string; document_id: string | null; status: string | null; gap_status: string | null };
 
 function evidenceStatusTone(status: string | null): StatusTone {
   if (status === "accepted" || status === "complete") return "success";
@@ -35,39 +36,64 @@ export default async function MyReadinessPage() {
   const { role } = await requireProfileRole("/my-readiness", ["supplier", "administrator"]);
   const supabase = createServerSupabaseClient();
 
-  const [reqsRes, docsRes] = await Promise.all([
+  const [reqsRes, docsRes, evidenceRes] = await Promise.all([
     (supabase.from("fsvp_requirements") as any)
       .select("id, requirement_name, requirement_description, required_evidence, sort_order")
       .eq("active", true)
       .order("sort_order"),
     (supabase.from("documents") as any)
-      .select("id, document_kind, approval_status")
+      .select("id, title, document_kind, approval_status, related_requirement_id")
       .is("soft_deleted_at", null),
+    (supabase.from("requirement_evidence") as any)
+      .select("id, requirement_id, document_id, status, gap_status"),
   ]);
 
   const requirements = (reqsRes.data ?? []) as ReqRow[];
   const documents = (docsRes.data ?? []) as DocRow[];
+  const requirementEvidence = (evidenceRes.data ?? []) as RequirementEvidenceRow[];
+  const documentsByRequirement = new Map<string, DocRow[]>();
+  const evidenceByRequirement = new Map<string, RequirementEvidenceRow[]>();
 
-  // Map document_kind to requirement_key by convention
-  const docKindSet = new Set(documents.map((d: DocRow) => d.document_kind.toLowerCase().replace(/\s+/g, "_")));
-  const acceptedKinds = new Set(
-    documents
-      .filter((d: DocRow) => d.approval_status === "accepted" || d.approval_status === "complete")
-      .map((d: DocRow) => d.document_kind.toLowerCase().replace(/\s+/g, "_"))
-  );
-  const uploadedKinds = new Set(
-    documents.map((d: DocRow) => d.document_kind.toLowerCase().replace(/\s+/g, "_"))
-  );
+  documents.forEach((document) => {
+    if (!document.related_requirement_id) return;
+    const existing = documentsByRequirement.get(document.related_requirement_id) ?? [];
+    existing.push(document);
+    documentsByRequirement.set(document.related_requirement_id, existing);
+  });
 
-  // Score: accepted reqs / total reqs
-  const accepted = requirements.filter((r) => acceptedKinds.has(r.id) || acceptedKinds.has(r.requirement_name.toLowerCase().replace(/\s+/g, "_"))).length;
-  const uploaded = requirements.filter((r) => uploadedKinds.has(r.id) || uploadedKinds.has(r.requirement_name.toLowerCase().replace(/\s+/g, "_")) || documents.length > 0).length;
+  requirementEvidence.forEach((evidence) => {
+    const existing = evidenceByRequirement.get(evidence.requirement_id) ?? [];
+    existing.push(evidence);
+    evidenceByRequirement.set(evidence.requirement_id, existing);
+  });
+
   const totalDocs = documents.length;
   const acceptedDocs = documents.filter((d: DocRow) => d.approval_status === "accepted" || d.approval_status === "complete").length;
   const pendingDocs = documents.filter((d: DocRow) => d.approval_status === "uploaded" || d.approval_status === "under_review").length;
   const revisionDocs = documents.filter((d: DocRow) => d.approval_status === "revision_required" || d.approval_status === "rejected").length;
 
-  const scoreRaw = totalDocs === 0 ? 0 : Math.round((acceptedDocs / Math.max(requirements.length, 1)) * 100);
+  function statusForRequirement(requirementId: string) {
+    const linkedDocuments = documentsByRequirement.get(requirementId) ?? [];
+    const linkedEvidence = evidenceByRequirement.get(requirementId) ?? [];
+    const statuses = [
+      ...linkedDocuments.map((document) => document.approval_status),
+      ...linkedEvidence.map((evidence) => evidence.status)
+    ].filter(Boolean) as string[];
+
+    if (statuses.some((status) => status === "accepted" || status === "complete")) return "accepted";
+    if (statuses.some((status) => status === "revision_required" || status === "rejected")) return "revision_required";
+    if (statuses.some((status) => status === "under_review")) return "under_review";
+    if (statuses.some((status) => status === "uploaded")) return "uploaded";
+    if (linkedEvidence.some((evidence) => evidence.gap_status)) return "missing";
+    return null;
+  }
+
+  const acceptedRequirements = requirements.filter((requirement) => {
+    const status = statusForRequirement(requirement.id);
+    return status === "accepted" || status === "complete";
+  }).length;
+
+  const scoreRaw = requirements.length === 0 ? 0 : Math.round((acceptedRequirements / requirements.length) * 100);
   const score = Math.min(scoreRaw, 100);
 
   const ringColor = score >= 75 ? "#22c55e" : score >= 40 ? "#f59e0b" : "#ef4444";
@@ -124,24 +150,27 @@ export default async function MyReadinessPage() {
           </div>
           <div className="divide-y divide-line">
             {requirements.map((req) => {
-              const hasDoc = totalDocs > 0;
-              const docForReq = documents.find((d: DocRow) =>
-                d.document_kind.toLowerCase().includes(req.requirement_name.toLowerCase().split(" ")[0])
-              );
-              const status = docForReq?.approval_status ?? (hasDoc ? "uploaded" : null);
+              const linkedDocuments = documentsByRequirement.get(req.id) ?? [];
+              const status = statusForRequirement(req.id);
+              const docForReq = linkedDocuments[0] ?? null;
 
               return (
-                <div key={req.id} className="flex items-start gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-                  <StatusIcon status={docForReq ? status : null} />
+                <div key={req.id} className="flex items-start gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
+                  <StatusIcon status={status} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-ink">{req.requirement_name}</p>
                     <p className="mt-0.5 text-xs text-slate-500 leading-5">{req.requirement_description}</p>
                     <p className="mt-1.5 text-xs text-slate-400">
                       <span className="font-medium text-slate-500">Required: </span>{req.required_evidence}
                     </p>
+                    {docForReq ? (
+                      <p className="mt-1.5 text-xs text-slate-500">
+                        <span className="font-medium">Mapped document: </span>{docForReq.title}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="shrink-0">
-                    {docForReq ? (
+                    {status ? (
                       <StatusBadge tone={evidenceStatusTone(status)}>{evidenceStatusLabel(status)}</StatusBadge>
                     ) : (
                       <a href="/my-evidence" className="inline-flex h-7 items-center rounded-md border border-forest px-2.5 text-xs font-semibold text-forest hover:bg-emerald-50 transition">

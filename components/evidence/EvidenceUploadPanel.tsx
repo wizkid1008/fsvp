@@ -36,11 +36,13 @@ type RequirementOption = {
 };
 
 export function EvidenceUploadPanel({
+  documentCategories = DOCUMENT_CATEGORIES,
   facilities = [],
   products = [],
   requirements = [],
   suppliers = []
 }: {
+  documentCategories?: string[];
   facilities?: FacilityOption[];
   products?: ProductOption[];
   requirements?: RequirementOption[];
@@ -175,7 +177,7 @@ export function EvidenceUploadPanel({
             <label className="block text-sm font-medium text-slate-700">
               Category
               <select name="category" className="mt-1.5 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-forest bg-white">
-                {DOCUMENT_CATEGORIES.map((c) => (
+                {documentCategories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

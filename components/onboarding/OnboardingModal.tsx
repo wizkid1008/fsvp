@@ -5,7 +5,13 @@ import Link from "next/link";
 import { X, CheckCircle2, ArrowRight } from "lucide-react";
 import type { AppRole } from "@/types/platform";
 
-const IMPORTER_STEPS = [
+export type OnboardingStep = {
+  title: string;
+  description: string;
+  cta: { label: string; href: string };
+};
+
+const IMPORTER_STEPS: OnboardingStep[] = [
   { title: "Complete your profile", description: "Add your name, organization, and contact details.", cta: { label: "Go to Account", href: "/account" } },
   { title: "Add your first supplier", description: "Create a supplier record with company name, country, and contact information.", cta: { label: "Add Supplier", href: "/suppliers" } },
   { title: "Add products & facilities", description: "Link the food products your supplier exports and the facilities where they're produced.", cta: { label: "Add Products", href: "/products" } },
@@ -15,15 +21,15 @@ const IMPORTER_STEPS = [
 
 const SUPPLIER_STEPS = [
   { title: "Complete your profile", description: "Add your company name, contact details, and country so your importer can identify you.", cta: { label: "Go to Account", href: "/account" } },
-  { title: "Upload your evidence", description: "Upload the documents your importer has requested — COAs, certifications, food safety plans.", cta: { label: "Upload Evidence", href: "/my-evidence" } },
+  { title: "Upload your evidence", description: "Upload the documents your importer has requested, including COAs, certifications, and food safety plans.", cta: { label: "Upload Evidence", href: "/my-evidence" } },
   { title: "Review your action items", description: "Check for any corrective actions, revision requests, or additional documents your importer has asked for.", cta: { label: "View Action Items", href: "/my-requests" } },
 ];
 
-export function OnboardingModal({ role = "supplier" }: { role?: AppRole }) {
+export function OnboardingModal({ role = "supplier", steps }: { role?: AppRole; steps?: OnboardingStep[] }) {
   const [open, setOpen] = useState(true);
   const [step, setStep] = useState(0);
 
-  const STEPS = role === "supplier" ? SUPPLIER_STEPS : IMPORTER_STEPS;
+  const STEPS = steps && steps.length > 0 ? steps : role === "supplier" ? SUPPLIER_STEPS : IMPORTER_STEPS;
   if (!open) return null;
 
   const current = STEPS[step];
@@ -34,7 +40,7 @@ export function OnboardingModal({ role = "supplier" }: { role?: AppRole }) {
       <div className="w-full max-w-lg rounded-lg border border-line bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Getting Started · Step {step + 1} of {STEPS.length}</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Getting Started - Step {step + 1} of {STEPS.length}</p>
             <h2 className="mt-0.5 text-lg font-semibold text-ink">{current.title}</h2>
           </div>
           <button onClick={() => setOpen(false)} className="rounded p-1 hover:bg-slate-100 transition">

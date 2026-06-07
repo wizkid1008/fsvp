@@ -6,11 +6,16 @@ import type { Database } from "@/types/database";
 export const runtime = "edge";
 
 type DocumentInsertResult = {
+  data: { id: string } | null;
   error: { message: string } | null;
 };
 
 type DocumentInsertTable = {
-  insert(values: Database["public"]["Tables"]["documents"]["Insert"]): Promise<DocumentInsertResult>;
+  insert(values: Database["public"]["Tables"]["documents"]["Insert"]): {
+    select(columns: string): {
+      single(): Promise<DocumentInsertResult>;
+    };
+  };
 };
 
 export async function POST(request: Request) {
@@ -125,11 +130,45 @@ export async function POST(request: Request) {
   };
 
   const documentsTable = supabase.from("documents") as unknown as DocumentInsertTable;
-  const document = await documentsTable.insert(documentRecord);
+  const document = await documentsTable.insert(documentRecord).select("id").single();
 
   if (document.error) {
     return NextResponse.json({ error: document.error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ storagePath });
+  if (relatedRequirementId && document.data?.id) {
+    await (supabase.from("requirement_evidence") as any).insert({
+      importer_id: importerId,
+      supplier_id: supplierId,
+      product_id: linkedEntityType === "product" ? linkedEntityId : null,
+      facility_id: linkedEntityType === "facility" ? linkedEntityId : null,
+      requirement_id: relatedRequirementId,
+      document_id: document.data.id,
+      status: "uploaded"
+    });
+  }
+
+  const { data: auditSetting } = await (supabase.from("app_settings") as any)
+    .select("boolean_value")
+    .eq("setting_key", "auto_generate_audit_events")
+    .maybeSingle();
+
+  if (auditSetting?.boolean_value !== false && document.data?.id) {
+    await (supabase.from("audit_logs") as any).insert({
+      importer_id: importerId,
+      actor_profile_id: user.id,
+      action: "document_uploaded",
+      record_type: "documents",
+      record_id: document.data.id,
+      new_value: {
+        title: documentRecord.title,
+        document_kind: documentKind,
+        linked_entity_type: linkedEntityType,
+        linked_entity_id: linkedEntityId,
+        related_requirement_id: relatedRequirementId || null
+      }
+    });
+  }
+
+  return NextResponse.json({ storagePath, documentId: document.data?.id });
 }

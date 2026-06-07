@@ -36,13 +36,15 @@ export default async function EvidencePage({
   type SupplierRow = { id: string; company_name: string };
   type ProductRow = { id: string; product_name: string; supplier_id: string | null };
   type FacilityRow = { id: string; facility_name: string; supplier_id: string | null };
+  type CategoryRow = { label: string };
 
-  const [docsRes, reqsRes, suppliersRes, productsRes, facilitiesRes] = await Promise.all([
+  const [docsRes, reqsRes, suppliersRes, productsRes, facilitiesRes, categoriesRes] = await Promise.all([
     supabase.from("documents").select("id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes, linked_entity_type, linked_entity_id, related_requirement_id").order("uploaded_at", { ascending: false }),
     supabase.from("fsvp_requirements").select("id, requirement_name, requirement_key, sort_order").eq("active", true).order("sort_order"),
     (supabase.from("suppliers") as any).select("id, company_name").order("company_name"),
     (supabase.from("products_verify") as any).select("id, product_name, supplier_id").order("product_name"),
     (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
+    (supabase.from("document_categories") as any).select("label").eq("active", true).order("sort_order"),
   ]);
 
   const documents = (docsRes.data ?? []) as unknown as DocRow[];
@@ -50,6 +52,7 @@ export default async function EvidencePage({
   const suppliers = (suppliersRes.data ?? []) as SupplierRow[];
   const products = (productsRes.data ?? []) as ProductRow[];
   const facilities = (facilitiesRes.data ?? []) as FacilityRow[];
+  const documentCategories = ((categoriesRes.data ?? []) as CategoryRow[]).map((category) => category.label);
   const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
   const productById = new Map(products.map((product) => [product.id, product]));
   const facilityById = new Map(facilities.map((facility) => [facility.id, facility]));
@@ -126,6 +129,7 @@ export default async function EvidencePage({
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_300px]">
         <div className="space-y-6">
           <EvidenceUploadPanel
+            documentCategories={documentCategories.length > 0 ? documentCategories : undefined}
             facilities={facilities}
             products={products}
             requirements={requirements}

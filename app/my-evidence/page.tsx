@@ -33,6 +33,7 @@ export default async function MyEvidencePage() {
   type ProductRow = { id: string; product_name: string; supplier_id: string | null };
   type FacilityRow = { id: string; facility_name: string; supplier_id: string | null };
   type ReqRow = { id: string; requirement_name: string };
+  type CategoryRow = { label: string };
 
   const { data: profile } = await (supabase.from("profiles") as any)
     .select("supplier_id")
@@ -40,7 +41,7 @@ export default async function MyEvidencePage() {
     .maybeSingle();
   const supplierId = ((profile ?? null) as ProfileRow | null)?.supplier_id ?? "";
 
-  const [docsRes, suppliersRes, productsRes, facilitiesRes, reqsRes] = await Promise.all([
+  const [docsRes, suppliersRes, productsRes, facilitiesRes, reqsRes, categoriesRes] = await Promise.all([
     (supabase.from("documents") as any)
       .select("id, title, document_kind, original_filename, uploaded_at, approval_status, review_notes")
       .order("uploaded_at", { ascending: false }),
@@ -54,6 +55,7 @@ export default async function MyEvidencePage() {
       ? (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").eq("supplier_id", supplierId).order("facility_name")
       : (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
     supabase.from("fsvp_requirements").select("id, requirement_name").eq("active", true).order("sort_order"),
+    (supabase.from("document_categories") as any).select("label").eq("active", true).order("sort_order"),
   ]);
 
   const documents = (docsRes.data ?? []) as DocRow[];
@@ -61,6 +63,7 @@ export default async function MyEvidencePage() {
   const products = (productsRes.data ?? []) as ProductRow[];
   const facilities = (facilitiesRes.data ?? []) as FacilityRow[];
   const requirements = (reqsRes.data ?? []) as ReqRow[];
+  const documentCategories = ((categoriesRes.data ?? []) as CategoryRow[]).map((category) => category.label);
 
   return (
     <AppShell role={role}>
@@ -71,6 +74,7 @@ export default async function MyEvidencePage() {
 
       <div className="mt-6 space-y-6">
         <EvidenceUploadPanel
+          documentCategories={documentCategories.length > 0 ? documentCategories : undefined}
           facilities={facilities}
           products={products}
           requirements={requirements}
