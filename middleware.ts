@@ -28,7 +28,8 @@ export async function middleware(request: NextRequest) {
   if (restrictedEntry && user) {
     const [, allowedRoles] = restrictedEntry;
     const { data: profile } = (await supabase.from("profiles").select("role").eq("id", user.id).single()) as RoleLookupResult;
-    if (!profile || !allowedRoles.includes(profile.role)) {
+    // Administrators bypass all role restrictions — they can access any page
+    if (!profile || (profile.role !== "administrator" && !allowedRoles.includes(profile.role))) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/dashboard";
       redirectUrl.searchParams.set("restricted", pathname);
