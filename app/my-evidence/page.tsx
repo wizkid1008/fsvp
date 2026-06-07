@@ -24,16 +24,43 @@ function statusLabel(status: string | null) {
 }
 
 export default async function MyEvidencePage() {
-  const { role } = await requireProfileRole("/my-evidence", ["supplier"]);
+  const { role, user } = await requireProfileRole("/my-evidence", ["supplier"]);
   const supabase = createServerSupabaseClient();
 
   type DocRow = { id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; review_notes: string | null };
+  type ProfileRow = { supplier_id: string | null };
+  type SupplierRow = { id: string; company_name: string };
+  type ProductRow = { id: string; product_name: string; supplier_id: string | null };
+  type FacilityRow = { id: string; facility_name: string; supplier_id: string | null };
+  type ReqRow = { id: string; requirement_name: string };
 
-  const { data: rawDocs } = await (supabase.from("documents") as any)
-    .select("id, title, document_kind, original_filename, uploaded_at, approval_status, review_notes")
-    .order("uploaded_at", { ascending: false });
+  const { data: profile } = await (supabase.from("profiles") as any)
+    .select("supplier_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  const supplierId = ((profile ?? null) as ProfileRow | null)?.supplier_id ?? "";
 
-  const documents = (rawDocs ?? []) as DocRow[];
+  const [docsRes, suppliersRes, productsRes, facilitiesRes, reqsRes] = await Promise.all([
+    (supabase.from("documents") as any)
+      .select("id, title, document_kind, original_filename, uploaded_at, approval_status, review_notes")
+      .order("uploaded_at", { ascending: false }),
+    supplierId
+      ? (supabase.from("suppliers") as any).select("id, company_name").eq("id", supplierId)
+      : Promise.resolve({ data: [] }),
+    supplierId
+      ? (supabase.from("products_verify") as any).select("id, product_name, supplier_id").eq("supplier_id", supplierId).order("product_name")
+      : Promise.resolve({ data: [] }),
+    supplierId
+      ? (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").eq("supplier_id", supplierId).order("facility_name")
+      : Promise.resolve({ data: [] }),
+    supabase.from("fsvp_requirements").select("id, requirement_name").eq("active", true).order("sort_order"),
+  ]);
+
+  const documents = (docsRes.data ?? []) as DocRow[];
+  const suppliers = (suppliersRes.data ?? []) as SupplierRow[];
+  const products = (productsRes.data ?? []) as ProductRow[];
+  const facilities = (facilitiesRes.data ?? []) as FacilityRow[];
+  const requirements = (reqsRes.data ?? []) as ReqRow[];
 
   return (
     <AppShell role={role}>
@@ -43,13 +70,18 @@ export default async function MyEvidencePage() {
       />
 
       <div className="mt-6 space-y-6">
-        <EvidenceUploadPanel />
+        <EvidenceUploadPanel
+          facilities={facilities}
+          products={products}
+          requirements={requirements}
+          suppliers={suppliers}
+        />
 
         {documents.length === 0 ? (
           <EmptyState
             icon={FileArchive}
             title="No documents uploaded yet"
-            description="Upload your evidence documents here — certificates of analysis, audit reports, food safety plans, and any other materials requested by your importer."
+            description="Upload your evidence documents here: certificates of analysis, audit reports, food safety plans, and any other materials requested by your importer."
           />
         ) : (
           <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
@@ -80,7 +112,7 @@ export default async function MyEvidencePage() {
                         {statusLabel(doc.approval_status)}
                       </StatusBadge>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{doc.review_notes ?? "—"}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{doc.review_notes ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>

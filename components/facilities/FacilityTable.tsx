@@ -26,6 +26,7 @@ export type FacilityRow = {
   food_safety_certifications: string[] | null;
   supplier_id: string | null;
   suppliers: { company_name: string } | null;
+  evidence_count?: number;
 };
 
 const FACILITY_TYPES = [
@@ -418,6 +419,7 @@ export function FacilityTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Location</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Certifications</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
               </tr>
             </thead>
@@ -459,6 +461,14 @@ export function FacilityTable({
                       ) : (
                         <span className="text-slate-400">None on file</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <a
+                        href={`/evidence?entity=facility&id=${facility.id}`}
+                        className="font-semibold text-forest hover:underline"
+                      >
+                        {facility.evidence_count ?? 0} documents
+                      </a>
                     </td>
                     <td className="px-4 py-3">
                       <button

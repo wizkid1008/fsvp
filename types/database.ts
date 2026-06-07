@@ -220,6 +220,8 @@ export type Database = {
           language?: string | null;
           linked_entity_type?: string | null;
           linked_entity_id?: string | null;
+          related_requirement_id?: string | null;
+          expiration_date?: string | null;
           uploaded_via?: string;
         };
         Update: Partial<Database["public"]["Tables"]["documents"]["Insert"]>;

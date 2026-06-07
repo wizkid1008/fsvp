@@ -11,17 +11,47 @@ export default async function SuppliersPage() {
   const { role } = await requireProfileRole("/suppliers");
   const supabase = createServerSupabaseClient();
 
-  const [{ data: rawSuppliers }, { data: countries }] = await Promise.all([
+  const [{ data: rawSuppliers }, { data: countries }, { data: products }, { data: facilities }, { data: documents }] = await Promise.all([
     (supabase.from("suppliers") as any)
       .select("id, company_name, country, approval_status, certification_status, fda_registration_number, contact_json, updated_at")
       .order("updated_at", { ascending: false }),
     (supabase.from("countries") as any)
       .select("country_code,country_name")
       .eq("is_active", true)
-      .order("country_name")
+      .order("country_name"),
+    (supabase.from("products_verify") as any)
+      .select("id, supplier_id"),
+    (supabase.from("facilities_verify") as any)
+      .select("id, supplier_id"),
+    supabase.from("documents")
+      .select("linked_entity_type, linked_entity_id")
   ]);
 
-  const suppliers = (rawSuppliers ?? []) as SupplierRow[];
+  const productSupplier = new Map(((products ?? []) as Array<{ id: string; supplier_id: string | null }>).map((product) => [product.id, product.supplier_id]));
+  const facilitySupplier = new Map(((facilities ?? []) as Array<{ id: string; supplier_id: string | null }>).map((facility) => [facility.id, facility.supplier_id]));
+  const evidenceCountBySupplier = new Map<string, number>();
+
+  for (const doc of (documents ?? []) as Array<{ linked_entity_type: string | null; linked_entity_id: string | null }>) {
+    if (!doc.linked_entity_id) continue;
+    let supplierId: string | null | undefined = null;
+
+    if (doc.linked_entity_type === "supplier" || doc.linked_entity_type === "foreign_supplier") {
+      supplierId = doc.linked_entity_id;
+    } else if (doc.linked_entity_type === "product") {
+      supplierId = productSupplier.get(doc.linked_entity_id);
+    } else if (doc.linked_entity_type === "facility") {
+      supplierId = facilitySupplier.get(doc.linked_entity_id);
+    }
+
+    if (supplierId) {
+      evidenceCountBySupplier.set(supplierId, (evidenceCountBySupplier.get(supplierId) ?? 0) + 1);
+    }
+  }
+
+  const suppliers = ((rawSuppliers ?? []) as SupplierRow[]).map((supplier) => ({
+    ...supplier,
+    evidence_count: evidenceCountBySupplier.get(supplier.id) ?? 0
+  }));
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 
   return (

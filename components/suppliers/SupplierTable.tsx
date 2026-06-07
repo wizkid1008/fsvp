@@ -17,6 +17,7 @@ export type SupplierRow = {
   certification_status: string;
   fda_registration_number: string | null;
   contact_json: Record<string, string> | null;
+  evidence_count?: number;
   updated_at: string;
 };
 
@@ -78,6 +79,7 @@ export function SupplierTable({ countries, suppliers }: { countries: CountryOpti
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Country</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Last Updated</th>
               </tr>
             </thead>
@@ -99,9 +101,17 @@ export function SupplierTable({ countries, suppliers }: { countries: CountryOpti
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{supplier.country}</td>
-                    <td className="px-4 py-3 text-slate-600">{supplier.fda_registration_number ?? "—"}</td>
+                    <td className="px-4 py-3 text-slate-600">{supplier.fda_registration_number ?? "-"}</td>
                     <td className="px-4 py-3">
                       <StatusBadge tone={tone}>{approvalLabel(supplier.approval_status)}</StatusBadge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <a
+                        href={`/evidence?entity=supplier&id=${supplier.id}`}
+                        className="font-semibold text-forest hover:underline"
+                      >
+                        {supplier.evidence_count ?? 0} documents
+                      </a>
                     </td>
                     <td className="px-4 py-3 text-slate-500">
                       {new Date(supplier.updated_at).toLocaleDateString()}

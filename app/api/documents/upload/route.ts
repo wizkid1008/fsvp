@@ -25,8 +25,13 @@ export async function POST(request: Request) {
 
   const formData = await request.formData();
   const file = formData.get("file");
+  const title = String(formData.get("title") ?? "").trim();
   const documentKind = String(formData.get("document_kind") ?? "unclassified");
   const supplierId = String(formData.get("supplier_id") ?? "");
+  const productId = String(formData.get("product_id") ?? "");
+  const facilityId = String(formData.get("facility_id") ?? "");
+  const linkType = String(formData.get("link_type") ?? "supplier");
+  const relatedRequirementId = String(formData.get("related_requirement_id") ?? "");
   const importerId = String(formData.get("importer_id") ?? "");
 
   if (!(file instanceof File)) {
@@ -37,12 +42,64 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Importer context is required." }, { status: 400 });
   }
 
+  if (!supplierId) {
+    return NextResponse.json({ error: "Supplier is required for evidence uploads." }, { status: 400 });
+  }
+
+  const supplier = await (supabase.from("suppliers") as any)
+    .select("id")
+    .eq("id", supplierId)
+    .maybeSingle();
+
+  if (supplier.error || !supplier.data) {
+    return NextResponse.json({ error: "Select a valid supplier for this evidence." }, { status: 400 });
+  }
+
+  let linkedEntityType = "supplier";
+  let linkedEntityId = supplierId;
+
+  if (linkType === "product") {
+    if (!productId) {
+      return NextResponse.json({ error: "Product evidence must be linked to a product." }, { status: 400 });
+    }
+
+    const product = await (supabase.from("products_verify") as any)
+      .select("id")
+      .eq("id", productId)
+      .eq("supplier_id", supplierId)
+      .maybeSingle();
+
+    if (product.error || !product.data) {
+      return NextResponse.json({ error: "Select a product that belongs to the selected supplier." }, { status: 400 });
+    }
+
+    linkedEntityType = "product";
+    linkedEntityId = productId;
+  } else if (linkType === "facility") {
+    if (!facilityId) {
+      return NextResponse.json({ error: "Facility evidence must be linked to a facility." }, { status: 400 });
+    }
+
+    const facility = await (supabase.from("facilities_verify") as any)
+      .select("id")
+      .eq("id", facilityId)
+      .eq("supplier_id", supplierId)
+      .maybeSingle();
+
+    if (facility.error || !facility.data) {
+      return NextResponse.json({ error: "Select a facility that belongs to the selected supplier." }, { status: 400 });
+    }
+
+    linkedEntityType = "facility";
+    linkedEntityId = facilityId;
+  }
+
   const bytes = await file.arrayBuffer();
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   const sha256 = Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
-  const storagePath = `${importerId}/${supplierId || "unassigned"}/${Date.now()}-${file.name}`;
+  const storagePath = `${importerId}/${supplierId}/${Date.now()}-${file.name}`;
   const upload = await supabase.storage.from(DOCUMENT_BUCKET).upload(storagePath, file, {
     contentType: file.type,
     upsert: false
@@ -55,14 +112,15 @@ export async function POST(request: Request) {
   const documentRecord: Database["public"]["Tables"]["documents"]["Insert"] = {
     importer_id: importerId,
     document_kind: documentKind,
-    title: file.name,
+    title: title || file.name,
     storage_path: storagePath,
     original_filename: file.name,
     mime_type: file.type || "application/octet-stream",
     size_bytes: file.size,
     sha256,
-    linked_entity_type: supplierId ? "foreign_supplier" : null,
-    linked_entity_id: supplierId || null,
+    linked_entity_type: linkedEntityType,
+    linked_entity_id: linkedEntityId,
+    related_requirement_id: relatedRequirementId || null,
     uploaded_via: "app"
   };
 

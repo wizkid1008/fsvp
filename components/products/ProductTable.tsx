@@ -25,6 +25,7 @@ export type ProductRow = {
   allergen_information: string | null;
   supplier_id: string | null;
   suppliers: { company_name: string } | null;
+  evidence_count?: number;
 };
 
 const INTENDED_USES = [
@@ -252,6 +253,7 @@ export function ProductTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Origin</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Intended Use</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Allergens</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
               </tr>
             </thead>
@@ -263,6 +265,14 @@ export function ProductTable({
                   <td className="px-4 py-3 text-slate-600">{product.country_of_origin ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600 capitalize">{labelize(product.intended_use)}</td>
                   <td className="px-4 py-3 text-slate-600">{product.allergen_information ?? "None declared"}</td>
+                  <td className="px-4 py-3">
+                    <a
+                      href={`/evidence?entity=product&id=${product.id}`}
+                      className="font-semibold text-forest hover:underline"
+                    >
+                      {product.evidence_count ?? 0} documents
+                    </a>
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       type="button"
