@@ -77,6 +77,12 @@ function AddFacilityForm({
           return;
         }
 
+        const supplierId = clean(formData.get("supplier_id"));
+        if (!supplierId || !suppliers.some((supplier) => supplier.id === supplierId)) {
+          setError("Select a supplier from the supplier list.");
+          return;
+        }
+
         const addressJson: Json = {
           address_line_1: clean(formData.get("address_line_1")),
           city: clean(formData.get("city")),
@@ -86,7 +92,7 @@ function AddFacilityForm({
         const { error: insertError } = await (supabase.from("facilities_verify") as any).insert({
           facility_name: formData.get("facility_name")?.toString().trim() ?? "",
           facility_type: formData.get("facility_type")?.toString().trim() ?? "",
-          supplier_id: clean(formData.get("supplier_id")),
+          supplier_id: supplierId,
           facility_address_json: addressJson,
           fda_registration_number: clean(formData.get("fda_registration_number")),
           production_capacity: clean(formData.get("production_capacity")),
@@ -124,9 +130,9 @@ function AddFacilityForm({
               <input name="facility_name" required className={inputClass} placeholder="Santiago Plant 2" />
             </label>
             <label className={labelClass}>
-              Supplier
-              <select name="supplier_id" className={inputClass} defaultValue="">
-                <option value="">Unassigned</option>
+              Supplier <span className="text-red-500">*</span>
+              <select name="supplier_id" required className={inputClass} defaultValue="">
+                <option value="">Select supplier</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>
                 ))}
@@ -195,6 +201,8 @@ export function FacilityTable({
   suppliers: SupplierOption[];
 }) {
   const [showForm, setShowForm] = useState(false);
+  const canAddFacility = suppliers.length > 0;
+  const addButtonClass = "inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500";
 
   return (
     <>
@@ -203,8 +211,9 @@ export function FacilityTable({
       <div className="mt-6 flex justify-end">
         <button
           type="button"
+          disabled={!canAddFacility}
           onClick={() => setShowForm(true)}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
+          className={addButtonClass}
         >
           Add facility
         </button>
@@ -217,15 +226,26 @@ export function FacilityTable({
           </div>
           <h3 className="mt-4 text-base font-semibold text-ink">No facilities recorded</h3>
           <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-            Add manufacturing and storage facilities to link them to suppliers and map their food safety certifications.
+            {canAddFacility
+              ? "Add manufacturing and storage facilities to link them to suppliers and map their food safety certifications."
+              : "Add a supplier first, then create manufacturing or storage facilities from that supplier list."}
           </p>
-          <button
-            type="button"
-            onClick={() => setShowForm(true)}
-            className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
-          >
-            Add your first facility
-          </button>
+          {canAddFacility ? (
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className={`mt-6 ${addButtonClass}`}
+            >
+              Add your first facility
+            </button>
+          ) : (
+            <a
+              href="/suppliers"
+              className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
+            >
+              Add a supplier first
+            </a>
+          )}
         </div>
       ) : (
         <div className="mt-6 overflow-hidden rounded-lg border border-line bg-white shadow-soft">
