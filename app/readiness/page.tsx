@@ -79,7 +79,7 @@ export default async function ReadinessPage() {
           icon={Gauge}
           title="No readiness assessment yet"
           description="Start a readiness assessment to calculate your FSVP compliance score, surface critical gaps, and generate reports."
-          action={{ label: "Start assessment", href: "#" }}
+          action={{ label: "Review evidence", href: "/evidence" }}
         />
       ) : (
         <div className="mt-6 space-y-6">

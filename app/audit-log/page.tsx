@@ -48,7 +48,7 @@ export default async function AuditLogPage() {
       <SectionHeader
         title="Audit Log"
         description="Timestamped record of all actions taken in the platform — document reviews, role changes, supplier updates, and more."
-        action={{ label: "Export log", href: "#" }}
+        action={{ label: "Open reports", href: "/reports" }}
       />
 
       {!logs || logs.length === 0 ? (

@@ -28,7 +28,7 @@ export default async function ReportsPage() {
       <SectionHeader
         title="Reports"
         description="Generate and export audit-ready FSVP reports including readiness summaries, gap registers, and evidence indexes."
-        action={{ label: "Generate report", href: "#" }}
+        action={{ label: "Go to Readiness", href: "/readiness" }}
       />
 
       {!reports || reports.length === 0 ? (
