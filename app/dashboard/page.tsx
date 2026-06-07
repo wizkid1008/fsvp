@@ -22,6 +22,8 @@ const IMPORTER_STEPS = [
 
 const SUPPLIER_STEPS = [
   { label: "Complete your profile", href: "/account", key: "profile" },
+  { label: "Add a facility", href: "/facilities", key: "facility" },
+  { label: "Add a product", href: "/products", key: "product" },
   { label: "Upload your evidence", href: "/my-evidence", key: "evidence" },
   { label: "Review action items", href: "/my-requests", key: "readiness" },
 ];
@@ -37,6 +39,7 @@ export default async function DashboardPage() {
     { data: profile },
     { count: supplierCount },
     { count: productCount },
+    { count: facilityCount },
     { count: documentCount },
     { count: assessmentCount },
     { count: actionCount },
@@ -49,6 +52,7 @@ export default async function DashboardPage() {
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle() as unknown as Promise<ProfileLookup>,
     supabase.from("suppliers").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>,
     supabase.from("products_verify").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>,
+    supabase.from("facilities_verify").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>,
     supabase.from("documents").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>,
     supabase.from("readiness_assessments").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>,
     supabase.from("corrective_actions").select("id", { count: "exact", head: true }).eq("status", "open") as unknown as Promise<{ count: number | null }>,
@@ -120,6 +124,8 @@ export default async function DashboardPage() {
   const stepDone: Record<string, boolean> = isSupplier
     ? {
         profile: profileComplete,
+        facility: (facilityCount ?? 0) > 0,
+        product: (productCount ?? 0) > 0,
         evidence: (documentCount ?? 0) > 0,
         readiness: (actionCount ?? 0) === 0,
       }

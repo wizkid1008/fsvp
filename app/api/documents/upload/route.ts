@@ -62,6 +62,7 @@ export async function POST(request: Request) {
 
   let linkedEntityType = "supplier";
   let linkedEntityId = supplierId;
+  let linkedProductFacilityId: string | null = null;
 
   if (linkType === "product") {
     if (!productId) {
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
     }
 
     const product = await (supabase.from("products_verify") as any)
-      .select("id")
+      .select("id, facility_id")
       .eq("id", productId)
       .eq("supplier_id", supplierId)
       .maybeSingle();
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
 
     linkedEntityType = "product";
     linkedEntityId = productId;
+    linkedProductFacilityId = product.data.facility_id ?? null;
   } else if (linkType === "facility") {
     if (!facilityId) {
       return NextResponse.json({ error: "Facility evidence must be linked to a facility." }, { status: 400 });
@@ -141,7 +143,7 @@ export async function POST(request: Request) {
       importer_id: importerId,
       supplier_id: supplierId,
       product_id: linkedEntityType === "product" ? linkedEntityId : null,
-      facility_id: linkedEntityType === "facility" ? linkedEntityId : null,
+      facility_id: linkedEntityType === "facility" ? linkedEntityId : linkedProductFacilityId,
       requirement_id: relatedRequirementId,
       document_id: document.data.id,
       status: "uploaded"

@@ -21,6 +21,8 @@ const IMPORTER_STEPS: OnboardingStep[] = [
 
 const SUPPLIER_STEPS = [
   { title: "Complete your profile", description: "Add your company name, contact details, and country so your importer can identify you.", cta: { label: "Go to Account", href: "/account" } },
+  { title: "Add your facility", description: "Create the manufacturing or storage facility where your products are made or held.", cta: { label: "Add Facility", href: "/facilities" } },
+  { title: "Add your products", description: "Create products under the supplier facility that makes or stores them.", cta: { label: "Add Product", href: "/products" } },
   { title: "Upload your evidence", description: "Upload the documents your importer has requested, including COAs, certifications, and food safety plans.", cta: { label: "Upload Evidence", href: "/my-evidence" } },
   { title: "Review your action items", description: "Check for any corrective actions, revision requests, or additional documents your importer has asked for.", cta: { label: "View Action Items", href: "/my-requests" } },
 ];

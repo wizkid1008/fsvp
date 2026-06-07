@@ -14,6 +14,12 @@ type SupplierOption = {
   company_name: string;
 };
 
+type FacilityOption = {
+  id: string;
+  facility_name: string;
+  supplier_id: string | null;
+};
+
 export type ProductRow = {
   id: string;
   product_name: string;
@@ -24,7 +30,9 @@ export type ProductRow = {
   ingredient_list: string | null;
   allergen_information: string | null;
   supplier_id: string | null;
+  facility_id: string | null;
   suppliers: { company_name: string } | null;
+  facilities_verify: { facility_name: string } | null;
   evidence_count?: number;
 };
 
@@ -57,16 +65,21 @@ function AddProductForm({
   countries,
   product,
   onClose,
+  facilities,
   suppliers
 }: {
   countries: CountryOption[];
+  facilities: FacilityOption[];
   product?: ProductRow | null;
   onClose: () => void;
   suppliers: SupplierOption[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [supplierId, setSupplierId] = useState(product?.supplier_id ?? (suppliers.length === 1 ? suppliers[0]?.id ?? "" : ""));
+  const [facilityId, setFacilityId] = useState(product?.facility_id ?? "");
   const [pending, startTransition] = useTransition();
+  const supplierFacilities = facilities.filter((facility) => facility.supplier_id === supplierId);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,9 +95,23 @@ function AddProductForm({
           return;
         }
 
+        const selectedSupplierId = clean(formData.get("supplier_id"));
+        const selectedFacilityId = clean(formData.get("facility_id"));
+
+        if (!selectedSupplierId || !suppliers.some((supplier) => supplier.id === selectedSupplierId)) {
+          setError("Select a supplier from the supplier list.");
+          return;
+        }
+
+        if (!selectedFacilityId || !facilities.some((facility) => facility.id === selectedFacilityId && facility.supplier_id === selectedSupplierId)) {
+          setError("Select a facility that belongs to the selected supplier.");
+          return;
+        }
+
         const payload = {
           product_name: formData.get("product_name")?.toString().trim() ?? "",
-          supplier_id: clean(formData.get("supplier_id")),
+          supplier_id: selectedSupplierId,
+          facility_id: selectedFacilityId,
           country_of_origin: country,
           raw_or_processed: clean(formData.get("raw_or_processed")),
           intended_use: clean(formData.get("intended_use")),
@@ -93,9 +120,21 @@ function AddProductForm({
           product_description: clean(formData.get("product_description"))
         };
         const supabase = createBrowserSupabaseClient();
+        const {
+          data: { user }
+        } = await supabase.auth.getUser();
+        const { data: profile } = user
+          ? await (supabase.from("profiles") as any)
+              .select("importer_id")
+              .eq("id", user.id)
+              .maybeSingle()
+          : { data: null };
+        const savePayload = profile?.importer_id
+          ? { ...payload, importer_id: profile.importer_id }
+          : payload;
         const { error: saveError } = product
-          ? await (supabase.from("products_verify") as any).update(payload).eq("id", product.id)
-          : await (supabase.from("products_verify") as any).insert(payload);
+          ? await (supabase.from("products_verify") as any).update(savePayload).eq("id", product.id)
+          : await (supabase.from("products_verify") as any).insert(savePayload);
 
         if (saveError) throw saveError;
         router.refresh();
@@ -127,13 +166,41 @@ function AddProductForm({
               <input name="product_name" required defaultValue={product?.product_name ?? ""} className={inputClass} placeholder="Mango puree" />
             </label>
             <label className={labelClass}>
-              Supplier
-              <select name="supplier_id" className={inputClass} defaultValue={product?.supplier_id ?? ""}>
-                <option value="">Unassigned</option>
+              Supplier <span className="text-red-500">*</span>
+              <select
+                name="supplier_id"
+                required
+                className={inputClass}
+                value={supplierId}
+                onChange={(event) => {
+                  setSupplierId(event.target.value);
+                  setFacilityId("");
+                }}
+              >
+                <option value="">Select supplier</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>
                 ))}
               </select>
+            </label>
+            <label className={labelClass}>
+              Facility <span className="text-red-500">*</span>
+              <select
+                name="facility_id"
+                required
+                className={inputClass}
+                value={facilityId}
+                onChange={(event) => setFacilityId(event.target.value)}
+                disabled={!supplierId || supplierFacilities.length === 0}
+              >
+                <option value="">{supplierId ? "Select facility" : "Select supplier first"}</option>
+                {supplierFacilities.map((facility) => (
+                  <option key={facility.id} value={facility.id}>{facility.facility_name}</option>
+                ))}
+              </select>
+              {supplierId && supplierFacilities.length === 0 ? (
+                <span className="mt-1 block text-xs text-amber-700">Add a facility for this supplier before creating a product.</span>
+              ) : null}
             </label>
             <CountryCombobox countries={countries} defaultValue={product?.country_of_origin ?? ""} label="Country of origin" name="country_of_origin" required />
             <label className={labelClass}>
@@ -185,15 +252,18 @@ function AddProductForm({
 
 export function ProductTable({
   countries,
+  facilities,
   products,
   suppliers
 }: {
   countries: CountryOption[];
+  facilities: FacilityOption[];
   products: ProductRow[];
   suppliers: SupplierOption[];
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
+  const canAddProduct = suppliers.length > 0 && facilities.length > 0;
 
   function openAddForm() {
     setEditingProduct(null);
@@ -210,6 +280,7 @@ export function ProductTable({
       {showForm ? (
         <AddProductForm
           countries={countries}
+          facilities={facilities}
           onClose={() => setShowForm(false)}
           product={editingProduct}
           suppliers={suppliers}
@@ -219,8 +290,9 @@ export function ProductTable({
       <div className="mt-6 flex justify-end">
         <button
           type="button"
+          disabled={!canAddProduct}
           onClick={openAddForm}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
+          className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
         >
           Add product
         </button>
@@ -233,15 +305,26 @@ export function ProductTable({
           </div>
           <h3 className="mt-4 text-base font-semibold text-ink">No products yet</h3>
           <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-            Add products to link them to suppliers, map FSVP requirements, and track verification evidence.
+            {canAddProduct
+              ? "Add products under a supplier facility, then map FSVP requirements and verification evidence."
+              : "Add a supplier and facility first, then create products under that facility."}
           </p>
-          <button
-            type="button"
-            onClick={openAddForm}
-            className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
-          >
-            Add your first product
-          </button>
+          {canAddProduct ? (
+            <button
+              type="button"
+              onClick={openAddForm}
+              className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
+            >
+              Add your first product
+            </button>
+          ) : (
+            <a
+              href={suppliers.length === 0 ? "/suppliers" : "/facilities"}
+              className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
+            >
+              {suppliers.length === 0 ? "Add a supplier first" : "Add a facility first"}
+            </a>
+          )}
         </div>
       ) : (
         <div className="mt-6 overflow-hidden rounded-lg border border-line bg-white shadow-soft">
@@ -250,6 +333,7 @@ export function ProductTable({
               <tr className="border-b border-line bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Product</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Facility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Origin</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Intended Use</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Allergens</th>
@@ -262,6 +346,7 @@ export function ProductTable({
                 <tr key={product.id} className="transition-colors hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-ink">{product.product_name}</td>
                   <td className="px-4 py-3 text-slate-600">{product.suppliers?.company_name ?? "-"}</td>
+                  <td className="px-4 py-3 text-slate-600">{product.facilities_verify?.facility_name ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{product.country_of_origin ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600 capitalize">{labelize(product.intended_use)}</td>
                   <td className="px-4 py-3 text-slate-600">{product.allergen_information ?? "None declared"}</td>

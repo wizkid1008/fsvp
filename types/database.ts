@@ -53,6 +53,7 @@ export type ProductVerify = {
   id: string;
   importer_id: string | null;
   supplier_id: string | null;
+  facility_id: string | null;
   commodity_id: string | null;
   product_name: string;
   product_description: string | null;
