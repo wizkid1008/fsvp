@@ -131,8 +131,8 @@ export function SiteMenu() {
               </Link>
             );
           })}
-          <div className="pointer-events-none absolute left-1/2 top-[72px] hidden w-[min(980px,calc(100vw-48px))] -translate-x-1/2 rounded-b-sm bg-black p-8 text-white opacity-0 shadow-[0_28px_80px_rgba(0,0,0,0.35)] transition group-hover:pointer-events-auto group-hover:block group-hover:opacity-100">
-            <div className="grid gap-8 md:grid-cols-[1fr_1fr_1fr_280px]">
+          <div className="pointer-events-none absolute left-1/2 top-[72px] hidden w-[min(760px,calc(100vw-48px))] -translate-x-1/2 rounded-b-sm bg-black p-8 text-white opacity-0 shadow-[0_28px_80px_rgba(0,0,0,0.35)] transition group-hover:pointer-events-auto group-hover:block group-hover:opacity-100">
+            <div className="grid gap-8 md:grid-cols-3">
               {megaMenus[activeMenu].map((column) => (
                 <div key={column.heading}>
                   <p className="mb-5 text-[11px] font-black uppercase tracking-[0.08em] text-white/40">{column.heading}</p>
@@ -143,15 +143,6 @@ export function SiteMenu() {
                   </div>
                 </div>
               ))}
-              <div className="border-l border-white/15 pl-7">
-                <p className="mb-5 text-[11px] font-black uppercase tracking-[0.08em] text-white/40">CURRENT AREA</p>
-                <div className="rounded bg-white/10 p-4">
-                  <p className="text-sm font-black">{menuItems.find((item) => item.key === activeMenu)?.label}</p>
-                  <p className="mt-1 text-xs leading-5 text-white/55">
-                    Hover another top-level title to preview its workflow-specific menu.
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
         </nav>
