@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
+import { SupplierReadinessPanel } from "@/components/readiness/SupplierReadinessPanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { OnboardingModal, type OnboardingStep } from "@/components/onboarding/OnboardingModal";
 import { requireUser } from "@/lib/auth/protection";
@@ -306,6 +307,12 @@ export default async function DashboardPage() {
           </ol>
         </aside>
       </section>
+
+      {isSupplier ? (
+        <section className="mt-6">
+          <SupplierReadinessPanel supabase={supabase} title="My Readiness" showScore={false} />
+        </section>
+      ) : null}
     </AppShell>
   );
 }

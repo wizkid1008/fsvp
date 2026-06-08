@@ -40,7 +40,6 @@ export const iconMap = {
 export const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", tKey: "nav.dashboard" },
   { href: "/my-evidence", label: "My Evidence", icon: "FileArchive", roles: ["supplier"], tKey: "nav.myEvidence" },
-  { href: "/my-readiness", label: "My Readiness", icon: "Gauge", roles: ["supplier"], tKey: "nav.myReadiness" },
   { href: "/my-requests", label: "Action Items", icon: "AlertTriangle", roles: ["supplier"], tKey: "nav.actionItems" },
   { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.suppliers" },
   { href: "/products", label: "Products", icon: "PackageSearch", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.products" },
