@@ -32,6 +32,7 @@ declare
   v_product_10    uuid := 'd4000000-0000-0000-0000-000000000010'; -- Roasted Pepper Strips (f1)
 
   v_rule_ver_id   uuid;
+  v_decider_id    uuid;  -- any real profile to satisfy NOT NULL on decided_by_profile_id
 
   v_rec_approved  uuid := 'e5000000-0000-0000-0000-000000000001';
   v_rec_cond      uuid := 'e5000000-0000-0000-0000-000000000002';
@@ -292,25 +293,33 @@ begin
   on conflict (fsvp_record_id, document_id) do nothing;
 
   -- Approval decisions history
-  insert into approval_decisions (fsvp_record_id, importer_id, decision, decision_notes,
-    conditions_text, decided_by_profile_id, rule_version_id)
-  values
-    (v_rec_approved, v_importer_1, 'approved',
-     'All required evidence accepted. Hazard analysis complete. Verification activities appropriate.',
-     null,
-     (select id from profiles where role = 'us_importer' limit 1),
-     v_rule_ver_id),
-    (v_rec_cond, v_importer_1, 'conditionally_approved',
-     'Facility approved subject to corrective action closure.',
-     'Corrective action CAR-2026-001 must be closed within 60 days. Re-submit sulphite COA for next shipment.',
-     (select id from profiles where role = 'us_importer' limit 1),
-     v_rule_ver_id),
-    (v_rec_rejected, v_importer_1, 'rejected',
-     'Critical blocker: no accepted food safety plan. Aflatoxin program not established.',
-     null,
-     (select id from profiles where role = 'us_importer' limit 1),
-     v_rule_ver_id)
-  on conflict do nothing;
+  -- Pick any real profile (us_importer preferred, any active profile as fallback)
+  select id into v_decider_id from profiles where role = 'us_importer' and user_status = 'active' limit 1;
+  if v_decider_id is null then
+    select id into v_decider_id from profiles where user_status = 'active' limit 1;
+  end if;
+  if v_decider_id is null then
+    select id into v_decider_id from profiles limit 1;
+  end if;
+
+  if v_decider_id is not null then
+    insert into approval_decisions (fsvp_record_id, importer_id, decision, decision_notes,
+      conditions_text, decided_by_profile_id, rule_version_id)
+    values
+      (v_rec_approved, v_importer_1, 'approved',
+       'All required evidence accepted. Hazard analysis complete. Verification activities appropriate.',
+       null, v_decider_id, v_rule_ver_id),
+      (v_rec_cond, v_importer_1, 'conditionally_approved',
+       'Facility approved subject to corrective action closure.',
+       'Corrective action CAR-2026-001 must be closed within 60 days. Re-submit sulphite COA for next shipment.',
+       v_decider_id, v_rule_ver_id),
+      (v_rec_rejected, v_importer_1, 'rejected',
+       'Critical blocker: no accepted food safety plan. Aflatoxin program not established.',
+       null, v_decider_id, v_rule_ver_id)
+    on conflict do nothing;
+  else
+    raise notice 'No profiles found — skipping approval_decisions seed rows';
+  end if;
 
   -- Reassessment schedules
   insert into reassessment_schedules (fsvp_record_id, importer_id, frequency_months, last_assessed_at, next_due_at, status)
