@@ -16,15 +16,13 @@ export async function fetchRuleVersionWeights(
   const admin = createAdminSupabaseClient();
 
   const [weightsRes, thresholdsRes] = await Promise.all([
-    admin
-      .from("scoring_category_weights")
+    (admin.from("scoring_category_weights") as any)
       .select(
         `id, section_id, weight_percent,
          requirement_sections!inner(section_key, section_name, applies_to)`
       )
       .eq("rule_version_id", ruleVersionId),
-    admin
-      .from("approval_thresholds")
+    (admin.from("approval_thresholds") as any)
       .select("min_score, max_score, resulting_status")
       .eq("rule_version_id", ruleVersionId),
   ]);
@@ -66,8 +64,7 @@ export async function fetchRequirementItemsForSections(
 ): Promise<RequirementItemRow[]> {
   if (sectionIds.length === 0) return [];
   const admin = createAdminSupabaseClient();
-  const { data, error } = await admin
-    .from("requirement_items")
+  const { data, error } = await (admin.from("requirement_items") as any)
     .select("id, section_id, item_key, item_name, is_required, is_critical_blocker, auto_accept, expiration_applies")
     .in("section_id", sectionIds);
 
@@ -111,7 +108,7 @@ export async function upsertScoringResult(
   criticalBlockersPresent: boolean
 ): Promise<void> {
   const admin = createAdminSupabaseClient();
-  const { error } = await admin.from("scoring_results").upsert(
+  const { error } = await (admin.from("scoring_results") as any).upsert(
     {
       entity_type: entityType,
       entity_id: entityId,
