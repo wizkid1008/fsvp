@@ -10,12 +10,12 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 
-type MenuKey = "platform" | "suppliers" | "evidence" | "reports";
+type MenuKey = "platform" | "suppliers" | "importers" | "reports";
 
 const menuItems: Array<{ href: string; activeHref: string; label: string; key: MenuKey }> = [
   { href: "/about", activeHref: "/about", label: "Platform", key: "platform" },
   { href: "/login?next=%2Fsuppliers", activeHref: "/suppliers", label: "Suppliers", key: "suppliers" },
-  { href: "/login?next=%2Fevidence", activeHref: "/evidence", label: "Evidence", key: "evidence" },
+  { href: "/login?next=%2Fdashboard", activeHref: "/dashboard", label: "Importers", key: "importers" },
   { href: "/login?next=%2Freports", activeHref: "/reports", label: "Reports", key: "reports" }
 ];
 
@@ -30,10 +30,10 @@ const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = 
     { heading: "COMPLIANCE STATUS", links: ["Certifications", "Supplier questionnaire", "Importer relationship", "Ownership attestation"] },
     { heading: "NEXT STEPS", links: ["Create supplier", "Attach evidence", "Review readiness", "Resolve gaps"] }
   ],
-  evidence: [
-    { heading: "DOCUMENTS", links: ["Evidence uploads", "Document versions", "Categories", "Review status"] },
-    { heading: "FSVP MAPPING", links: ["Required evidence", "Uploaded evidence", "Reviewer decision", "Gap status"] },
-    { heading: "LIBRARY", links: ["FDA references", "Background documents", "Audit packet", "Requirement index"] }
+  importers: [
+    { heading: "IMPORTER PROFILE", links: ["Organization details", "Contacts", "Assigned suppliers", "Role management"] },
+    { heading: "FSVP OVERSIGHT", links: ["Supplier approvals", "Verification activities", "Evidence requests", "Corrective actions"] },
+    { heading: "NEXT STEPS", links: ["Invite supplier", "Review submissions", "Track readiness", "Export audit packet"] }
   ],
   reports: [
     { heading: "READINESS", links: ["Readiness score", "Critical gaps", "Corrective actions", "Final status"] },
