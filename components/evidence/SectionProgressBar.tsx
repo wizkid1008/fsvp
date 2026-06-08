@@ -16,7 +16,7 @@ export interface SectionProgress {
 }
 
 function completionPercent(s: SectionProgress): number {
-  if (s.required_count === 0) return 100;
+  if (s.required_count === 0) return 0;
   if (s.accepted_count === 0) {
     if (s.submitted_count + s.under_review_count === 0) return 0;
     return 25;
@@ -35,6 +35,7 @@ function completionTone(pct: number): StatusTone {
 
 function sectionStatusLabel(s: SectionProgress): string {
   const pct = completionPercent(s);
+  if (s.required_count === 0) return "Not Started";
   if (pct === 100) return "Complete";
   if (s.needs_revision_count > 0) return "Needs Revision";
   if (s.under_review_count > 0) return "Under Review";

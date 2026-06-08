@@ -331,7 +331,7 @@ export default async function DashboardPage() {
   const overallReadinessPct = supplierSectionProgress.length > 0
     ? Math.round(
         supplierSectionProgress.reduce((sum, s) => {
-          const pct = s.required_count === 0 ? 100
+          const pct = s.required_count === 0 ? 0
             : s.accepted_count === 0 ? (s.submitted_count + s.under_review_count > 0 ? 25 : 0)
             : s.accepted_count < s.required_count ? 50
             : s.has_critical_blocker ? 75 : 100;
