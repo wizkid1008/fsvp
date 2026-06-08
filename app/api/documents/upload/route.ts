@@ -37,6 +37,8 @@ export async function POST(request: Request) {
   const facilityId = String(formData.get("facility_id") ?? "");
   const linkType = String(formData.get("link_type") ?? "supplier");
   const relatedRequirementId = String(formData.get("related_requirement_id") ?? "");
+  const requirementItemId = String(formData.get("requirement_item_id") ?? "");
+  const expirationDate = String(formData.get("expiration_date") ?? "");
   const importerId = String(formData.get("importer_id") ?? "");
 
   if (!(file instanceof File)) {
@@ -47,17 +49,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `File uploads must be ${DOCUMENT_UPLOAD_MAX_LABEL} or smaller.` }, { status: 400 });
   }
 
-  if (!importerId) {
-    return NextResponse.json({ error: "Importer context is required." }, { status: 400 });
-  }
+  // Suppliers uploading their own evidence may not have an importer_id
+  const { data: uploaderProfile } = await (supabase.from("profiles") as any)
+    .select("role, supplier_id, importer_id")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  if (!supplierId) {
+  const resolvedImporterId = importerId || uploaderProfile?.importer_id || null;
+  const resolvedSupplierId = supplierId || uploaderProfile?.supplier_id || "";
+
+  if (!resolvedSupplierId) {
     return NextResponse.json({ error: "Supplier is required for evidence uploads." }, { status: 400 });
   }
 
   const supplier = await (supabase.from("suppliers") as any)
     .select("id")
-    .eq("id", supplierId)
+    .eq("id", resolvedSupplierId)
     .maybeSingle();
 
   if (supplier.error || !supplier.data) {
@@ -65,7 +72,7 @@ export async function POST(request: Request) {
   }
 
   let linkedEntityType = "supplier";
-  let linkedEntityId = supplierId;
+  let linkedEntityId = resolvedSupplierId;
   let linkedProductFacilityId: string | null = null;
 
   if (linkType === "product") {
@@ -76,7 +83,7 @@ export async function POST(request: Request) {
     const product = await (supabase.from("products_verify") as any)
       .select("id, facility_id")
       .eq("id", productId)
-      .eq("supplier_id", supplierId)
+      .eq("supplier_id", resolvedSupplierId)
       .maybeSingle();
 
     if (product.error || !product.data) {
@@ -94,14 +101,14 @@ export async function POST(request: Request) {
     const facilityAccess = await (supabase.from("facility_supplier_access") as any)
       .select("facility_id")
       .eq("facility_id", facilityId)
-      .eq("supplier_id", supplierId)
+      .eq("supplier_id", resolvedSupplierId)
       .maybeSingle();
     const facility = await (supabase.from("facilities_verify") as any)
       .select("id, supplier_id")
       .eq("id", facilityId)
       .maybeSingle();
 
-    if (facility.error || !facility.data || (!facilityAccess.data && facility.data.supplier_id !== supplierId)) {
+    if (facility.error || !facility.data || (!facilityAccess.data && facility.data.supplier_id !== resolvedSupplierId)) {
       return NextResponse.json({ error: "Select a facility that is available to the selected supplier." }, { status: 400 });
     }
 
@@ -114,7 +121,8 @@ export async function POST(request: Request) {
   const sha256 = Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
-  const storagePath = `${importerId}/${supplierId}/${Date.now()}-${file.name}`;
+  const storagePrefix = resolvedImporterId ?? resolvedSupplierId;
+  const storagePath = `${storagePrefix}/${resolvedSupplierId}/${Date.now()}-${file.name}`;
   const upload = await supabase.storage.from(DOCUMENT_BUCKET).upload(storagePath, file, {
     contentType: file.type,
     upsert: false
@@ -124,8 +132,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: upload.error.message }, { status: 500 });
   }
 
-  const documentRecord: Database["public"]["Tables"]["documents"]["Insert"] = {
-    importer_id: importerId,
+  const documentRecord: Record<string, unknown> = {
+    importer_id: resolvedImporterId,
+    supplier_id: resolvedSupplierId || null,
     document_kind: documentKind,
     title: title || file.name,
     storage_path: storagePath,
@@ -136,11 +145,16 @@ export async function POST(request: Request) {
     linked_entity_type: linkedEntityType,
     linked_entity_id: linkedEntityId,
     related_requirement_id: relatedRequirementId || null,
+    requirement_item_id: requirementItemId || null,
+    facility_id: linkType === "facility" ? facilityId || null : linkedProductFacilityId,
+    expiration_date: expirationDate || null,
+    uploaded_by_profile_id: user.id,
+    evidence_status: "submitted",
     uploaded_via: "app"
   };
 
   const documentsTable = supabase.from("documents") as unknown as DocumentInsertTable;
-  const document = await documentsTable.insert(documentRecord).select("id").single();
+  const document = await documentsTable.insert(documentRecord as any).select("id").single();
 
   if (document.error) {
     return NextResponse.json({ error: document.error.message }, { status: 500 });
@@ -148,8 +162,8 @@ export async function POST(request: Request) {
 
   if (relatedRequirementId && document.data?.id) {
     await (supabase.from("requirement_evidence") as any).insert({
-      importer_id: importerId,
-      supplier_id: supplierId,
+      importer_id: resolvedImporterId,
+      supplier_id: resolvedSupplierId,
       product_id: linkedEntityType === "product" ? linkedEntityId : null,
       facility_id: linkedEntityType === "facility" ? linkedEntityId : linkedProductFacilityId,
       requirement_id: relatedRequirementId,
@@ -165,7 +179,7 @@ export async function POST(request: Request) {
 
   if (auditSetting?.boolean_value !== false && document.data?.id) {
     await (supabase.from("audit_logs") as any).insert({
-      importer_id: importerId,
+      importer_id: resolvedImporterId,
       actor_profile_id: user.id,
       action: "document_uploaded",
       record_type: "documents",

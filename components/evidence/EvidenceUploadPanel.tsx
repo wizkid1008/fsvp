@@ -37,17 +37,25 @@ type RequirementOption = {
   requirement_name: string;
 };
 
+type RequirementItemOption = {
+  id: string;
+  item_name: string;
+  section_name: string;
+};
+
 export function EvidenceUploadPanel({
   documentCategories = DOCUMENT_CATEGORIES,
   facilities = [],
   products = [],
   requirements = [],
+  requirementItems = [],
   suppliers = []
 }: {
   documentCategories?: string[];
   facilities?: FacilityOption[];
   products?: ProductOption[];
   requirements?: RequirementOption[];
+  requirementItems?: RequirementItemOption[];
   suppliers?: SupplierOption[];
 }) {
   const router = useRouter();
@@ -126,24 +134,25 @@ export function EvidenceUploadPanel({
         if (!user) throw new Error("Not authenticated.");
 
         const { data: profile } = await (supabase.from("profiles") as any)
-          .select("importer_id")
+          .select("importer_id, supplier_id")
           .eq("id", user.id)
           .maybeSingle();
-
-        if (!profile?.importer_id) {
-          throw new Error("Your account is not linked to an importer organization. Ask your administrator to link your account before uploading documents.");
-        }
 
         const body = new FormData();
         body.append("file", file);
         body.append("title", title);
         body.append("document_kind", category);
-        body.append("importer_id", profile.importer_id);
-        body.append("supplier_id", selectedSupplierId);
+        if (profile?.importer_id) body.append("importer_id", profile.importer_id);
+        body.append("supplier_id", selectedSupplierId || profile?.supplier_id || "");
         body.append("link_type", selectedLinkType);
         if (productId) body.append("product_id", productId);
         if (facilityId) body.append("facility_id", facilityId);
         if (requirementId) body.append("related_requirement_id", requirementId);
+
+        const requirementItemId = formData.get("requirement_item_id")?.toString() ?? "";
+        const expirationDate = formData.get("expiration_date")?.toString() ?? "";
+        if (requirementItemId) body.append("requirement_item_id", requirementItemId);
+        if (expirationDate) body.append("expiration_date", expirationDate);
 
         const res = await fetch("/api/documents/upload", { method: "POST", body });
         const json = await res.json() as { error?: string };
@@ -226,14 +235,31 @@ export function EvidenceUploadPanel({
                 ))}
               </select>
             </label>
+            {requirementItems.length > 0 ? (
+              <label className="block text-sm font-medium text-slate-700">
+                Requirement Item
+                <select name="requirement_item_id" className="mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest">
+                  <option value="">Not mapped</option>
+                  {requirementItems.map((item) => (
+                    <option key={item.id} value={item.id}>{item.section_name} — {item.item_name}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label className="block text-sm font-medium text-slate-700">
+                FSVP Requirement
+                <select name="related_requirement_id" className="mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest">
+                  <option value="">Not mapped yet</option>
+                  {requirements.map((requirement) => (
+                    <option key={requirement.id} value={requirement.id}>{requirement.requirement_name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="block text-sm font-medium text-slate-700">
-              FSVP Requirement
-              <select name="related_requirement_id" className="mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest">
-                <option value="">Not mapped yet</option>
-                {requirements.map((requirement) => (
-                  <option key={requirement.id} value={requirement.id}>{requirement.requirement_name}</option>
-                ))}
-              </select>
+              Expiration Date (if applicable)
+              <input type="date" name="expiration_date"
+                className="mt-1.5 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-forest" />
             </label>
             <label className="block text-sm font-medium text-slate-700">
               Link Evidence To

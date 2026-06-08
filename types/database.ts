@@ -45,6 +45,10 @@ export type Supplier = {
   fda_registration_number: string | null;
   certification_status: string;
   approval_status: string;
+  portal_status: "active" | "pending" | "suspended";
+  readiness_score: number | null;
+  last_reviewed_at: string | null;
+  rule_version_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -65,6 +69,11 @@ export type ProductVerify = {
   shelf_life: string | null;
   packaging_information: string | null;
   allergen_information: string | null;
+  readiness_score: number | null;
+  approval_status: "pending" | "approved" | "conditionally_approved" | "improvement_required" | "not_approved";
+  rule_version_id: string | null;
+  last_reviewed_at: string | null;
+  reviewed_by_profile_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -80,6 +89,11 @@ export type FacilityVerify = {
   production_capacity: string | null;
   manufacturing_processes: string | null;
   food_safety_certifications: string[] | null;
+  readiness_score: number | null;
+  approval_status: "pending" | "approved" | "conditionally_approved" | "improvement_required" | "not_approved" | "suspended";
+  rule_version_id: string | null;
+  last_reviewed_at: string | null;
+  reviewed_by_profile_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -143,6 +157,7 @@ export type AuditLog = {
   id: string;
   importer_id: string | null;
   actor_profile_id: string | null;
+  actor_role: string | null;
   action: string;
   record_type: string | null;
   record_id: string | null;
@@ -332,10 +347,247 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["foods"]["Insert"]>;
         Relationships: [];
       };
+      // --- Rules engine (migration 021) ---
+      rule_sets: {
+        Row: RuleSet;
+        Insert: Partial<RuleSet> & Pick<RuleSet, "set_name" | "applies_to">;
+        Update: Partial<RuleSet>;
+        Relationships: [];
+      };
+      rule_versions: {
+        Row: RuleVersion;
+        Insert: Partial<RuleVersion> & Pick<RuleVersion, "rule_set_id" | "version_number">;
+        Update: Partial<RuleVersion>;
+        Relationships: [];
+      };
+      approval_thresholds: {
+        Row: ApprovalThreshold;
+        Insert: Partial<ApprovalThreshold> & Pick<ApprovalThreshold, "rule_version_id" | "label" | "min_score" | "max_score" | "resulting_status">;
+        Update: Partial<ApprovalThreshold>;
+        Relationships: [];
+      };
+      requirement_sections: {
+        Row: RequirementSection;
+        Insert: Partial<RequirementSection> & Pick<RequirementSection, "rule_version_id" | "section_key" | "section_name" | "applies_to">;
+        Update: Partial<RequirementSection>;
+        Relationships: [];
+      };
+      scoring_category_weights: {
+        Row: ScoringCategoryWeight;
+        Insert: Partial<ScoringCategoryWeight> & Pick<ScoringCategoryWeight, "rule_version_id" | "section_id" | "weight_percent">;
+        Update: Partial<ScoringCategoryWeight>;
+        Relationships: [];
+      };
+      requirement_items: {
+        Row: RequirementItem;
+        Insert: Partial<RequirementItem> & Pick<RequirementItem, "section_id" | "item_key" | "item_name">;
+        Update: Partial<RequirementItem>;
+        Relationships: [];
+      };
+      importer_supplier_links: {
+        Row: ImporterSupplierLink;
+        Insert: Partial<ImporterSupplierLink> & Pick<ImporterSupplierLink, "importer_id" | "supplier_id">;
+        Update: Partial<ImporterSupplierLink>;
+        Relationships: [];
+      };
+      // --- FSVP records & scoring (migration 022) ---
+      scoring_results: {
+        Row: ScoringResult;
+        Insert: Partial<ScoringResult> & Pick<ScoringResult, "entity_type" | "entity_id" | "rule_version_id" | "overall_score">;
+        Update: Partial<ScoringResult>;
+        Relationships: [];
+      };
+      fsvp_records: {
+        Row: FsvpRecord;
+        Insert: Partial<FsvpRecord> & Pick<FsvpRecord, "importer_id" | "supplier_id" | "facility_id" | "product_id" | "rule_version_id">;
+        Update: Partial<FsvpRecord>;
+        Relationships: [];
+      };
+      fsvp_record_evidence: {
+        Row: FsvpRecordEvidence;
+        Insert: Partial<FsvpRecordEvidence> & Pick<FsvpRecordEvidence, "fsvp_record_id" | "document_id">;
+        Update: Partial<FsvpRecordEvidence>;
+        Relationships: [];
+      };
+      approval_decisions: {
+        Row: ApprovalDecision;
+        Insert: Partial<ApprovalDecision> & Pick<ApprovalDecision, "fsvp_record_id" | "importer_id" | "decision" | "decided_by_profile_id" | "rule_version_id">;
+        Update: Partial<ApprovalDecision>;
+        Relationships: [];
+      };
+      reassessment_schedules: {
+        Row: ReassessmentSchedule;
+        Insert: Partial<ReassessmentSchedule> & Pick<ReassessmentSchedule, "fsvp_record_id" | "importer_id" | "next_due_at">;
+        Update: Partial<ReassessmentSchedule>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
+};
+
+// ── Rules engine types (migration 021) ──────────────────────────────────────
+
+export type RuleSet = {
+  id: string;
+  set_name: string;
+  description: string | null;
+  applies_to: "facility" | "product" | "fsvp_record" | "all";
+  created_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RuleVersion = {
+  id: string;
+  rule_set_id: string;
+  version_number: number;
+  status: "draft" | "published" | "archived";
+  published_at: string | null;
+  archived_at: string | null;
+  cloned_from_version_id: string | null;
+  notes: string | null;
+  created_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApprovalThreshold = {
+  id: string;
+  rule_version_id: string;
+  label: string;
+  min_score: number;
+  max_score: number;
+  resulting_status: string;
+  created_at: string;
+};
+
+export type RequirementSection = {
+  id: string;
+  rule_version_id: string;
+  section_key: string;
+  section_name: string;
+  applies_to: "facility" | "product" | "supplier";
+  description: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type ScoringCategoryWeight = {
+  id: string;
+  rule_version_id: string;
+  section_id: string;
+  weight_percent: number;
+  created_at: string;
+};
+
+export type RequirementItem = {
+  id: string;
+  section_id: string;
+  item_key: string;
+  item_name: string;
+  description: string | null;
+  evidence_type: string | null;
+  is_required: boolean;
+  is_critical_blocker: boolean;
+  auto_accept: boolean;
+  expiration_applies: boolean;
+  cfr_citation: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type ImporterSupplierLink = {
+  id: string;
+  importer_id: string;
+  supplier_id: string;
+  relationship_status: "active" | "paused" | "terminated";
+  linked_at: string;
+  linked_by_profile_id: string | null;
+};
+
+// ── FSVP records & scoring types (migration 022) ────────────────────────────
+
+export type ScoringResult = {
+  id: string;
+  entity_type: "facility" | "product" | "fsvp_record";
+  entity_id: string;
+  rule_version_id: string;
+  overall_score: number;
+  section_scores: Json;
+  is_stale: boolean;
+  critical_blockers_present: boolean;
+  calculated_at: string;
+};
+
+export type FsvpRecordStatus =
+  | "draft"
+  | "awaiting_supplier_evidence"
+  | "supplier_evidence_submitted"
+  | "supplier_evidence_accepted"
+  | "importer_review_pending"
+  | "importer_approved"
+  | "conditionally_approved"
+  | "needs_corrective_action"
+  | "rejected"
+  | "expired"
+  | "reassessment_due";
+
+export type FsvpRecord = {
+  id: string;
+  importer_id: string;
+  supplier_id: string;
+  facility_id: string;
+  product_id: string;
+  rule_version_id: string;
+  status: FsvpRecordStatus;
+  hazard_analysis_notes: string | null;
+  supplier_evaluation_notes: string | null;
+  facility_evaluation_notes: string | null;
+  verification_determination: string | null;
+  overall_score: number | null;
+  approval_decision: "approved" | "conditionally_approved" | "rejected" | null;
+  approved_by_profile_id: string | null;
+  approved_at: string | null;
+  reassessment_due_at: string | null;
+  created_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FsvpRecordEvidence = {
+  id: string;
+  fsvp_record_id: string;
+  document_id: string;
+  requirement_item_id: string | null;
+  attached_by_profile_id: string | null;
+  attached_at: string;
+  notes: string | null;
+};
+
+export type ApprovalDecision = {
+  id: string;
+  fsvp_record_id: string;
+  importer_id: string;
+  decision: "approved" | "conditionally_approved" | "rejected" | "revision_requested";
+  decision_notes: string | null;
+  conditions_text: string | null;
+  decided_by_profile_id: string;
+  decided_at: string;
+  rule_version_id: string;
+};
+
+export type ReassessmentSchedule = {
+  id: string;
+  fsvp_record_id: string;
+  importer_id: string;
+  frequency_months: number;
+  last_assessed_at: string | null;
+  next_due_at: string;
+  status: "scheduled" | "overdue" | "completed" | "cancelled";
+  created_at: string;
+  updated_at: string;
 };

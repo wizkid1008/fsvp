@@ -153,6 +153,14 @@ export default async function AdminPage() {
         <RolePreviewSelector />
       </div>
 
+      <div className="mt-4 flex flex-wrap gap-3">
+        <a href="/admin/rules"
+          className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 shadow-soft hover:bg-slate-50">
+          <Settings2 className="h-4 w-4" />
+          Rules Engine
+        </a>
+      </div>
+
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {adminMetrics.map((metric) => (
           <article key={metric.label} className="rounded-lg border border-line bg-white p-5 shadow-soft">

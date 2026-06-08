@@ -41,12 +41,12 @@ export type EditableDocument = {
 };
 
 const REVIEW_STATUSES = [
-  { value: "uploaded", label: "Uploaded" },
+  { value: "submitted", label: "Submitted" },
   { value: "under_review", label: "Under Review" },
   { value: "accepted", label: "Accepted" },
-  { value: "complete", label: "Complete" },
-  { value: "revision_required", label: "Revision Required" },
-  { value: "rejected", label: "Rejected" }
+  { value: "needs_revision", label: "Needs Revision" },
+  { value: "rejected", label: "Rejected" },
+  { value: "expired", label: "Expired" },
 ];
 
 function clean(value: FormDataEntryValue | null) {
@@ -187,15 +187,24 @@ export function DocumentActions({
         const facilityForProduct = product?.facility_id ? facilities.find((item) => item.id === product.facility_id) : null;
 
         const supabase = createBrowserSupabaseClient();
-        const approvalStatus = canEditReviewStatus ? clean(formData.get("approval_status")) ?? "uploaded" : document.approval_status ?? "uploaded";
-        const payload = {
+        const newStatus = canEditReviewStatus ? clean(formData.get("approval_status")) ?? "submitted" : undefined;
+        const payload: Record<string, unknown> = {
           title,
           document_kind: documentKind,
           linked_entity_type: linkedEntityType,
           linked_entity_id: linkedEntityId,
           related_requirement_id: requirementId,
-          ...(canEditReviewStatus ? { approval_status: approvalStatus } : {})
         };
+        if (newStatus && canEditReviewStatus) {
+          payload.evidence_status = newStatus;
+          // keep approval_status in sync for backward compat
+          payload.approval_status = newStatus === "accepted" ? "accepted"
+            : newStatus === "needs_revision" ? "revision_required"
+            : newStatus === "rejected" ? "rejected"
+            : newStatus === "under_review" ? "under_review"
+            : "uploaded";
+        }
+        const approvalStatus = (payload.approval_status ?? document.approval_status ?? "uploaded") as string;
 
         const { error: documentError } = await (supabase.from("documents") as any)
           .update(payload)
