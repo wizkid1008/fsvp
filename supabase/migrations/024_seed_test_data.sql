@@ -333,18 +333,9 @@ begin
   on conflict do nothing;
 
   -- ── Corrective Actions ────────────────────────────────────────────────────
-  insert into corrective_actions (id, importer_id, supplier_id, triggered_by, triggered_at,
-    issue_description, status)
-  values
-    (v_ca_1, v_importer_1, v_supplier_3,
-     'fsvp_review', now() - interval '45 days',
-     'Aflatoxin testing program not established for peanut products. Critical blocker — must resolve before FSVP approval.',
-     'open'),
-    (v_ca_2, v_importer_1, v_supplier_1,
-     'facility_audit', now() - interval '20 days',
-     'Minor GMP observation: pest control log incomplete for Q4 2025. Corrective action submitted by supplier — pending closure review.',
-     'in_progress')
-  on conflict (id) do nothing;
+  -- Skipped: corrective_actions.supplier_id references foreign_suppliers(id)
+  -- (the legacy compliance schema), not the suppliers table used here.
+  -- Create corrective actions through the app UI after seeding.
 
   -- ── Audit log entries ─────────────────────────────────────────────────────
   insert into audit_logs (importer_id, action, record_type, record_id, actor_role,
