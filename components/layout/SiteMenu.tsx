@@ -10,13 +10,12 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 
-type MenuKey = "platform" | "suppliers" | "importers" | "reports";
+type MenuKey = "platform" | "suppliers" | "importers";
 
 const menuItems: Array<{ href: string; activeHref: string; label: string; key: MenuKey }> = [
   { href: "/about", activeHref: "/about", label: "Platform", key: "platform" },
   { href: "/login?next=%2Fsuppliers", activeHref: "/suppliers", label: "Suppliers", key: "suppliers" },
-  { href: "/login?next=%2Fdashboard", activeHref: "/dashboard", label: "Importers", key: "importers" },
-  { href: "/login?next=%2Freports", activeHref: "/reports", label: "Reports", key: "reports" }
+  { href: "/login?next=%2Fdashboard", activeHref: "/dashboard", label: "Importers", key: "importers" }
 ];
 
 const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = {
@@ -34,11 +33,6 @@ const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = 
     { heading: "IMPORTER PROFILE", links: ["Organization details", "Contacts", "Assigned suppliers", "Role management"] },
     { heading: "FSVP OVERSIGHT", links: ["Supplier approvals", "Verification activities", "Evidence requests", "Corrective actions"] },
     { heading: "NEXT STEPS", links: ["Invite supplier", "Review submissions", "Track readiness", "Export audit packet"] }
-  ],
-  reports: [
-    { heading: "READINESS", links: ["Readiness score", "Critical gaps", "Corrective actions", "Final status"] },
-    { heading: "EXPORTS", links: ["Readiness report", "Gap report", "Audit report", "Evidence index"] },
-    { heading: "REVIEW", links: ["Reviewer notes", "Approvals", "Open findings", "Report history"] }
   ]
 };
 
