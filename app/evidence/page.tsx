@@ -3,6 +3,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EvidenceUploadPanel } from "@/components/evidence/EvidenceUploadPanel";
+import { DocumentActions } from "@/components/evidence/DocumentActions";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { FileArchive } from "lucide-react";
@@ -31,18 +32,18 @@ export default async function EvidencePage({
   const { role } = await requireProfileRole("/evidence");
   const supabase = createServerSupabaseClient();
 
-  type DocRow = { id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; size_bytes: number; linked_entity_type: string | null; linked_entity_id: string | null; related_requirement_id: string | null };
+  type DocRow = { id: string; importer_id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; size_bytes: number; linked_entity_type: string | null; linked_entity_id: string | null; related_requirement_id: string | null };
   type ReqRow = { id: string; requirement_name: string; requirement_key: string; sort_order: number };
   type SupplierRow = { id: string; company_name: string };
-  type ProductRow = { id: string; product_name: string; supplier_id: string | null };
+  type ProductRow = { id: string; product_name: string; supplier_id: string | null; facility_id: string | null };
   type FacilityRow = { id: string; facility_name: string; supplier_id: string | null };
   type CategoryRow = { label: string };
 
   const [docsRes, reqsRes, suppliersRes, productsRes, facilitiesRes, categoriesRes] = await Promise.all([
-    supabase.from("documents").select("id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes, linked_entity_type, linked_entity_id, related_requirement_id").order("uploaded_at", { ascending: false }),
+    supabase.from("documents").select("id, importer_id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes, linked_entity_type, linked_entity_id, related_requirement_id").is("soft_deleted_at", null).order("uploaded_at", { ascending: false }),
     supabase.from("fsvp_requirements").select("id, requirement_name, requirement_key, sort_order").eq("active", true).order("sort_order"),
     (supabase.from("suppliers") as any).select("id, company_name").order("company_name"),
-    (supabase.from("products_verify") as any).select("id, product_name, supplier_id").order("product_name"),
+    (supabase.from("products_verify") as any).select("id, product_name, supplier_id, facility_id").order("product_name"),
     (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
     (supabase.from("document_categories") as any).select("label").eq("active", true).order("sort_order"),
   ]);
@@ -163,6 +164,7 @@ export default async function EvidencePage({
                     <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Requirement</th>
                     <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Uploaded</th>
                     <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Status</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -180,6 +182,17 @@ export default async function EvidencePage({
                         <StatusBadge tone={approvalTone(doc.approval_status)}>
                           {approvalLabel(doc.approval_status)}
                         </StatusBadge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <DocumentActions
+                          canEditReviewStatus={role !== "supplier"}
+                          document={doc}
+                          documentCategories={documentCategories}
+                          facilities={facilities}
+                          products={products}
+                          requirements={requirements}
+                          suppliers={suppliers}
+                        />
                       </td>
                     </tr>
                   ))}
