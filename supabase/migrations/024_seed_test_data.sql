@@ -118,63 +118,92 @@ begin
   on conflict (facility_id, supplier_id) do nothing;
 
   -- ── Products ──────────────────────────────────────────────────────────────
-  insert into products_verify (id, importer_id, supplier_id, facility_id, product_name,
+  -- facility_id excluded here — migration 019 adds it; we UPDATE it below
+  -- if the column exists, so this block works regardless of migration order.
+  insert into products_verify (id, importer_id, supplier_id, product_name,
     product_description, country_of_origin, intended_use, allergen_information, approval_status)
   values
-    (v_product_1,  v_importer_1, v_supplier_1, v_facility_1, 'Mango Puree',
-     'Aseptic mango puree, Alphonso variety', 'Chile', 'ingredient',
-     'None', 'approved'),
-    (v_product_2,  v_importer_1, v_supplier_1, v_facility_2, 'Dried Mango Slices',
+    (v_product_1,  v_importer_1, v_supplier_1, 'Mango Puree',
+     'Aseptic mango puree, Alphonso variety', 'Chile', 'ingredient', 'None', 'approved'),
+    (v_product_2,  v_importer_1, v_supplier_1, 'Dried Mango Slices',
      'Sulphite-treated dried mango slices', 'Chile', 'ready_to_eat',
      'Contains sulphites', 'conditionally_approved'),
-    (v_product_3,  v_importer_1, v_supplier_2, v_facility_3, 'Roasted Coffee Beans',
-     'Single-origin medium roast, Arabica', 'Colombia', 'ready_to_eat',
-     'None', 'approved'),
-    (v_product_4,  v_importer_1, v_supplier_2, v_facility_3, 'Green Coffee Beans',
-     'Unroasted Arabica green beans', 'Colombia', 'further_processed',
-     'None', 'improvement_required'),
-    (v_product_5,  v_importer_1, v_supplier_2, v_facility_4, 'Cocoa Powder',
+    (v_product_3,  v_importer_1, v_supplier_2, 'Roasted Coffee Beans',
+     'Single-origin medium roast, Arabica', 'Colombia', 'ready_to_eat', 'None', 'approved'),
+    (v_product_4,  v_importer_1, v_supplier_2, 'Green Coffee Beans',
+     'Unroasted Arabica green beans', 'Colombia', 'further_processed', 'None', 'improvement_required'),
+    (v_product_5,  v_importer_1, v_supplier_2, 'Cocoa Powder',
      'Natural process 10/12 fat cocoa powder', 'Peru', 'ingredient',
      'May contain traces of tree nuts', 'pending'),
-    (v_product_6,  v_importer_1, v_supplier_2, v_facility_4, 'Cocoa Nibs',
-     'Fermented and dried cocoa nibs', 'Peru', 'ingredient',
-     'None', 'pending'),
-    (v_product_7,  v_importer_1, v_supplier_3, v_facility_5, 'Raw Peanuts',
+    (v_product_6,  v_importer_1, v_supplier_2, 'Cocoa Nibs',
+     'Fermented and dried cocoa nibs', 'Peru', 'ingredient', 'None', 'pending'),
+    (v_product_7,  v_importer_1, v_supplier_3, 'Raw Peanuts',
      'Valencia raw peanuts, in shell', 'Argentina', 'further_processed',
      'Contains: Peanuts', 'not_approved'),
-    (v_product_8,  v_importer_1, v_supplier_3, v_facility_5, 'Peanut Butter',
+    (v_product_8,  v_importer_1, v_supplier_3, 'Peanut Butter',
      'Natural ground peanut butter, no additives', 'Argentina', 'ready_to_eat',
      'Contains: Peanuts. May contain: Tree Nuts', 'not_approved'),
-    (v_product_9,  v_importer_1, v_supplier_1, v_facility_2, 'Dried Berry Mix',
+    (v_product_9,  v_importer_1, v_supplier_1, 'Dried Berry Mix',
      'Blend of dried cranberries, blueberries, cherries', 'Chile', 'ready_to_eat',
      'None', 'pending'),
-    (v_product_10, v_importer_1, v_supplier_1, v_facility_1, 'Roasted Pepper Strips',
+    (v_product_10, v_importer_1, v_supplier_1, 'Roasted Pepper Strips',
      'Fire-roasted red and yellow pepper strips, jar packed', 'Chile', 'ready_to_eat',
      'None', 'improvement_required')
   on conflict (id) do nothing;
 
+  -- Link products to facilities if the column exists (added in migration 019)
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'products_verify' and column_name = 'facility_id'
+  ) then
+    update products_verify set facility_id = v_facility_1 where id = v_product_1;
+    update products_verify set facility_id = v_facility_2 where id = v_product_2;
+    update products_verify set facility_id = v_facility_3 where id = v_product_3;
+    update products_verify set facility_id = v_facility_3 where id = v_product_4;
+    update products_verify set facility_id = v_facility_4 where id = v_product_5;
+    update products_verify set facility_id = v_facility_4 where id = v_product_6;
+    update products_verify set facility_id = v_facility_5 where id = v_product_7;
+    update products_verify set facility_id = v_facility_5 where id = v_product_8;
+    update products_verify set facility_id = v_facility_2 where id = v_product_9;
+    update products_verify set facility_id = v_facility_1 where id = v_product_10;
+  end if;
+
   -- ── Evidence Documents ────────────────────────────────────────────────────
-  insert into documents (id, importer_id, supplier_id, facility_id, document_kind, title,
+  -- Base insert (columns present in migration 008)
+  insert into documents (id, importer_id, document_kind, title,
     storage_path, original_filename, mime_type, size_bytes, sha256,
-    linked_entity_type, linked_entity_id, evidence_status, uploaded_via)
+    linked_entity_type, linked_entity_id, uploaded_via)
   values
-    (v_doc_1, v_importer_1, v_supplier_1, v_facility_1,
-     'HACCP Plan', 'HACCP Plan – Santiago Plant 2 2026',
+    (v_doc_1, v_importer_1, 'HACCP Plan', 'HACCP Plan – Santiago Plant 2 2026',
      'seed/pvf/haccp-plan-2026.pdf', 'haccp-plan-2026.pdf', 'application/pdf',
-     512000, 'aaa000', 'facility', v_facility_1, 'accepted', 'app'),
-    (v_doc_2, v_importer_1, v_supplier_1, v_facility_1,
-     'Certificate of Analysis', 'COA – Mango Puree Lot 2026-04',
+     512000, 'aaa000', 'facility', v_facility_1, 'app'),
+    (v_doc_2, v_importer_1, 'Certificate of Analysis', 'COA – Mango Puree Lot 2026-04',
      'seed/pvf/coa-mango-2026-04.pdf', 'coa-mango-2026-04.pdf', 'application/pdf',
-     204800, 'bbb000', 'product', v_product_1, 'accepted', 'app'),
-    (v_doc_3, v_importer_1, v_supplier_2, v_facility_3,
-     'Audit Report', 'Third-Party Audit Report 2025 – Bogota',
+     204800, 'bbb000', 'product', v_product_1, 'app'),
+    (v_doc_3, v_importer_1, 'Audit Report', 'Third-Party Audit Report 2025 – Bogota',
      'seed/andes/audit-2025.pdf', 'audit-2025.pdf', 'application/pdf',
-     1048576, 'ccc000', 'facility', v_facility_3, 'accepted', 'app'),
-    (v_doc_4, v_importer_1, v_supplier_3, v_facility_5,
-     'Food Safety Plan', 'Peanut Food Safety Plan – Draft',
+     1048576, 'ccc000', 'facility', v_facility_3, 'app'),
+    (v_doc_4, v_importer_1, 'Food Safety Plan', 'Peanut Food Safety Plan – Draft',
      'seed/coastal/fsp-draft.pdf', 'fsp-draft.pdf', 'application/pdf',
-     307200, 'ddd000', 'supplier', v_supplier_3, 'needs_revision', 'app')
+     307200, 'ddd000', 'supplier', v_supplier_3, 'app')
   on conflict (id) do nothing;
+
+  -- Set evidence_status (migration 021), supplier_id (migration 023), facility_id (migration 021)
+  -- Guard each column individually in case some migrations haven't run
+  if exists (select 1 from information_schema.columns where table_name = 'documents' and column_name = 'evidence_status') then
+    update documents set evidence_status = 'accepted'      where id in (v_doc_1, v_doc_2, v_doc_3);
+    update documents set evidence_status = 'needs_revision' where id = v_doc_4;
+  end if;
+  if exists (select 1 from information_schema.columns where table_name = 'documents' and column_name = 'supplier_id') then
+    update documents set supplier_id = v_supplier_1 where id in (v_doc_1, v_doc_2);
+    update documents set supplier_id = v_supplier_2 where id = v_doc_3;
+    update documents set supplier_id = v_supplier_3 where id = v_doc_4;
+  end if;
+  if exists (select 1 from information_schema.columns where table_name = 'documents' and column_name = 'facility_id') then
+    update documents set facility_id = v_facility_1 where id in (v_doc_1, v_doc_2);
+    update documents set facility_id = v_facility_3 where id = v_doc_3;
+    update documents set facility_id = v_facility_5 where id = v_doc_4;
+  end if;
 
   -- ── Get published rule version ─────────────────────────────────────────────
   select id into v_rule_ver_id
