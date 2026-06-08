@@ -62,6 +62,14 @@ function labelize(value: string | null) {
   return value ? value.replace(/_/g, " ") : "-";
 }
 
+function errorMessage(err: unknown) {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object" && "message" in err && typeof err.message === "string") {
+    return err.message;
+  }
+  return "Could not save product.";
+}
+
 function AddProductForm({
   countries,
   product,
@@ -155,7 +163,7 @@ function AddProductForm({
         router.refresh();
         onClose();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not save product.");
+        setError(errorMessage(err));
       }
     });
   }
