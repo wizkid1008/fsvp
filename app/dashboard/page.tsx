@@ -2,6 +2,8 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { SupplierReadinessPanel } from "@/components/readiness/SupplierReadinessPanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { SectionProgressBar } from "@/components/evidence/SectionProgressBar";
+import type { SectionProgress } from "@/components/evidence/SectionProgressBar";
 import { OnboardingModal, type OnboardingStep } from "@/components/onboarding/OnboardingModal";
 import { requireUser } from "@/lib/auth/protection";
 import { APP_SUBTITLE } from "@/lib/constants";
@@ -89,6 +91,112 @@ export default async function DashboardPage() {
 
   const isSupplier = role === "supplier";
   const isImporter = role === "us_importer";
+
+  // FSVP-specific data — loaded conditionally after role is known
+  let fsvpRecordCounts = { approved: 0, conditional: 0, pending: 0, reassessmentDue: 0, total: 0 };
+  let supplierSectionProgress: SectionProgress[] = [];
+
+  if (isImporter) {
+    const { data: rawFsvp } = await (supabase.from("fsvp_records") as any)
+      .select("status, reassessment_due_at");
+    const fsvpRows = (rawFsvp ?? []) as Array<{ status: string; reassessment_due_at: string | null }>;
+    const now = new Date();
+    fsvpRecordCounts = {
+      total: fsvpRows.length,
+      approved: fsvpRows.filter((r) => r.status === "importer_approved").length,
+      conditional: fsvpRows.filter((r) => r.status === "conditionally_approved").length,
+      pending: fsvpRows.filter((r) => ["draft", "importer_review_pending", "supplier_evidence_accepted"].includes(r.status)).length,
+      reassessmentDue: fsvpRows.filter((r) => r.reassessment_due_at && new Date(r.reassessment_due_at) <= now).length,
+    };
+  }
+
+  if (isSupplier && profile?.supplier_id) {
+    const { data: pubVer } = await (supabase.from("rule_versions") as any)
+      .select("id")
+      .eq("status", "published")
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (pubVer?.id) {
+      const { data: rawSections } = await (supabase.from("requirement_sections") as any)
+        .select("id, section_key, section_name, applies_to, sort_order")
+        .eq("rule_version_id", pubVer.id)
+        .order("sort_order");
+
+      const sectionIds = (rawSections ?? []).map((s: { id: string }) => s.id);
+      const [weightsRes, itemsRes, docsRes] = await Promise.all([
+        (supabase.from("scoring_category_weights") as any)
+          .select("section_id, weight_percent")
+          .eq("rule_version_id", pubVer.id),
+        sectionIds.length > 0
+          ? (supabase.from("requirement_items") as any)
+              .select("id, section_id, is_required, is_critical_blocker")
+              .in("section_id", sectionIds)
+              .eq("is_required", true)
+          : Promise.resolve({ data: [] }),
+        (supabase.from("documents") as any)
+          .select("requirement_item_id, evidence_status")
+          .eq("supplier_id", profile.supplier_id)
+          .is("soft_deleted_at", null)
+          .not("requirement_item_id", "is", null),
+      ]);
+
+      const weightMap = new Map(
+        ((weightsRes.data ?? []) as Array<{ section_id: string; weight_percent: number }>)
+          .map((w) => [w.section_id, Number(w.weight_percent)])
+      );
+      const itemsBySection = new Map<string, Array<{ id: string; is_critical_blocker: boolean }>>();
+      for (const item of (itemsRes.data ?? []) as Array<{ id: string; section_id: string; is_critical_blocker: boolean }>) {
+        const arr = itemsBySection.get(item.section_id) ?? [];
+        arr.push(item);
+        itemsBySection.set(item.section_id, arr);
+      }
+      const docByItemId = new Map<string, string[]>();
+      for (const doc of (docsRes.data ?? []) as Array<{ requirement_item_id: string | null; evidence_status: string }>) {
+        if (!doc.requirement_item_id) continue;
+        const arr = docByItemId.get(doc.requirement_item_id) ?? [];
+        arr.push(doc.evidence_status);
+        docByItemId.set(doc.requirement_item_id, arr);
+      }
+      function bestStatus(statuses: string[]): string {
+        if (statuses.includes("accepted")) return "accepted";
+        if (statuses.includes("under_review")) return "under_review";
+        if (statuses.includes("submitted")) return "submitted";
+        if (statuses.includes("needs_revision")) return "needs_revision";
+        return "not_submitted";
+      }
+      supplierSectionProgress = ((rawSections ?? []) as Array<{ id: string; section_key: string; section_name: string; applies_to: string; sort_order: number }>)
+        .map((section) => {
+          const items = itemsBySection.get(section.id) ?? [];
+          let accepted = 0, submitted = 0, under_review = 0, needs_revision = 0, missing = 0;
+          let has_critical_blocker = false;
+          for (const item of items) {
+            const statuses = docByItemId.get(item.id) ?? [];
+            const s = bestStatus(statuses);
+            if (s === "accepted") accepted++;
+            else if (s === "under_review") under_review++;
+            else if (s === "submitted") submitted++;
+            else if (s === "needs_revision") needs_revision++;
+            else missing++;
+            if (item.is_critical_blocker && s !== "accepted") has_critical_blocker = true;
+          }
+          return {
+            section_key: section.section_key,
+            section_name: section.section_name,
+            applies_to: section.applies_to,
+            weight_percent: weightMap.get(section.id) ?? 0,
+            required_count: items.length,
+            accepted_count: accepted,
+            submitted_count: submitted,
+            under_review_count: under_review,
+            needs_revision_count: needs_revision,
+            missing_count: missing,
+            has_critical_blocker,
+          } satisfies SectionProgress;
+        });
+    }
+  }
   const workflowRole = isSupplier ? "foreign_supplier" : isImporter ? "us_importer" : role;
   let workflowRows = (rawWorkflowSteps ?? []) as Array<{
     title: string;
@@ -311,6 +419,57 @@ export default async function DashboardPage() {
       {isSupplier ? (
         <section className="mt-6">
           <SupplierReadinessPanel supabase={supabase} title="My Readiness" showScore={false} />
+        </section>
+      ) : null}
+
+      {isSupplier && supplierSectionProgress.length > 0 ? (
+        <section className="mt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-ink">FSVP Readiness by Section</h2>
+            <Link href="/my-evidence" className="text-sm font-semibold text-forest hover:underline">
+              Upload evidence →
+            </Link>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {supplierSectionProgress.map((s) => (
+              <SectionProgressBar key={s.section_key} section={s} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {isImporter ? (
+        <section className="mt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-ink">FSVP Records</h2>
+            <Link href="/fsvp-records" className="text-sm font-semibold text-forest hover:underline">
+              View all records →
+            </Link>
+          </div>
+          {fsvpRecordCounts.total === 0 ? (
+            <div className="rounded-lg border border-dashed border-line bg-slate-50 px-5 py-8 text-center">
+              <p className="text-sm font-semibold text-ink">No FSVP records yet</p>
+              <p className="mt-1 text-sm text-slate-500">Create your first FSVP record to track supplier/product approvals.</p>
+              <Link href="/fsvp-records/new" className="mt-4 inline-flex h-9 items-center rounded-md bg-forest px-4 text-sm font-semibold text-white hover:bg-[#195f4d]">
+                New Record
+              </Link>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-4">
+              {[
+                { label: "Approved", value: fsvpRecordCounts.approved, tone: "success" as StatusTone, href: "/fsvp-records" },
+                { label: "Conditional", value: fsvpRecordCounts.conditional, tone: "warning" as StatusTone, href: "/fsvp-records" },
+                { label: "Pending Review", value: fsvpRecordCounts.pending, tone: "info" as StatusTone, href: "/fsvp-records" },
+                { label: "Reassessment Due", value: fsvpRecordCounts.reassessmentDue, tone: fsvpRecordCounts.reassessmentDue > 0 ? "danger" as StatusTone : "neutral" as StatusTone, href: "/fsvp-records" },
+              ].map((m) => (
+                <Link key={m.label} href={m.href} className="group rounded-lg border border-line bg-white p-4 shadow-soft transition hover:border-forest">
+                  <p className="text-xs font-medium text-slate-500 group-hover:text-forest">{m.label}</p>
+                  <p className="mt-2 text-3xl font-semibold text-ink">{m.value}</p>
+                  <StatusBadge tone={m.tone} className="mt-2">{m.value > 0 ? "Active" : "None"}</StatusBadge>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       ) : null}
     </AppShell>

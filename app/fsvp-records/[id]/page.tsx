@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { FsvpNarrativeForm } from "@/components/fsvp/FsvpNarrativeForm";
 import { ApprovalDecisionForm } from "@/components/fsvp/ApprovalDecisionForm";
 import { EvidencePackagePanel } from "@/components/fsvp/EvidencePackagePanel";
+import { PrintButton } from "@/components/fsvp/PrintButton";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { StatusTone } from "@/types/platform";
@@ -221,19 +222,31 @@ export default async function FsvpRecordPage({
             </p>
           )}
         </div>
-        {record.overall_score !== null && (
-          <div className="rounded-lg border border-line bg-white px-6 py-4 text-center shadow-soft shrink-0">
-            <p className="text-xs font-medium text-slate-500">FSVP Score</p>
-            <p className={`mt-1 text-4xl font-semibold ${
-              record.overall_score >= 90 ? "text-emerald-600" :
-              record.overall_score >= 75 ? "text-amber-600" :
-              record.overall_score >= 60 ? "text-orange-600" : "text-red-600"
-            }`}>
-              {record.overall_score.toFixed(0)}
-            </p>
-            <p className="text-xs text-slate-400">out of 100</p>
+        <div className="flex shrink-0 flex-col items-end gap-3">
+          {record.overall_score !== null && (
+            <div className="rounded-lg border border-line bg-white px-6 py-4 text-center shadow-soft">
+              <p className="text-xs font-medium text-slate-500">FSVP Score</p>
+              <p className={`mt-1 text-4xl font-semibold ${
+                record.overall_score >= 90 ? "text-emerald-600" :
+                record.overall_score >= 75 ? "text-amber-600" :
+                record.overall_score >= 60 ? "text-orange-600" : "text-red-600"
+              }`}>
+                {record.overall_score.toFixed(0)}
+              </p>
+              <p className="text-xs text-slate-400">out of 100</p>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Link
+              href={`/fsvp-records/${id}/print`}
+              target="_blank"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Open Print View
+            </Link>
+            <PrintButton />
           </div>
-        )}
+        </div>
       </div>
 
       <div className="mt-6 space-y-6">
