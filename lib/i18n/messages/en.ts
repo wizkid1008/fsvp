@@ -213,7 +213,7 @@ const en = {
     description: "Upload and manage FSVP evidence documents, track review status, and map each document to its regulatory requirement.",
     upload: {
       title: "Upload Evidence",
-      subtitle: "PDF, Word, Excel, or image files up to 50 MB",
+      subtitle: "PDF, Word, Excel, or image files up to 3 MB",
       dropzone: "Drop file here or click to browse",
       documentTitle: "Document Title",
       category: "Category",

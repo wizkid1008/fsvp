@@ -3,6 +3,7 @@
 import { useState, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, FileText } from "lucide-react";
+import { DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 const DOCUMENT_CATEGORIES = [
@@ -69,7 +70,19 @@ export function EvidenceUploadPanel({
   });
 
   function handleFiles(files: FileList | null) {
-    if (files?.[0]) setFile(files[0]);
+    const nextFile = files?.[0];
+    if (!nextFile) return;
+
+    setMessage(null);
+    if (nextFile.size > DOCUMENT_UPLOAD_MAX_BYTES) {
+      setFile(null);
+      setError(`File uploads must be ${DOCUMENT_UPLOAD_MAX_LABEL} or smaller.`);
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+
+    setError(null);
+    setFile(nextFile);
   }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -77,6 +90,11 @@ export function EvidenceUploadPanel({
     if (!file) return;
     setError(null);
     setMessage(null);
+
+    if (file.size > DOCUMENT_UPLOAD_MAX_BYTES) {
+      setError(`File uploads must be ${DOCUMENT_UPLOAD_MAX_LABEL} or smaller.`);
+      return;
+    }
 
     const formData = new FormData(event.currentTarget);
     const title = formData.get("title")?.toString().trim() || file.name;
@@ -145,7 +163,7 @@ export function EvidenceUploadPanel({
   return (
     <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
       <h3 className="text-sm font-semibold text-ink">Upload Evidence</h3>
-      <p className="mt-1 text-xs text-slate-500">PDF, Word, Excel, or image files up to 50 MB</p>
+      <p className="mt-1 text-xs text-slate-500">PDF, Word, Excel, or image files up to {DOCUMENT_UPLOAD_MAX_LABEL}</p>
 
       <form onSubmit={submit} className="mt-4 space-y-4">
         <div

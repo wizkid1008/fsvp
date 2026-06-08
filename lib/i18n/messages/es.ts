@@ -194,7 +194,7 @@ const es: Messages = {
     description: "Cargue y gestione documentos de evidencia FSVP, rastree el estado de revisión y mapee cada documento a su requisito regulatorio.",
     upload: {
       title: "Cargar evidencias",
-      subtitle: "Archivos PDF, Word, Excel o imagen hasta 50 MB",
+      subtitle: "Archivos PDF, Word, Excel o imagen hasta 3 MB",
       dropzone: "Suelte el archivo aquí o haga clic para explorar",
       documentTitle: "Título del documento",
       category: "Categoría",

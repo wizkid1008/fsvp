@@ -8,6 +8,8 @@ export const LEGAL_DISCLAIMER =
 
 export const DOCUMENT_BUCKET = "supplier-documents";
 export const BACKGROUND_DOCUMENT_BUCKET = "background-documents";
+export const DOCUMENT_UPLOAD_MAX_BYTES = 3 * 1024 * 1024;
+export const DOCUMENT_UPLOAD_MAX_LABEL = "3 MB";
 
 export const protectedRoutes = [
   "/dashboard",

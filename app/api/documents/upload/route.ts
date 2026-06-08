@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DOCUMENT_BUCKET } from "@/lib/constants";
+import { DOCUMENT_BUCKET, DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
@@ -41,6 +41,10 @@ export async function POST(request: Request) {
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "A file upload is required." }, { status: 400 });
+  }
+
+  if (file.size > DOCUMENT_UPLOAD_MAX_BYTES) {
+    return NextResponse.json({ error: `File uploads must be ${DOCUMENT_UPLOAD_MAX_LABEL} or smaller.` }, { status: 400 });
   }
 
   if (!importerId) {
