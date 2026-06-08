@@ -169,41 +169,35 @@ begin
   end if;
 
   -- ── Evidence Documents ────────────────────────────────────────────────────
-  -- Base insert (columns present in migration 008)
-  insert into documents (id, importer_id, document_kind, title,
-    storage_path, original_filename, mime_type, size_bytes, sha256,
-    linked_entity_type, linked_entity_id, uploaded_via)
+  -- All columns in a single INSERT — no UPDATE, so the set_updated_at()
+  -- BEFORE UPDATE trigger on documents never fires.
+  -- evidence_status / supplier_id / facility_id exist (migrations 021/023).
+  insert into documents (id, importer_id, supplier_id, facility_id,
+    document_kind, title, storage_path, original_filename,
+    mime_type, size_bytes, sha256,
+    linked_entity_type, linked_entity_id, evidence_status, uploaded_via)
   values
-    (v_doc_1, v_importer_1, 'HACCP Plan', 'HACCP Plan – Santiago Plant 2 2026',
-     'seed/pvf/haccp-plan-2026.pdf', 'haccp-plan-2026.pdf', 'application/pdf',
-     512000, 'aaa000', 'facility', v_facility_1, 'app'),
-    (v_doc_2, v_importer_1, 'Certificate of Analysis', 'COA – Mango Puree Lot 2026-04',
-     'seed/pvf/coa-mango-2026-04.pdf', 'coa-mango-2026-04.pdf', 'application/pdf',
-     204800, 'bbb000', 'product', v_product_1, 'app'),
-    (v_doc_3, v_importer_1, 'Audit Report', 'Third-Party Audit Report 2025 – Bogota',
-     'seed/andes/audit-2025.pdf', 'audit-2025.pdf', 'application/pdf',
-     1048576, 'ccc000', 'facility', v_facility_3, 'app'),
-    (v_doc_4, v_importer_1, 'Food Safety Plan', 'Peanut Food Safety Plan – Draft',
-     'seed/coastal/fsp-draft.pdf', 'fsp-draft.pdf', 'application/pdf',
-     307200, 'ddd000', 'supplier', v_supplier_3, 'app')
+    (v_doc_1, v_importer_1, v_supplier_1, v_facility_1,
+     'HACCP Plan', 'HACCP Plan – Santiago Plant 2 2026',
+     'seed/pvf/haccp-plan-2026.pdf', 'haccp-plan-2026.pdf',
+     'application/pdf', 512000, 'aaa000',
+     'facility', v_facility_1, 'accepted', 'app'),
+    (v_doc_2, v_importer_1, v_supplier_1, v_facility_1,
+     'Certificate of Analysis', 'COA – Mango Puree Lot 2026-04',
+     'seed/pvf/coa-mango-2026-04.pdf', 'coa-mango-2026-04.pdf',
+     'application/pdf', 204800, 'bbb000',
+     'product', v_product_1, 'accepted', 'app'),
+    (v_doc_3, v_importer_1, v_supplier_2, v_facility_3,
+     'Audit Report', 'Third-Party Audit Report 2025 – Bogota',
+     'seed/andes/audit-2025.pdf', 'audit-2025.pdf',
+     'application/pdf', 1048576, 'ccc000',
+     'facility', v_facility_3, 'accepted', 'app'),
+    (v_doc_4, v_importer_1, v_supplier_3, v_facility_5,
+     'Food Safety Plan', 'Peanut Food Safety Plan – Draft',
+     'seed/coastal/fsp-draft.pdf', 'fsp-draft.pdf',
+     'application/pdf', 307200, 'ddd000',
+     'supplier', v_supplier_3, 'needs_revision', 'app')
   on conflict (id) do nothing;
-
-  -- Set evidence_status (migration 021), supplier_id (migration 023), facility_id (migration 021)
-  -- Guard each column individually in case some migrations haven't run
-  if exists (select 1 from information_schema.columns where table_name = 'documents' and column_name = 'evidence_status') then
-    update documents set evidence_status = 'accepted'      where id in (v_doc_1, v_doc_2, v_doc_3);
-    update documents set evidence_status = 'needs_revision' where id = v_doc_4;
-  end if;
-  if exists (select 1 from information_schema.columns where table_name = 'documents' and column_name = 'supplier_id') then
-    update documents set supplier_id = v_supplier_1 where id in (v_doc_1, v_doc_2);
-    update documents set supplier_id = v_supplier_2 where id = v_doc_3;
-    update documents set supplier_id = v_supplier_3 where id = v_doc_4;
-  end if;
-  if exists (select 1 from information_schema.columns where table_name = 'documents' and column_name = 'facility_id') then
-    update documents set facility_id = v_facility_1 where id in (v_doc_1, v_doc_2);
-    update documents set facility_id = v_facility_3 where id = v_doc_3;
-    update documents set facility_id = v_facility_5 where id = v_doc_4;
-  end if;
 
   -- ── Get published rule version ─────────────────────────────────────────────
   select id into v_rule_ver_id
