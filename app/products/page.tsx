@@ -27,14 +27,17 @@ export default async function ProductsPage() {
   let facilitiesQuery = (supabase.from("facilities_verify") as any)
     .select("id, facility_name, supplier_id")
     .order("facility_name");
+  let facilityAccessQuery = (supabase.from("facility_supplier_access") as any)
+    .select("facility_id, supplier_id")
+    .order("created_at");
 
   if (isSupplier) {
     productsQuery = productsQuery.eq("supplier_id", supplierId);
     suppliersQuery = suppliersQuery.eq("id", supplierId);
-    facilitiesQuery = facilitiesQuery.eq("supplier_id", supplierId);
+    facilityAccessQuery = facilityAccessQuery.eq("supplier_id", supplierId);
   }
 
-  const [{ data: rawProducts }, { data: countries }, { data: suppliers }, { data: facilities }, { data: documents }] = await Promise.all([
+  const [{ data: rawProducts }, { data: countries }, { data: suppliers }, { data: facilities }, { data: facilityAccess }, { data: documents }] = await Promise.all([
     productsQuery,
     (supabase.from("countries") as any)
       .select("country_code,country_name")
@@ -42,6 +45,7 @@ export default async function ProductsPage() {
       .order("country_name"),
     suppliersQuery,
     facilitiesQuery,
+    facilityAccessQuery,
     supabase.from("documents")
       .select("linked_entity_type, linked_entity_id")
   ]);
@@ -57,9 +61,20 @@ export default async function ProductsPage() {
     ...product,
     evidence_count: evidenceCountByProduct.get(product.id) ?? 0
   }));
+  const accessByFacility = new Map<string, string[]>();
+  for (const access of (facilityAccess ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
+    const existing = accessByFacility.get(access.facility_id) ?? [];
+    existing.push(access.supplier_id);
+    accessByFacility.set(access.facility_id, existing);
+  }
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
   const supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
-  const facilityOptions = (facilities ?? []) as Array<{ id: string; facility_name: string; supplier_id: string | null }>;
+  const facilityOptions = ((facilities ?? []) as Array<{ id: string; facility_name: string; supplier_id: string | null }>)
+    .map((facility) => ({
+      ...facility,
+      supplier_ids: accessByFacility.get(facility.id) ?? (facility.supplier_id ? [facility.supplier_id] : [])
+    }))
+    .filter((facility) => !isSupplier || Boolean(supplierId && facility.supplier_ids.includes(supplierId)));
 
   return (
     <AppShell role={role}>

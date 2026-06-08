@@ -20,7 +20,8 @@ type ProductOption = {
 type FacilityOption = {
   id: string;
   facility_name: string;
-  supplier_id: string | null;
+  supplier_id?: string | null;
+  supplier_ids?: string[];
 };
 
 type RequirementOption = {
@@ -70,9 +71,14 @@ function getInitialLinkState(
 
   if (document.linked_entity_type === "facility" && document.linked_entity_id) {
     const facility = facilities.find((item) => item.id === document.linked_entity_id);
+    const supplierIds = facility?.supplier_ids && facility.supplier_ids.length > 0
+      ? facility.supplier_ids
+      : facility?.supplier_id
+        ? [facility.supplier_id]
+        : [];
     return {
       linkType: "facility" as const,
-      supplierId: facility?.supplier_id ?? "",
+      supplierId: supplierIds[0] ?? "",
       productId: "",
       facilityId: document.linked_entity_id
     };
@@ -115,7 +121,14 @@ export function DocumentActions({
   const [facilityId, setFacilityId] = useState(initialLinkState.facilityId);
   const categoryOptions = Array.from(new Set([document.document_kind, ...documentCategories].filter(Boolean)));
   const supplierProducts = products.filter((product) => product.supplier_id === supplierId);
-  const supplierFacilities = facilities.filter((facility) => facility.supplier_id === supplierId);
+  const supplierFacilities = facilities.filter((facility) => {
+    const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
+      ? facility.supplier_ids
+      : facility.supplier_id
+        ? [facility.supplier_id]
+        : [];
+    return supplierIds.includes(supplierId);
+  });
 
   function resetAndClose() {
     setError(null);
@@ -158,7 +171,7 @@ export function DocumentActions({
         }
 
         if (selectedLinkType === "facility" && (!selectedFacilityId || !supplierFacilities.some((facility) => facility.id === selectedFacilityId))) {
-          setError("Select a facility that belongs to the selected supplier.");
+          setError("Select a facility that is available to the selected supplier.");
           return;
         }
 

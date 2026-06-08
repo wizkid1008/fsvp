@@ -26,6 +26,8 @@ export type FacilityRow = {
   manufacturing_processes: string | null;
   food_safety_certifications: string[] | null;
   supplier_id: string | null;
+  supplier_ids?: string[];
+  supplier_names?: string[];
   suppliers: { company_name: string } | null;
   evidence_count?: number;
 };
@@ -49,6 +51,10 @@ function splitCertifications(value: string | null) {
   return value
     ? value.split(",").map((item) => item.trim()).filter(Boolean)
     : [];
+}
+
+function selectedValues(select: HTMLSelectElement) {
+  return Array.from(select.selectedOptions).map((option) => option.value).filter(Boolean);
 }
 
 function labelize(value: string) {
@@ -121,6 +127,15 @@ function AddFacilityForm({
     latitude: address.latitude?.toString() ?? "",
     longitude: address.longitude?.toString() ?? ""
   });
+  const [supplierIds, setSupplierIds] = useState<string[]>(
+    facility?.supplier_ids && facility.supplier_ids.length > 0
+      ? facility.supplier_ids
+      : facility?.supplier_id
+        ? [facility.supplier_id]
+        : suppliers.length === 1
+          ? [suppliers[0]?.id ?? ""].filter(Boolean)
+          : []
+  );
   const [pending, startTransition] = useTransition();
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -137,9 +152,9 @@ function AddFacilityForm({
           return;
         }
 
-        const supplierId = clean(formData.get("supplier_id"));
-        if (!supplierId || !suppliers.some((supplier) => supplier.id === supplierId)) {
-          setError("Select a supplier from the supplier list.");
+        const selectedSupplierIds = supplierIds;
+        if (selectedSupplierIds.length === 0 || selectedSupplierIds.some((id) => !suppliers.some((supplier) => supplier.id === id))) {
+          setError("Select at least one supplier that can access this facility.");
           return;
         }
 
@@ -161,22 +176,54 @@ function AddFacilityForm({
           latitude,
           longitude
         };
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { user }
+        } = await supabase.auth.getUser();
+        const { data: profile } = user
+          ? await (supabase.from("profiles") as any)
+              .select("importer_id")
+              .eq("id", user.id)
+              .maybeSingle()
+          : { data: null };
         const payload = {
           facility_name: formData.get("facility_name")?.toString().trim() ?? "",
           facility_type: formData.get("facility_type")?.toString().trim() ?? "",
-          supplier_id: supplierId,
+          supplier_id: selectedSupplierIds[0] ?? null,
+          ...(profile?.importer_id ? { importer_id: profile.importer_id } : {}),
           facility_address_json: addressJson,
           fda_registration_number: clean(formData.get("fda_registration_number")),
           production_capacity: clean(formData.get("production_capacity")),
           manufacturing_processes: clean(formData.get("manufacturing_processes")),
           food_safety_certifications: splitCertifications(clean(formData.get("food_safety_certifications")))
         };
-        const supabase = createBrowserSupabaseClient();
-        const { error: saveError } = facility
-          ? await (supabase.from("facilities_verify") as any).update(payload).eq("id", facility.id)
-          : await (supabase.from("facilities_verify") as any).insert(payload);
+        const saveResult = facility
+          ? await (supabase.from("facilities_verify") as any).update(payload).eq("id", facility.id).select("id, importer_id").single()
+          : await (supabase.from("facilities_verify") as any).insert(payload).select("id, importer_id").single();
 
-        if (saveError) throw saveError;
+        if (saveResult.error) throw saveResult.error;
+
+        const facilityId = saveResult.data.id;
+        const importerId = saveResult.data.importer_id ?? null;
+        await (supabase.from("facility_supplier_access") as any)
+          .delete()
+          .eq("facility_id", facilityId);
+
+        const accessRows = selectedSupplierIds.map((supplierId) => ({
+          facility_id: facilityId,
+          supplier_id: supplierId,
+          importer_id: importerId,
+          access_level: "manage"
+        }));
+
+        if (accessRows.length > 0) {
+          const { error: accessError } = await (supabase.from("facility_supplier_access") as any).upsert(accessRows, {
+            onConflict: "facility_id,supplier_id"
+          });
+
+          if (accessError) throw accessError;
+        }
+
         router.refresh();
         onClose();
       } catch (err) {
@@ -206,13 +253,20 @@ function AddFacilityForm({
               <input name="facility_name" required defaultValue={facility?.facility_name ?? ""} className={inputClass} placeholder="Santiago Plant 2" />
             </label>
             <label className={labelClass}>
-              Supplier <span className="text-red-500">*</span>
-              <select name="supplier_id" required className={inputClass} defaultValue={facility?.supplier_id ?? ""}>
-                <option value="">Select supplier</option>
+              Supplier access <span className="text-red-500">*</span>
+              <select
+                name="supplier_ids"
+                required
+                multiple
+                className="mt-1.5 min-h-24 w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-forest"
+                value={supplierIds}
+                onChange={(event) => setSupplierIds(selectedValues(event.currentTarget))}
+              >
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>
                 ))}
               </select>
+              <span className="mt-1 block text-xs text-slate-500">Hold Ctrl or Shift to assign the facility to more than one supplier.</span>
             </label>
             <label className={labelClass}>
               Facility Type <span className="text-red-500">*</span>
@@ -400,7 +454,11 @@ export function FacilityTable({
                 return (
                   <tr key={facility.id} className="transition-colors hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-ink">{facility.facility_name}</td>
-                    <td className="px-4 py-3 text-slate-600">{facility.suppliers?.company_name ?? "-"}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {facility.supplier_names && facility.supplier_names.length > 0
+                        ? facility.supplier_names.join(", ")
+                        : facility.suppliers?.company_name ?? "-"}
+                    </td>
                     <td className="px-4 py-3 text-slate-600 capitalize">{labelize(facility.facility_type)}</td>
                     <td className="px-4 py-3 text-slate-600">{facility.fda_registration_number ?? "-"}</td>
                     <td className="px-4 py-3">

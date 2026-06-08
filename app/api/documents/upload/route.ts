@@ -87,14 +87,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Facility evidence must be linked to a facility." }, { status: 400 });
     }
 
-    const facility = await (supabase.from("facilities_verify") as any)
-      .select("id")
-      .eq("id", facilityId)
+    const facilityAccess = await (supabase.from("facility_supplier_access") as any)
+      .select("facility_id")
+      .eq("facility_id", facilityId)
       .eq("supplier_id", supplierId)
       .maybeSingle();
+    const facility = await (supabase.from("facilities_verify") as any)
+      .select("id, supplier_id")
+      .eq("id", facilityId)
+      .maybeSingle();
 
-    if (facility.error || !facility.data) {
-      return NextResponse.json({ error: "Select a facility that belongs to the selected supplier." }, { status: 400 });
+    if (facility.error || !facility.data || (!facilityAccess.data && facility.data.supplier_id !== supplierId)) {
+      return NextResponse.json({ error: "Select a facility that is available to the selected supplier." }, { status: 400 });
     }
 
     linkedEntityType = "facility";

@@ -27,12 +27,13 @@ function statusLabel(status: string | null) {
 export default async function MyEvidencePage() {
   const { role, user } = await requireProfileRole("/my-evidence", ["supplier", "administrator"]);
   const supabase = createServerSupabaseClient();
+  const isSupplier = role === "supplier";
 
   type DocRow = { id: string; importer_id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; review_notes: string | null; linked_entity_type: string | null; linked_entity_id: string | null; related_requirement_id: string | null };
   type ProfileRow = { supplier_id: string | null };
   type SupplierRow = { id: string; company_name: string };
   type ProductRow = { id: string; product_name: string; supplier_id: string | null; facility_id: string | null };
-  type FacilityRow = { id: string; facility_name: string; supplier_id: string | null };
+  type FacilityRow = { id: string; facility_name: string; supplier_id: string | null; supplier_ids?: string[] };
   type ReqRow = { id: string; requirement_name: string };
   type CategoryRow = { label: string };
 
@@ -42,7 +43,7 @@ export default async function MyEvidencePage() {
     .maybeSingle();
   const supplierId = ((profile ?? null) as ProfileRow | null)?.supplier_id ?? "";
 
-  const [docsRes, suppliersRes, productsRes, facilitiesRes, reqsRes, categoriesRes] = await Promise.all([
+  const [docsRes, suppliersRes, productsRes, facilitiesRes, facilityAccessRes, reqsRes, categoriesRes] = await Promise.all([
     (supabase.from("documents") as any)
       .select("id, importer_id, title, document_kind, original_filename, uploaded_at, approval_status, review_notes, linked_entity_type, linked_entity_id, related_requirement_id")
       .is("soft_deleted_at", null)
@@ -53,9 +54,10 @@ export default async function MyEvidencePage() {
     supplierId
       ? (supabase.from("products_verify") as any).select("id, product_name, supplier_id, facility_id").eq("supplier_id", supplierId).order("product_name")
       : (supabase.from("products_verify") as any).select("id, product_name, supplier_id, facility_id").order("product_name"),
+    (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
     supplierId
-      ? (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").eq("supplier_id", supplierId).order("facility_name")
-      : (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
+      ? (supabase.from("facility_supplier_access") as any).select("facility_id, supplier_id").eq("supplier_id", supplierId).order("created_at")
+      : (supabase.from("facility_supplier_access") as any).select("facility_id, supplier_id").order("created_at"),
     supabase.from("fsvp_requirements").select("id, requirement_name").eq("active", true).order("sort_order"),
     (supabase.from("document_categories") as any).select("label").eq("active", true).order("sort_order"),
   ]);
@@ -63,7 +65,18 @@ export default async function MyEvidencePage() {
   const documents = (docsRes.data ?? []) as DocRow[];
   const suppliers = (suppliersRes.data ?? []) as SupplierRow[];
   const products = (productsRes.data ?? []) as ProductRow[];
-  const facilities = (facilitiesRes.data ?? []) as FacilityRow[];
+  const accessByFacility = new Map<string, string[]>();
+  for (const access of (facilityAccessRes.data ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
+    const existing = accessByFacility.get(access.facility_id) ?? [];
+    existing.push(access.supplier_id);
+    accessByFacility.set(access.facility_id, existing);
+  }
+  const facilities = ((facilitiesRes.data ?? []) as FacilityRow[])
+    .map((facility) => ({
+      ...facility,
+      supplier_ids: accessByFacility.get(facility.id) ?? (facility.supplier_id ? [facility.supplier_id] : [])
+    }))
+    .filter((facility) => !isSupplier || Boolean(supplierId && facility.supplier_ids.includes(supplierId)));
   const requirements = (reqsRes.data ?? []) as ReqRow[];
   const documentCategories = ((categoriesRes.data ?? []) as CategoryRow[]).map((category) => category.label);
 

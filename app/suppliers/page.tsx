@@ -11,7 +11,7 @@ export default async function SuppliersPage() {
   const { role } = await requireProfileRole("/suppliers");
   const supabase = createServerSupabaseClient();
 
-  const [{ data: rawSuppliers }, { data: countries }, { data: products }, { data: facilities }, { data: documents }] = await Promise.all([
+  const [{ data: rawSuppliers }, { data: countries }, { data: products }, { data: facilities }, { data: facilityAccess }, { data: documents }] = await Promise.all([
     (supabase.from("suppliers") as any)
       .select("id, company_name, legal_entity_name, country, website, approval_status, certification_status, fda_registration_number, contact_json, updated_at")
       .order("updated_at", { ascending: false }),
@@ -23,12 +23,22 @@ export default async function SuppliersPage() {
       .select("id, supplier_id"),
     (supabase.from("facilities_verify") as any)
       .select("id, supplier_id"),
+    (supabase.from("facility_supplier_access") as any)
+      .select("facility_id, supplier_id"),
     supabase.from("documents")
       .select("linked_entity_type, linked_entity_id")
   ]);
 
   const productSupplier = new Map(((products ?? []) as Array<{ id: string; supplier_id: string | null }>).map((product) => [product.id, product.supplier_id]));
-  const facilitySupplier = new Map(((facilities ?? []) as Array<{ id: string; supplier_id: string | null }>).map((facility) => [facility.id, facility.supplier_id]));
+  const facilitySuppliers = new Map<string, string[]>();
+  for (const facility of (facilities ?? []) as Array<{ id: string; supplier_id: string | null }>) {
+    if (facility.supplier_id) facilitySuppliers.set(facility.id, [facility.supplier_id]);
+  }
+  for (const access of (facilityAccess ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
+    const existing = facilitySuppliers.get(access.facility_id) ?? [];
+    if (!existing.includes(access.supplier_id)) existing.push(access.supplier_id);
+    facilitySuppliers.set(access.facility_id, existing);
+  }
   const evidenceCountBySupplier = new Map<string, number>();
 
   for (const doc of (documents ?? []) as Array<{ linked_entity_type: string | null; linked_entity_id: string | null }>) {
@@ -40,7 +50,11 @@ export default async function SuppliersPage() {
     } else if (doc.linked_entity_type === "product") {
       supplierId = productSupplier.get(doc.linked_entity_id);
     } else if (doc.linked_entity_type === "facility") {
-      supplierId = facilitySupplier.get(doc.linked_entity_id);
+      const supplierIds = facilitySuppliers.get(doc.linked_entity_id) ?? [];
+      for (const id of supplierIds) {
+        evidenceCountBySupplier.set(id, (evidenceCountBySupplier.get(id) ?? 0) + 1);
+      }
+      continue;
     }
 
     if (supplierId) {

@@ -17,7 +17,8 @@ type SupplierOption = {
 type FacilityOption = {
   id: string;
   facility_name: string;
-  supplier_id: string | null;
+  supplier_id?: string | null;
+  supplier_ids?: string[];
 };
 
 export type ProductRow = {
@@ -79,7 +80,14 @@ function AddProductForm({
   const [supplierId, setSupplierId] = useState(product?.supplier_id ?? (suppliers.length === 1 ? suppliers[0]?.id ?? "" : ""));
   const [facilityId, setFacilityId] = useState(product?.facility_id ?? "");
   const [pending, startTransition] = useTransition();
-  const supplierFacilities = facilities.filter((facility) => facility.supplier_id === supplierId);
+  const supplierFacilities = facilities.filter((facility) => {
+    const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
+      ? facility.supplier_ids
+      : facility.supplier_id
+        ? [facility.supplier_id]
+        : [];
+    return supplierIds.includes(supplierId);
+  });
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -103,8 +111,15 @@ function AddProductForm({
           return;
         }
 
-        if (!selectedFacilityId || !facilities.some((facility) => facility.id === selectedFacilityId && facility.supplier_id === selectedSupplierId)) {
-          setError("Select a facility that belongs to the selected supplier.");
+        if (!selectedFacilityId || !facilities.some((facility) => {
+          const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
+            ? facility.supplier_ids
+            : facility.supplier_id
+              ? [facility.supplier_id]
+              : [];
+          return facility.id === selectedFacilityId && supplierIds.includes(selectedSupplierId);
+        })) {
+          setError("Select a facility that is available to the selected supplier.");
           return;
         }
 

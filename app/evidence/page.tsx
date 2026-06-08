@@ -36,15 +36,16 @@ export default async function EvidencePage({
   type ReqRow = { id: string; requirement_name: string; requirement_key: string; sort_order: number };
   type SupplierRow = { id: string; company_name: string };
   type ProductRow = { id: string; product_name: string; supplier_id: string | null; facility_id: string | null };
-  type FacilityRow = { id: string; facility_name: string; supplier_id: string | null };
+  type FacilityRow = { id: string; facility_name: string; supplier_id: string | null; supplier_ids?: string[] };
   type CategoryRow = { label: string };
 
-  const [docsRes, reqsRes, suppliersRes, productsRes, facilitiesRes, categoriesRes] = await Promise.all([
+  const [docsRes, reqsRes, suppliersRes, productsRes, facilitiesRes, facilityAccessRes, categoriesRes] = await Promise.all([
     supabase.from("documents").select("id, importer_id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes, linked_entity_type, linked_entity_id, related_requirement_id").is("soft_deleted_at", null).order("uploaded_at", { ascending: false }),
     supabase.from("fsvp_requirements").select("id, requirement_name, requirement_key, sort_order").eq("active", true).order("sort_order"),
     (supabase.from("suppliers") as any).select("id, company_name").order("company_name"),
     (supabase.from("products_verify") as any).select("id, product_name, supplier_id, facility_id").order("product_name"),
     (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
+    (supabase.from("facility_supplier_access") as any).select("facility_id, supplier_id").order("created_at"),
     (supabase.from("document_categories") as any).select("label").eq("active", true).order("sort_order"),
   ]);
 
@@ -52,7 +53,16 @@ export default async function EvidencePage({
   const requirements = (reqsRes.data ?? []) as unknown as ReqRow[];
   const suppliers = (suppliersRes.data ?? []) as SupplierRow[];
   const products = (productsRes.data ?? []) as ProductRow[];
-  const facilities = (facilitiesRes.data ?? []) as FacilityRow[];
+  const accessByFacility = new Map<string, string[]>();
+  for (const access of (facilityAccessRes.data ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
+    const existing = accessByFacility.get(access.facility_id) ?? [];
+    existing.push(access.supplier_id);
+    accessByFacility.set(access.facility_id, existing);
+  }
+  const facilities = ((facilitiesRes.data ?? []) as FacilityRow[]).map((facility) => ({
+    ...facility,
+    supplier_ids: accessByFacility.get(facility.id) ?? (facility.supplier_id ? [facility.supplier_id] : [])
+  }));
   const documentCategories = ((categoriesRes.data ?? []) as CategoryRow[]).map((category) => category.label);
   const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
   const productById = new Map(products.map((product) => [product.id, product]));
@@ -70,8 +80,8 @@ export default async function EvidencePage({
 
     if (doc.linked_entity_type === "facility" && doc.linked_entity_id) {
       const facility = facilityById.get(doc.linked_entity_id);
-      const supplier = facility?.supplier_id ? supplierById.get(facility.supplier_id) : null;
-      return facility ? `${supplier?.company_name ?? "Supplier"} / Facility: ${facility.facility_name}` : "Facility evidence";
+      const supplierNames = (facility?.supplier_ids ?? []).map((id) => supplierById.get(id)?.company_name).filter(Boolean);
+      return facility ? `${supplierNames.join(", ") || "Supplier"} / Facility: ${facility.facility_name}` : "Facility evidence";
     }
 
     if (doc.linked_entity_id) {
@@ -102,7 +112,7 @@ export default async function EvidencePage({
       }
 
       if (doc.linked_entity_type === "facility" && doc.linked_entity_id) {
-        return facilityById.get(doc.linked_entity_id)?.supplier_id === filterId;
+        return facilityById.get(doc.linked_entity_id)?.supplier_ids?.includes(filterId) ?? false;
       }
     }
 

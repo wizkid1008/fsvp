@@ -84,6 +84,16 @@ export type FacilityVerify = {
   updated_at: string;
 };
 
+export type FacilitySupplierAccess = {
+  id: string;
+  facility_id: string;
+  supplier_id: string;
+  importer_id: string | null;
+  access_level: "view" | "manage";
+  created_by_profile_id: string | null;
+  created_at: string;
+};
+
 export type FsvpRequirement = {
   id: string;
   requirement_key: string;
@@ -244,6 +254,12 @@ export type Database = {
         Row: FacilityVerify;
         Insert: Partial<FacilityVerify> & Pick<FacilityVerify, "facility_name" | "facility_type">;
         Update: Partial<FacilityVerify>;
+        Relationships: [];
+      };
+      facility_supplier_access: {
+        Row: FacilitySupplierAccess;
+        Insert: Partial<FacilitySupplierAccess> & Pick<FacilitySupplierAccess, "facility_id" | "supplier_id">;
+        Update: Partial<FacilitySupplierAccess>;
         Relationships: [];
       };
       fsvp_requirements: {

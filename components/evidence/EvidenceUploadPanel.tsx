@@ -27,7 +27,8 @@ type ProductOption = {
 type FacilityOption = {
   id: string;
   facility_name: string;
-  supplier_id: string | null;
+  supplier_id?: string | null;
+  supplier_ids?: string[];
 };
 
 type RequirementOption = {
@@ -58,7 +59,14 @@ export function EvidenceUploadPanel({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const supplierProducts = products.filter((product) => product.supplier_id === supplierId);
-  const supplierFacilities = facilities.filter((facility) => facility.supplier_id === supplierId);
+  const supplierFacilities = facilities.filter((facility) => {
+    const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
+      ? facility.supplier_ids
+      : facility.supplier_id
+        ? [facility.supplier_id]
+        : [];
+    return supplierIds.includes(supplierId);
+  });
 
   function handleFiles(files: FileList | null) {
     if (files?.[0]) setFile(files[0]);
