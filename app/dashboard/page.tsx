@@ -250,9 +250,6 @@ export default async function DashboardPage() {
             <div className="mt-6 flex flex-col items-center justify-center rounded-md border border-dashed border-line bg-slate-50 py-12 text-center">
               <p className="text-sm font-semibold text-slate-600">No activity yet</p>
               <p className="mt-1 text-sm text-slate-400">Actions, reviews, and uploads will appear here.</p>
-              <Link href={isSupplier ? "/my-evidence" : "/suppliers"} className="mt-5 inline-flex h-9 items-center rounded-md bg-forest px-4 text-sm font-semibold text-white hover:bg-[#195f4d]">
-                {isSupplier ? "Upload evidence" : "Start with suppliers"}
-              </Link>
             </div>
           ) : (
             <div className="mt-4 divide-y divide-line rounded-md border border-line">
