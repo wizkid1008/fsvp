@@ -42,17 +42,6 @@ const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = 
   ]
 };
 
-function initials(name: string | null, email: string): string {
-  if (name && name.trim()) {
-    const parts = name.trim().split(/\s+/);
-    return parts.length >= 2
-      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-      : parts[0].slice(0, 2).toUpperCase();
-  }
-
-  return email.slice(0, 2).toUpperCase();
-}
-
 export function SiteMenu() {
   const pathname = usePathname();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("platform");
@@ -62,8 +51,6 @@ export function SiteMenu() {
     ? document.cookie.split(";").some((c) => c.trim().startsWith("sb-"))
     : false;
   const [loggedIn, setLoggedIn] = useState(hasSessionCookie);
-  const [displayName, setDisplayName] = useState<string | null>(null);
-  const [userInitials, setUserInitials] = useState<string>("..");
   const { locale } = useLocale();
 
   useEffect(() => {
@@ -73,30 +60,14 @@ export function SiteMenu() {
       const { data: { session } } = await supabase.auth.getSession();
       setLoggedIn(!!session);
       if (!session?.user) {
-        setDisplayName(null);
-        setUserInitials("..");
         return;
       }
-
-      const { data: profile } = await (supabase.from("profiles") as any)
-        .select("full_name")
-        .eq("id", session.user.id)
-        .maybeSingle();
-      const email = session.user.email ?? "";
-      const name = profile?.full_name ?? null;
-      setDisplayName(name || email.split("@")[0]);
-      setUserInitials(initials(name, email));
     }
 
     void loadUser();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setLoggedIn(!!session);
-      if (!session?.user) {
-        setDisplayName(null);
-        setUserInitials("..");
-      } else {
-        void loadUser();
-      }
+      if (session?.user) void loadUser();
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -148,21 +119,7 @@ export function SiteMenu() {
         </nav>
         <div className="flex shrink-0 items-center gap-3">
           {loggedIn ? (
-            <>
-              <Link
-                href="/account"
-                className="inline-flex h-14 min-w-[148px] max-w-[220px] items-center gap-2 border border-white/30 px-4 text-xs font-black uppercase tracking-[0.04em] text-white/90 hover:border-white hover:text-white"
-              >
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-[10px] text-black">
-                  {userInitials}
-                </span>
-                <span className="truncate">{displayName ?? "Account"}</span>
-              </Link>
-              <Link href="/dashboard" className="inline-flex h-14 min-w-[136px] items-center justify-center border border-white bg-white px-6 text-xs font-black uppercase tracking-[0.04em] text-black hover:bg-black hover:text-white">
-                Dashboard
-              </Link>
-              <LanguageSwitcher currentLocale={locale} variant="menu" />
-            </>
+            null
           ) : (
             <>
               <LanguageSwitcher currentLocale={locale} variant="menu" />

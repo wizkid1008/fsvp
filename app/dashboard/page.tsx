@@ -2,12 +2,10 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { SupplierReadinessPanel } from "@/components/readiness/SupplierReadinessPanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { SectionProgressBar } from "@/components/evidence/SectionProgressBar";
 import type { SectionProgress } from "@/components/evidence/SectionProgressBar";
 import { OnboardingModal, type OnboardingStep } from "@/components/onboarding/OnboardingModal";
 import { requireUser } from "@/lib/auth/protection";
 import { APP_SUBTITLE } from "@/lib/constants";
-import { CheckCircle2, Circle } from "lucide-react";
 import type { Profile } from "@/types/database";
 import type { StatusTone } from "@/types/platform";
 
@@ -224,11 +222,17 @@ export default async function DashboardPage() {
         key: step.completion_key
       }))
     : isSupplier ? SUPPLIER_STEPS : IMPORTER_STEPS;
-  const onboardingSteps: OnboardingStep[] = workflowRows.map((step) => ({
-    title: step.title,
-    description: step.description,
-    cta: { label: step.cta_label, href: step.cta_href }
-  }));
+  const onboardingSteps: OnboardingStep[] = workflowRows.length > 0
+    ? workflowRows.map((step) => ({
+        title: step.title,
+        description: step.description,
+        cta: { label: step.cta_label, href: step.cta_href }
+      }))
+    : STEPS.map((step) => ({
+        title: step.label,
+        description: "Complete this setup item to keep your workspace moving.",
+        cta: { label: step.label, href: step.href }
+      }));
 
   const stepDone: Record<string, boolean> = isSupplier
     ? {
@@ -247,54 +251,16 @@ export default async function DashboardPage() {
       };
 
   const completedSteps = Object.values(stepDone).filter(Boolean).length;
-  const progressPct = Math.round((completedSteps / STEPS.length) * 100);
-
   const metrics = isSupplier
     ? [
-        {
-          label: "My Evidence",
-          value: String(documentCount ?? 0),
-          sublabel: `${documentCount ?? 0} document${(documentCount ?? 0) !== 1 ? "s" : ""} submitted`,
-          href: "/my-evidence",
-          tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const,
-        },
-        {
-          label: "Action Items",
-          value: String(actionCount ?? 0),
-          sublabel: `${actionCount ?? 0} open item${(actionCount ?? 0) !== 1 ? "s" : ""}`,
-          href: "/my-requests",
-          tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const,
-        },
+        { label: "My Evidence",   value: String(documentCount ?? 0), sublabel: "documents submitted", href: "/my-evidence",  tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
+        { label: "Action Items",  value: String(actionCount ?? 0),   sublabel: "open items",          href: "/my-requests",  tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
       ]
     : [
-        {
-          label: "Suppliers",
-          value: String(supplierCount ?? 0),
-          sublabel: `${supplierCount ?? 0} on file`,
-          href: "/suppliers",
-          tone: (supplierCount ?? 0) > 0 ? "info" as const : "neutral" as const,
-        },
-        {
-          label: "Evidence",
-          value: String(documentCount ?? 0),
-          sublabel: `${documentCount ?? 0} uploaded`,
-          href: "/evidence",
-          tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const,
-        },
-        {
-          label: "Open Actions",
-          value: String(actionCount ?? 0),
-          sublabel: `${actionCount ?? 0} open`,
-          href: "/gaps-actions",
-          tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const,
-        },
-        {
-          label: "Assessments",
-          value: String(assessmentCount ?? 0),
-          sublabel: `${assessmentCount ?? 0} completed`,
-          href: "/readiness",
-          tone: (assessmentCount ?? 0) > 0 ? "success" as const : "neutral" as const,
-        },
+        { label: "Suppliers",     value: String(supplierCount ?? 0),   sublabel: "on file",      href: "/suppliers",    tone: (supplierCount ?? 0) > 0 ? "info" as const : "neutral" as const },
+        { label: "Evidence",      value: String(documentCount ?? 0),   sublabel: "uploaded",     href: "/evidence",     tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
+        { label: "Open Actions",  value: String(actionCount ?? 0),     sublabel: "open",         href: "/gaps-actions", tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
+        { label: "Assessments",   value: String(assessmentCount ?? 0), sublabel: "completed",    href: "/readiness",    tone: (assessmentCount ?? 0) > 0 ? "success" as const : "neutral" as const },
       ];
 
   const showOnboarding = completedSteps === 0;
@@ -361,9 +327,24 @@ export default async function DashboardPage() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 6);
 
+  // Supplier: overall readiness pct from section progress
+  const overallReadinessPct = supplierSectionProgress.length > 0
+    ? Math.round(
+        supplierSectionProgress.reduce((sum, s) => {
+          const pct = s.required_count === 0 ? 100
+            : s.accepted_count === 0 ? (s.submitted_count + s.under_review_count > 0 ? 25 : 0)
+            : s.accepted_count < s.required_count ? 50
+            : s.has_critical_blocker ? 75 : 100;
+          return sum + (pct * s.weight_percent) / 100;
+        }, 0)
+      )
+    : null;
+
   return (
     <AppShell role={role}>
       {showOnboarding && <OnboardingModal role={role} steps={onboardingSteps} />}
+
+      {/* Greeting */}
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -376,136 +357,99 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((m) => (
-          <Link key={m.label} href={m.href} className="group rounded-lg border border-line bg-white p-4 shadow-soft transition hover:border-forest">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 group-hover:text-forest">{m.label}</p>
-            <p className="mt-2 text-3xl font-semibold text-ink">{m.value}</p>
-            <p className="mt-1 text-xs text-slate-500">{(m as any).sublabel}</p>
-          </Link>
-        ))}
-      </section>
+      {/* Main two-column layout */}
+      <div className="mt-4 grid gap-6 lg:grid-cols-[260px_1fr]">
 
-      <section className="mt-4 grid gap-6 lg:grid-cols-[1fr_340px]">
-        <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <h2 className="text-base font-semibold text-ink">Recent Activity</h2>
-          {activityItems.length === 0 ? (
-            <div className="mt-6 flex flex-col items-center justify-center rounded-md border border-dashed border-line bg-slate-50 py-12 text-center">
-              <p className="text-sm font-semibold text-slate-600">No activity yet</p>
-              <p className="mt-1 text-sm text-slate-400">Actions, reviews, and uploads will appear here.</p>
-            </div>
-          ) : (
-            <div className="mt-4 divide-y divide-line rounded-md border border-line">
-              {activityItems.map((item) => (
-                <Link key={item.id} href={item.href} className="flex items-start justify-between gap-4 px-4 py-3 transition hover:bg-slate-50">
-                  <span>
-                    <span className="block text-sm font-semibold text-ink">{item.title}</span>
-                    <span className="mt-1 block text-sm text-slate-500">{item.detail}</span>
-                    <span className="mt-1 block text-xs text-slate-400">{new Date(item.created_at).toLocaleString()}</span>
-                  </span>
-                  <StatusBadge tone={item.tone}>{item.tone === "warning" ? "New" : "Logged"}</StatusBadge>
+        {/* Left: stat cards */}
+        <div className="space-y-3">
+          {metrics.map((m) => (
+            <Link key={m.label} href={m.href} className="group flex items-center justify-between rounded-lg border border-line bg-white p-4 shadow-soft transition hover:border-forest">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 group-hover:text-forest">{m.label}</p>
+                <p className="mt-1 text-xs text-slate-500">{m.sublabel}</p>
+              </div>
+              <p className="text-3xl font-semibold text-ink">{m.value}</p>
+            </Link>
+          ))}
+
+          {/* Supplier: readiness score card */}
+          {isSupplier && overallReadinessPct !== null && (
+            <Link href="/my-evidence" className="group flex items-center justify-between rounded-lg border border-line bg-white p-4 shadow-soft transition hover:border-forest">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 group-hover:text-forest">Readiness Score</p>
+                <p className="mt-1 text-xs text-slate-500">based on accepted evidence</p>
+              </div>
+              <p className={`text-3xl font-semibold ${
+                overallReadinessPct >= 90 ? "text-emerald-600" :
+                overallReadinessPct >= 75 ? "text-amber-600" :
+                overallReadinessPct >= 50 ? "text-orange-500" : "text-red-500"
+              }`}>{overallReadinessPct}%</p>
+            </Link>
+          )}
+          {isSupplier && overallReadinessPct === null && (
+            <Link href="/my-evidence" className="group flex items-center justify-between rounded-lg border border-line bg-white p-4 shadow-soft transition hover:border-forest">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 group-hover:text-forest">Readiness Score</p>
+                <p className="mt-1 text-xs text-slate-500">based on accepted evidence</p>
+              </div>
+              <p className="text-3xl font-semibold text-red-500">0%</p>
+            </Link>
+          )}
+
+          {/* Importer: FSVP record counts */}
+          {isImporter && fsvpRecordCounts.total > 0 && (
+            <div className="space-y-2">
+              {[
+                { label: "FSVP Approved",        value: fsvpRecordCounts.approved,       tone: "success" as StatusTone },
+                { label: "Conditional",           value: fsvpRecordCounts.conditional,    tone: "warning" as StatusTone },
+                { label: "Pending Review",        value: fsvpRecordCounts.pending,        tone: "info" as StatusTone },
+                { label: "Reassessment Due",      value: fsvpRecordCounts.reassessmentDue, tone: fsvpRecordCounts.reassessmentDue > 0 ? "danger" as StatusTone : "neutral" as StatusTone },
+              ].map((m) => (
+                <Link key={m.label} href="/fsvp-records" className="group flex items-center justify-between rounded-lg border border-line bg-white px-4 py-3 shadow-soft transition hover:border-forest">
+                  <p className="text-xs font-semibold text-slate-500 group-hover:text-forest">{m.label}</p>
+                  <StatusBadge tone={m.tone}>{m.value}</StatusBadge>
                 </Link>
               ))}
             </div>
+          )}
+          {isImporter && fsvpRecordCounts.total === 0 && (
+            <Link href="/fsvp-records/new" className="flex items-center justify-between rounded-lg border border-dashed border-line bg-slate-50 px-4 py-3 text-sm text-slate-500 hover:border-forest hover:text-forest transition">
+              <span>No FSVP records yet</span>
+              <span className="text-xs font-semibold">Create one →</span>
+            </Link>
           )}
         </div>
 
-        <aside className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-ink">Setup Progress</h2>
-            <span className="text-sm font-bold text-forest">{progressPct}%</span>
-          </div>
-
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-forest transition-all duration-500"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
-
-          <ol className="mt-5 space-y-2">
-            {STEPS.map((step, i) => {
-              const done = stepDone[step.key];
-              return (
-                <li key={step.key}>
-                  <Link
-                    href={step.href}
-                    className={`flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition ${
-                      done
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                        : "border-line bg-white text-slate-700 hover:border-forest hover:bg-slate-50"
-                    }`}
-                  >
-                    {done
-                      ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-                      : <Circle className="h-4 w-4 shrink-0 text-slate-300" />
-                    }
-                    <span className="font-medium">{step.label}</span>
-                    {!done && <span className="ml-auto text-xs text-slate-400">Step {i + 1}</span>}
+        {/* Right: activity + readiness sections */}
+        <div className="space-y-6">
+          <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <h2 className="text-base font-semibold text-ink">Recent Activity</h2>
+            {activityItems.length === 0 ? (
+              <div className="mt-4 flex flex-col items-center justify-center rounded-md border border-dashed border-line bg-slate-50 py-10 text-center">
+                <p className="text-sm font-semibold text-slate-600">No activity yet</p>
+                <p className="mt-1 text-sm text-slate-400">Actions, reviews, and uploads will appear here.</p>
+              </div>
+            ) : (
+              <div className="mt-4 divide-y divide-line rounded-md border border-line">
+                {activityItems.map((item) => (
+                  <Link key={item.id} href={item.href} className="flex items-start justify-between gap-4 px-4 py-3 transition hover:bg-slate-50">
+                    <span>
+                      <span className="block text-sm font-semibold text-ink">{item.title}</span>
+                      <span className="mt-1 block text-sm text-slate-500">{item.detail}</span>
+                      <span className="mt-1 block text-xs text-slate-400">{new Date(item.created_at).toLocaleString()}</span>
+                    </span>
+                    <StatusBadge tone={item.tone}>{item.tone === "warning" ? "New" : "Logged"}</StatusBadge>
                   </Link>
-                </li>
-              );
-            })}
-          </ol>
-        </aside>
-      </section>
-
-      {isSupplier ? (
-        <section className="mt-6">
-          <SupplierReadinessPanel supabase={supabase} title="My Readiness" showScore={false} />
-        </section>
-      ) : null}
-
-      {isSupplier && supplierSectionProgress.length > 0 ? (
-        <section className="mt-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-ink">FSVP Readiness by Section</h2>
-            <Link href="/my-evidence" className="text-sm font-semibold text-forest hover:underline">
-              Upload evidence →
-            </Link>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {supplierSectionProgress.map((s) => (
-              <SectionProgressBar key={s.section_key} section={s} />
-            ))}
-          </div>
-        </section>
-      ) : null}
 
-      {isImporter ? (
-        <section className="mt-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-ink">FSVP Records</h2>
-            <Link href="/fsvp-records" className="text-sm font-semibold text-forest hover:underline">
-              View all records →
-            </Link>
-          </div>
-          {fsvpRecordCounts.total === 0 ? (
-            <div className="rounded-lg border border-dashed border-line bg-slate-50 px-5 py-8 text-center">
-              <p className="text-sm font-semibold text-ink">No FSVP records yet</p>
-              <p className="mt-1 text-sm text-slate-500">Create your first FSVP record to track supplier/product approvals.</p>
-              <Link href="/fsvp-records/new" className="mt-4 inline-flex h-9 items-center rounded-md bg-forest px-4 text-sm font-semibold text-white hover:bg-[#195f4d]">
-                New Record
-              </Link>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-4">
-              {[
-                { label: "Approved", value: fsvpRecordCounts.approved, tone: "success" as StatusTone, href: "/fsvp-records" },
-                { label: "Conditional", value: fsvpRecordCounts.conditional, tone: "warning" as StatusTone, href: "/fsvp-records" },
-                { label: "Pending Review", value: fsvpRecordCounts.pending, tone: "info" as StatusTone, href: "/fsvp-records" },
-                { label: "Reassessment Due", value: fsvpRecordCounts.reassessmentDue, tone: fsvpRecordCounts.reassessmentDue > 0 ? "danger" as StatusTone : "neutral" as StatusTone, href: "/fsvp-records" },
-              ].map((m) => (
-                <Link key={m.label} href={m.href} className="group rounded-lg border border-line bg-white p-4 shadow-soft transition hover:border-forest">
-                  <p className="text-xs font-medium text-slate-500 group-hover:text-forest">{m.label}</p>
-                  <p className="mt-2 text-3xl font-semibold text-ink">{m.value}</p>
-                  <StatusBadge tone={m.tone} className="mt-2">{m.value > 0 ? "Active" : "None"}</StatusBadge>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
+          {isSupplier ? (
+            <SupplierReadinessPanel supabase={supabase} title="My Readiness Checklist" showScore={false} />
+          ) : null}
+        </div>
+      </div>
     </AppShell>
   );
 }

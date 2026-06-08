@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { APP_NAME, APP_SUBTITLE, BRAND_TAGLINE, LEGAL_DISCLAIMER, PARENT_BRAND } from "@/lib/constants";
+import { LEGAL_DISCLAIMER } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { iconMap, navItems } from "@/data/platform";
 import { RolePreviewBanner } from "@/components/admin/RolePreview";
 import { useLocale } from "@/components/i18n/LocaleProvider";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { AppRole } from "@/types/platform";
 
@@ -68,7 +69,7 @@ export function AppShell({
     void loadUser();
   }, []);
 
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   // Filter nav by preview role, but always show admin link for real administrators
   const visibleItems = navItems.filter((item) => {
     if (!item.roles) return true;
@@ -81,11 +82,7 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-white text-black">
       <aside className="fixed bottom-0 left-0 top-[72px] hidden w-72 overflow-y-auto border-r border-black/10 bg-white p-5 lg:block">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-black bg-black text-xs font-black text-white">TC</div>
-          <p className="text-sm font-black uppercase tracking-[0.06em] text-black">{APP_NAME}</p>
-        </Link>
-        <nav className="mt-8 space-y-1">
+        <nav className="space-y-1">
           {visibleItems.map((item) => {
             const Icon = iconMap[item.icon as keyof typeof iconMap];
             const active = pathname === item.href || item.matches?.some((route) => pathname.startsWith(route));
@@ -105,8 +102,9 @@ export function AppShell({
           })}
         </nav>
 
-        {/* User identity at sidebar bottom */}
-        <div className="absolute bottom-0 left-0 right-0 border-t border-black/10 p-4">
+        {/* Language + user identity at sidebar bottom */}
+        <div className="absolute bottom-0 left-0 right-0 border-t border-black/10 p-4 space-y-3">
+          <LanguageSwitcher currentLocale={locale} />
           <Link href="/account" className="flex items-center gap-3 group">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-xs font-black text-white">
               {userInitials}
@@ -125,27 +123,23 @@ export function AppShell({
 
       <div className="lg:pl-72">
         {serverRole === "administrator" && <RolePreviewBanner />}
-        <header className="sticky top-[7.25rem] z-10 border-b border-black/10 bg-white/95 px-5 py-3 backdrop-blur md:top-[72px]">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="hidden text-sm font-medium text-black/50 md:block">{APP_SUBTITLE}</p>
-          </div>
-          <nav className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-            {visibleItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "whitespace-nowrap border px-3 py-2 text-sm font-bold",
-                  pathname === item.href || item.matches?.some((route) => pathname.startsWith(route))
-                    ? "border-black bg-black text-white"
-                    : "border-black/10 bg-white text-black/60"
-                )}
-              >
-                {item.tKey ? t(item.tKey) : item.label}
-              </Link>
-            ))}
-          </nav>
-        </header>
+        {/* Mobile nav only; sidebar handles desktop navigation. */}
+        <nav className="flex gap-2 overflow-x-auto border-b border-black/10 bg-white/95 px-5 py-2 lg:hidden">
+          {visibleItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "whitespace-nowrap border px-3 py-2 text-sm font-bold",
+                pathname === item.href || item.matches?.some((route) => pathname.startsWith(route))
+                  ? "border-black bg-black text-white"
+                  : "border-black/10 bg-white text-black/60"
+              )}
+            >
+              {item.tKey ? t(item.tKey) : item.label}
+            </Link>
+          ))}
+        </nav>
         <main className="mx-auto max-w-7xl px-5 py-8">{children}</main>
         <footer className="border-t border-black/10 bg-white px-5 py-5 text-xs leading-5 text-black/50">
           {LEGAL_DISCLAIMER}
