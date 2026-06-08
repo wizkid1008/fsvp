@@ -23,6 +23,7 @@ const en = {
     reports: "Reports",
     reviewQueue: "Review Queue",
     auditLog: "Audit Log",
+    fsvpRecords: "FSVP Records",
     admin: "Admin",
     account: "Account",
   },

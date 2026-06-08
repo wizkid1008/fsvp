@@ -22,6 +22,7 @@ const fr: Messages = {
     reports: "Rapports",
     reviewQueue: "File de révision",
     auditLog: "Journal d'audit",
+    fsvpRecords: "Dossiers FSVP",
     admin: "Administration",
     account: "Compte",
   },

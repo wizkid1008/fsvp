@@ -22,6 +22,7 @@ const ar: Messages = {
     reports: "التقارير",
     reviewQueue: "قائمة المراجعة",
     auditLog: "سجل التدقيق",
+    fsvpRecords: "سجلات FSVP",
     admin: "الإدارة",
     account: "الحساب",
   },

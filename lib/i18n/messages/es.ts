@@ -22,6 +22,7 @@ const es: Messages = {
     reports: "Informes",
     reviewQueue: "Cola de revisión",
     auditLog: "Registro de auditoría",
+    fsvpRecords: "Registros FSVP",
     admin: "Administración",
     account: "Cuenta",
   },
