@@ -81,13 +81,9 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-white text-black">
       <aside className="fixed bottom-0 left-0 top-[72px] hidden w-72 overflow-y-auto border-r border-black/10 bg-white p-5 lg:block">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center border border-black bg-black text-sm font-black text-white">TC</div>
-          <div>
-            <p className="text-sm font-black uppercase tracking-[0.06em] text-black">{APP_NAME}</p>
-            <p className="text-xs text-black/50">by {PARENT_BRAND}</p>
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-black/40">{BRAND_TAGLINE}</p>
-          </div>
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-black bg-black text-xs font-black text-white">TC</div>
+          <p className="text-sm font-black uppercase tracking-[0.06em] text-black">{APP_NAME}</p>
         </Link>
         <nav className="mt-8 space-y-1">
           {visibleItems.map((item) => {
@@ -131,9 +127,6 @@ export function AppShell({
         {serverRole === "administrator" && <RolePreviewBanner />}
         <header className="sticky top-[7.25rem] z-10 border-b border-black/10 bg-white/95 px-5 py-3 backdrop-blur md:top-[72px]">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-black uppercase tracking-[0.08em] text-black/40">
-              {ROLE_LABELS[role]}
-            </p>
             <p className="hidden text-sm font-medium text-black/50 md:block">{APP_SUBTITLE}</p>
           </div>
           <nav className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">

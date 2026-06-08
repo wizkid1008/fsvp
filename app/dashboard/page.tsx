@@ -251,14 +251,50 @@ export default async function DashboardPage() {
 
   const metrics = isSupplier
     ? [
-        { label: "Documents Submitted", value: String(documentCount ?? 0), href: "/my-evidence", tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
-        { label: "Action Items", value: String(actionCount ?? 0), href: "/my-requests", tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
+        {
+          label: "My Evidence",
+          value: String(documentCount ?? 0),
+          sublabel: `${documentCount ?? 0} document${(documentCount ?? 0) !== 1 ? "s" : ""} submitted`,
+          href: "/my-evidence",
+          tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const,
+        },
+        {
+          label: "Action Items",
+          value: String(actionCount ?? 0),
+          sublabel: `${actionCount ?? 0} open item${(actionCount ?? 0) !== 1 ? "s" : ""}`,
+          href: "/my-requests",
+          tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const,
+        },
       ]
     : [
-        { label: "Suppliers", value: String(supplierCount ?? 0), href: "/suppliers", tone: (supplierCount ?? 0) > 0 ? "info" as const : "neutral" as const },
-        { label: "Documents", value: String(documentCount ?? 0), href: "/evidence", tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
-        { label: "Open Actions", value: String(actionCount ?? 0), href: "/gaps-actions", tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
-        { label: "Assessments", value: String(assessmentCount ?? 0), href: "/readiness", tone: (assessmentCount ?? 0) > 0 ? "success" as const : "neutral" as const },
+        {
+          label: "Suppliers",
+          value: String(supplierCount ?? 0),
+          sublabel: `${supplierCount ?? 0} on file`,
+          href: "/suppliers",
+          tone: (supplierCount ?? 0) > 0 ? "info" as const : "neutral" as const,
+        },
+        {
+          label: "Evidence",
+          value: String(documentCount ?? 0),
+          sublabel: `${documentCount ?? 0} uploaded`,
+          href: "/evidence",
+          tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const,
+        },
+        {
+          label: "Open Actions",
+          value: String(actionCount ?? 0),
+          sublabel: `${actionCount ?? 0} open`,
+          href: "/gaps-actions",
+          tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const,
+        },
+        {
+          label: "Assessments",
+          value: String(assessmentCount ?? 0),
+          sublabel: `${assessmentCount ?? 0} completed`,
+          href: "/readiness",
+          tone: (assessmentCount ?? 0) > 0 ? "success" as const : "neutral" as const,
+        },
       ];
 
   const showOnboarding = completedSteps === 0;
@@ -329,25 +365,23 @@ export default async function DashboardPage() {
     <AppShell role={role}>
       {showOnboarding && <OnboardingModal role={role} steps={onboardingSteps} />}
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Dashboard</p>
-            <h1 className="mt-1 text-2xl font-semibold text-ink">{displayName}</h1>
-            <p className="mt-1 text-sm text-slate-500">{profile?.organization_name || "No organization linked yet"} - {APP_SUBTITLE}</p>
+            <h1 className="text-2xl font-semibold text-ink">
+              {profile?.organization_name || displayName}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">Welcome back, {displayName}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="info">{role}</StatusBadge>
-            <StatusBadge tone={status === "active" ? "success" : "warning"}>{status}</StatusBadge>
-          </div>
+          <StatusBadge tone={status === "active" ? "success" : "warning"}>{status}</StatusBadge>
         </div>
       </section>
 
-      <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((m) => (
-          <Link key={m.label} href={m.href} className="group rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-forest">
-            <p className="text-sm font-medium text-slate-500 group-hover:text-forest">{m.label}</p>
-            <p className="mt-2 text-4xl font-semibold text-ink">{m.value}</p>
-            <StatusBadge tone={m.tone} className="mt-3">{m.tone === "neutral" ? "None yet" : "Active"}</StatusBadge>
+          <Link key={m.label} href={m.href} className="group rounded-lg border border-line bg-white p-4 shadow-soft transition hover:border-forest">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 group-hover:text-forest">{m.label}</p>
+            <p className="mt-2 text-3xl font-semibold text-ink">{m.value}</p>
+            <p className="mt-1 text-xs text-slate-500">{(m as any).sublabel}</p>
           </Link>
         ))}
       </section>
