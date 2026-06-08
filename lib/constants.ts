@@ -14,6 +14,7 @@ export const DOCUMENT_UPLOAD_MAX_LABEL = "3 MB";
 export const protectedRoutes = [
   "/dashboard",
   "/account",
+  "/corporate",
   "/my-evidence",
   "/my-readiness",
   "/my-requests",
@@ -34,6 +35,7 @@ export const roleProtectedRoutes: Record<string, string[]> = {
   "/admin": ["administrator"],
   "/audit-log": ["reviewer", "administrator"],
   "/reviewer": ["reviewer", "administrator"],
+  "/corporate": ["supplier"],
   "/suppliers": ["us_importer", "reviewer", "administrator"],
   "/products": ["supplier", "us_importer", "reviewer", "administrator"],
   "/facilities": ["supplier", "us_importer", "reviewer", "administrator"],

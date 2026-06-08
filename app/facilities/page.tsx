@@ -1,5 +1,6 @@
 import { FacilityTable, type FacilityRow } from "@/components/facilities/FacilityTable";
 import { AppShell } from "@/components/layout/AppShell";
+import { SectionReadinessList } from "@/components/readiness/SectionReadinessList";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -79,7 +80,20 @@ export default async function FacilitiesPage() {
         title="Facilities"
         description="Manage manufacturing facilities, FDA registrations, processes, certifications, and production capacity."
       />
+      {isSupplier ? (
+        <div className="mt-6">
+          <SectionReadinessList
+            appliesTo="facility"
+            emptyText="Facility readiness requirements are not configured yet."
+            supplierId={supplierId}
+            supabase={supabase}
+            title="Facility Readiness Requirements"
+          />
+        </div>
+      ) : null}
+      <div className="mt-6">
       <FacilityTable countries={countryOptions} facilities={facilities} suppliers={supplierOptions} />
+      </div>
     </AppShell>
   );
 }

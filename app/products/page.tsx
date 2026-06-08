@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { ProductTable, type ProductRow } from "@/components/products/ProductTable";
+import { SectionReadinessList } from "@/components/readiness/SectionReadinessList";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -82,7 +83,20 @@ export default async function ProductsPage() {
         title="Products"
         description="Track every supplier product by facility, ingredients, allergens, intended use, and origin."
       />
+      {isSupplier ? (
+        <div className="mt-6">
+          <SectionReadinessList
+            appliesTo="product"
+            emptyText="Product readiness requirements are not configured yet."
+            supplierId={supplierId}
+            supabase={supabase}
+            title="Product Readiness Requirements"
+          />
+        </div>
+      ) : null}
+      <div className="mt-6">
       <ProductTable countries={countryOptions} facilities={facilityOptions} products={products} suppliers={supplierOptions} />
+      </div>
     </AppShell>
   );
 }

@@ -41,11 +41,12 @@ export const iconMap = {
 
 export const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", tKey: "nav.dashboard" },
+  { href: "/corporate", label: "Corporate", icon: "Building2", roles: ["supplier"], matches: ["/corporate"] },
+  { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.suppliers" },
+  { href: "/facilities", label: "Facilities", icon: "Warehouse", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.facilities" },
+  { href: "/products", label: "Products", icon: "PackageSearch", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.products" },
   { href: "/my-evidence", label: "My Evidence", icon: "FileArchive", roles: ["supplier"], tKey: "nav.myEvidence" },
   { href: "/my-requests", label: "Action Items", icon: "AlertTriangle", roles: ["supplier"], tKey: "nav.actionItems" },
-  { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.suppliers" },
-  { href: "/products", label: "Products", icon: "PackageSearch", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.products" },
-  { href: "/facilities", label: "Facilities", icon: "Warehouse", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.facilities" },
   { href: "/evidence", label: "Evidence", icon: "FileArchive", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.evidence" },
   { href: "/fsvp-records", label: "FSVP Records", icon: "FolderCheck", roles: ["us_importer", "reviewer", "administrator"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
   { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer", "administrator"], tKey: "nav.gapsActions" },
