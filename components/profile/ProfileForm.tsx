@@ -195,9 +195,16 @@ export function ProfileForm({
           <input value={displayEmail} readOnly className={fieldClassName(true)} />
         </label>
 
+        {role === "supplier" && (
+          <label className="text-sm font-medium text-slate-700">
+            Legal Entity Name
+            <input name="legal_entity_name" defaultValue={profile?.legal_entity_name ?? ""} className={fieldClassName()} placeholder="Registered legal entity name" />
+          </label>
+        )}
+
         <label className="text-sm font-medium text-slate-700">
-          Organization Name
-          <input name="organization_name" defaultValue={profile?.organization_name ?? ""} className={fieldClassName()} placeholder="Organization name" />
+          Trading Name
+          <input name="organization_name" defaultValue={profile?.organization_name ?? ""} className={fieldClassName()} placeholder="Trading / company name" />
         </label>
 
         <label className="text-sm font-medium text-slate-700">
@@ -221,13 +228,6 @@ export function ProfileForm({
           <label className="text-sm font-medium text-slate-700">
             Supplier Type
             <input name="supplier_type" defaultValue={profile?.supplier_type ?? ""} className={fieldClassName()} placeholder="e.g. Manufacturer, Processor, Farm" />
-          </label>
-        )}
-
-        {role === "supplier" && (
-          <label className="text-sm font-medium text-slate-700">
-            Legal Entity Name
-            <input name="legal_entity_name" defaultValue={profile?.legal_entity_name ?? ""} className={fieldClassName()} placeholder="Registered legal entity name" />
           </label>
         )}
 

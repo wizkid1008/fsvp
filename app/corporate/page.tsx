@@ -91,12 +91,13 @@ export default async function CorporatePage() {
     supplier?.contact_json?.primary_email ??
     null;
 
-  // Profile completeness — based on fields the exporter can actually fill in,
-  // not the importer-side approval_status which means nothing to the exporter.
+  // Profile completeness — based on fields the exporter can actually fill in.
+  // contactEmail falls back to the auth email since every account has one.
+  const resolvedContactEmail = contactEmail ?? user.email ?? null;
   const missingFields = [
     !(supplier?.legal_entity_name || profile?.legal_entity_name),
     !(supplier?.fda_registration_number || profile?.fda_registration_number),
-    !contactEmail,
+    !resolvedContactEmail,
   ].filter(Boolean).length;
 
   const profileTone: StatusTone = missingFields === 0 ? "success" : missingFields <= 1 ? "warning" : "neutral";
@@ -136,6 +137,10 @@ export default async function CorporatePage() {
               <div>
                 <dt className="font-semibold text-slate-500">Legal entity</dt>
                 <dd className="mt-1 text-ink">{supplier?.legal_entity_name || profile?.legal_entity_name || "Not recorded"}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-slate-500">Trading name</dt>
+                <dd className="mt-1 text-ink">{supplier?.company_name || profile?.organization_name || "Not recorded"}</dd>
               </div>
               <div>
                 <dt className="font-semibold text-slate-500">Country</dt>
