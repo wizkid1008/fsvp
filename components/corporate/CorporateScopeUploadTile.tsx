@@ -2,9 +2,14 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileText, X, ChevronDown, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import {
+  Upload, FileText, X,
+  CheckCircle2, XCircle, Clock, AlertCircle,
+} from "lucide-react";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import type { StatusTone } from "@/types/platform";
 
 // Maps section_key → default document_kind for the upload API
 const SECTION_CATEGORY_MAP: Record<string, string> = {
@@ -17,89 +22,78 @@ const SECTION_CATEGORY_MAP: Record<string, string> = {
 };
 
 export interface SectionProgressProps {
-  required_count:      number;
-  accepted_count:      number;
-  submitted_count:     number;
-  under_review_count:  number;
+  required_count:       number;
+  accepted_count:       number;
+  submitted_count:      number;
+  under_review_count:   number;
   needs_revision_count: number;
-  missing_count:       number;
+  missing_count:        number;
   has_critical_blocker: boolean;
-  weight_percent:      number;
+  weight_percent:       number;
 }
 
-function progressPercent(p: SectionProgressProps): number {
-  if (p.required_count === 0) return 0;
-  if (p.accepted_count === 0) {
-    if (p.submitted_count + p.under_review_count === 0) return 0;
-    return 25;
-  }
-  if (p.accepted_count < p.required_count) return 50;
-  if (p.has_critical_blocker) return 75;
-  return 100;
+function sectionStatus(p: SectionProgressProps | null): string | null {
+  if (!p || p.required_count === 0) return null;
+  if (p.accepted_count >= p.required_count) return "accepted";
+  if (p.needs_revision_count > 0)           return "needs_revision";
+  if (p.under_review_count > 0)             return "under_review";
+  if (p.submitted_count > 0)               return "submitted";
+  return null;
 }
 
-function ProgressPip({ progress }: { progress: SectionProgressProps }) {
-  const pct = progressPercent(progress);
+function StatusIcon({ status }: { status: string | null }) {
+  if (status === "accepted")
+    return <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />;
+  if (status === "under_review" || status === "submitted")
+    return <Clock className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />;
+  if (status === "needs_revision")
+    return <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />;
+  return <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-300" />;
+}
 
-  const statusLabel = () => {
-    if (progress.required_count === 0) return "Not started";
-    if (pct === 100) return "Complete";
-    if (progress.needs_revision_count > 0) return "Needs revision";
-    if (progress.under_review_count > 0) return "Under review";
-    if (progress.submitted_count > 0) return "Submitted";
-    if (progress.accepted_count > 0) return "In progress";
-    return "Not started";
-  };
+function statusTone(status: string | null): StatusTone {
+  if (status === "accepted")                        return "success";
+  if (status === "under_review")                    return "info";
+  if (status === "submitted")                       return "warning";
+  if (status === "needs_revision")                  return "danger";
+  return "neutral";
+}
 
-  const Icon = pct === 100 ? CheckCircle2 : pct >= 25 ? Clock : AlertCircle;
-  const iconColor = pct === 100 ? "text-emerald-500" : pct >= 25 ? "text-amber-500" : "text-slate-400";
-  const barColor = pct === 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : pct >= 25 ? "bg-amber-300" : "bg-slate-200";
-
-  return (
-    <div className="mt-2 space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <Icon className={`h-3.5 w-3.5 shrink-0 ${iconColor}`} />
-          <span className="text-xs text-slate-500">{statusLabel()}</span>
-          {progress.has_critical_blocker && pct < 100 && (
-            <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
-              Critical
-            </span>
-          )}
-        </div>
-        <span className="text-xs text-slate-400">
-          {progress.accepted_count}/{progress.required_count} accepted · {progress.weight_percent}%
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full transition-all ${barColor}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
+function statusLabel(status: string | null): string {
+  if (!status)                    return "Not started";
+  if (status === "accepted")      return "Complete";
+  if (status === "under_review")  return "Under Review";
+  if (status === "submitted")     return "Submitted";
+  if (status === "needs_revision") return "Needs Revision";
+  return status;
 }
 
 export function CorporateScopeUploadTile({
   sectionKey,
   label,
+  description,
+  requiredItems,
   supplierId,
   progress,
 }: {
-  sectionKey: string;
-  label: string;
-  supplierId: string | null;
-  progress: SectionProgressProps | null;
+  sectionKey:    string;
+  label:         string;
+  description:   string;
+  requiredItems: string;   // comma-separated item names
+  supplierId:    string | null;
+  progress:      SectionProgressProps | null;
 }) {
-  const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const router    = useRouter();
+  const inputRef  = useRef<HTMLInputElement>(null);
+  const [open, setOpen]           = useState(false);
+  const [dragging, setDragging]   = useState(false);
+  const [file, setFile]           = useState<File | null>(null);
+  const [message, setMessage]     = useState<string | null>(null);
+  const [error, setError]         = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const status = sectionStatus(progress);
+  const isComplete = status === "accepted";
 
   function handleFiles(files: FileList | null) {
     const next = files?.[0];
@@ -121,9 +115,9 @@ export function CorporateScopeUploadTile({
     setError(null);
     setMessage(null);
 
-    const formData = new FormData(e.currentTarget);
-    const title = formData.get("title")?.toString().trim() || file.name;
-    const expirationDate = formData.get("expiration_date")?.toString() ?? "";
+    const fd = new FormData(e.currentTarget);
+    const title          = fd.get("title")?.toString().trim() || file.name;
+    const expirationDate = fd.get("expiration_date")?.toString() ?? "";
 
     startTransition(async () => {
       try {
@@ -143,9 +137,9 @@ export function CorporateScopeUploadTile({
         body.append("supplier_id", supplierId);
         body.append("link_type", "supplier");
         if (profile?.importer_id) body.append("importer_id", profile.importer_id);
-        if (expirationDate) body.append("expiration_date", expirationDate);
+        if (expirationDate)       body.append("expiration_date", expirationDate);
 
-        const res = await fetch("/api/documents/upload", { method: "POST", body });
+        const res  = await fetch("/api/documents/upload", { method: "POST", body });
         const json = (await res.json()) as { error?: string };
         if (!res.ok || json.error) throw new Error(json.error ?? "Upload failed.");
 
@@ -160,30 +154,59 @@ export function CorporateScopeUploadTile({
   }
 
   return (
-    <div className="rounded-md border border-line bg-white overflow-hidden shadow-soft">
-      {/* Header row — always visible */}
-      <button
-        type="button"
-        onClick={() => { setOpen((v) => !v); setMessage(null); setError(null); }}
-        className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 transition"
-      >
+    <div>
+      {/* ── Row (always visible) ─────────────────────────────── */}
+      <div className="flex items-start gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
+        <StatusIcon status={status} />
+
+        {/* Text block */}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ink">{label}</p>
-          {progress && <ProgressPip progress={progress} />}
+          {description && (
+            <p className="mt-0.5 text-xs leading-5 text-slate-500">{description}</p>
+          )}
+          {requiredItems && (
+            <p className="mt-1 text-xs text-slate-400">
+              <span className="font-medium text-slate-500">Required: </span>
+              {requiredItems}
+            </p>
+          )}
+          {progress && progress.required_count > 0 && (
+            <p className="mt-1 text-xs text-slate-400">
+              {progress.accepted_count} of {progress.required_count} accepted
+              {progress.has_critical_blocker && !isComplete && (
+                <span className="ml-2 font-semibold text-red-600">· Critical blocker</span>
+              )}
+            </p>
+          )}
         </div>
-        <span className="mt-0.5 flex shrink-0 items-center gap-1 text-xs font-medium text-forest">
-          <Upload className="h-3.5 w-3.5" />
-          Upload
-          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-        </span>
-      </button>
 
-      {/* Expandable upload panel */}
+        {/* Right action */}
+        <div className="flex shrink-0 items-center gap-2">
+          {status && status !== "accepted" && (
+            <StatusBadge tone={statusTone(status)}>{statusLabel(status)}</StatusBadge>
+          )}
+          {isComplete ? (
+            <StatusBadge tone="success">Complete</StatusBadge>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setOpen((v) => !v); setMessage(null); setError(null); }}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-forest px-3 text-xs font-semibold text-forest transition hover:bg-emerald-50"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Upload
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Inline upload panel ──────────────────────────────── */}
       {open && (
-        <div className="border-t border-line bg-slate-50 px-4 pb-4 pt-3">
+        <div className="border-t border-line bg-slate-50 px-5 pb-4 pt-3">
           {!supplierId ? (
             <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Your account is not linked to a supplier record yet. Evidence cannot be uploaded until a supplier is created.
+              Your account is not linked to a supplier record yet.
             </p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
@@ -194,7 +217,9 @@ export function CorporateScopeUploadTile({
                 onDrop={(e) => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files); }}
                 onClick={() => inputRef.current?.click()}
                 className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed py-6 transition ${
-                  dragging ? "border-forest bg-emerald-50" : "border-line hover:border-forest hover:bg-white"
+                  dragging
+                    ? "border-forest bg-emerald-50"
+                    : "border-line hover:border-forest hover:bg-white"
                 }`}
               >
                 {file ? (
