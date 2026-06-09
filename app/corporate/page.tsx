@@ -7,6 +7,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
@@ -36,11 +37,12 @@ export default async function CorporatePage() {
 
   // If supplier_id is not set on the profile, resolve in three steps:
   // 1. Match an existing suppliers row by org name
-  // 2. Create a new suppliers row from profile data
-  // 3. Write the resolved id back to profiles (runs once)
+  // 2. Create a new suppliers row from profile data  ← needs admin client (RLS blocks supplier inserts)
+  // 3. Write the resolved id back to profiles         ← needs admin client (FK may point to wrong table)
   if (!supplierId) {
     const orgName = profile?.organization_name ?? profile?.full_name ?? null;
 
+    // Step 1 — user-scoped read is fine (existing row is readable via name match)
     if (orgName) {
       const { data: matchedSupplier } = await (supabase.from("suppliers") as any)
         .select("id")
@@ -49,26 +51,34 @@ export default async function CorporatePage() {
       supplierId = matchedSupplier?.id ?? null;
     }
 
-    if (!supplierId) {
-      const { data: newSupplier } = await (supabase.from("suppliers") as any)
-        .insert({
-          company_name:      profile?.organization_name ?? profile?.full_name ?? "Unnamed Exporter",
-          legal_entity_name: profile?.organization_name ?? null,
-          // country is NOT NULL — fall back to "US" as a safe default
-          country:           profile?.country ?? "US",
-          contact_json:      profile?.full_name
-            ? { name: profile.full_name }
-            : {},
-        })
-        .select("id")
-        .maybeSingle();
-      supplierId = newSupplier?.id ?? null;
-    }
+    // Steps 2 + 3 — use admin client to bypass RLS for the bootstrap insert/update
+    try {
+      const admin = createAdminSupabaseClient();
 
-    if (supplierId) {
-      await (supabase.from("profiles") as any)
-        .update({ supplier_id: supplierId })
-        .eq("id", user.id);
+      if (!supplierId) {
+        const { data: newSupplier } = await (admin.from("suppliers") as any)
+          .insert({
+            company_name:         profile?.organization_name ?? profile?.full_name ?? "Unnamed Exporter",
+            legal_entity_name:    profile?.organization_name ?? null,
+            country:              profile?.country ?? "US",
+            contact_json:         profile?.full_name ? { name: profile.full_name } : {},
+            address_json:         {},
+            approval_status:      "pending_review",
+            certification_status: "pending_review",
+          })
+          .select("id")
+          .maybeSingle();
+        supplierId = newSupplier?.id ?? null;
+      }
+
+      if (supplierId) {
+        // Write back so subsequent loads skip this block entirely
+        await (admin.from("profiles") as any)
+          .update({ supplier_id: supplierId })
+          .eq("id", user.id);
+      }
+    } catch {
+      // Non-fatal — admin client not configured (local dev without service key)
     }
   }
 
