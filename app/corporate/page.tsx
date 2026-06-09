@@ -6,8 +6,21 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
+
+function approvalTone(status: string | null): StatusTone {
+  if (status === "approved" || status === "active") return "success";
+  if (status === "pending" || status === "pending_review") return "warning";
+  if (status === "rejected" || status === "suspended") return "danger";
+  return "neutral";
+}
+
+function approvalLabel(status: string | null): string {
+  if (!status) return "Pending";
+  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default async function CorporatePage() {
   const { role, user } = await requireProfileRole("/corporate", ["supplier", "administrator"]);
@@ -20,13 +33,13 @@ export default async function CorporatePage() {
 
   let supplierId: string | null = profile?.supplier_id ?? null;
 
-  // If supplier_id is not set on the profile, resolve it in three steps:
-  // 1. Look for an existing suppliers row matching the org name
-  // 2. If none found, create one from the profile data and link it
+  // If supplier_id is not set on the profile, resolve in three steps:
+  // 1. Match an existing suppliers row by org name
+  // 2. Create a new suppliers row from profile data
+  // 3. Write the resolved id back to profiles (runs once)
   if (!supplierId) {
     const orgName = profile?.organization_name ?? profile?.full_name ?? null;
 
-    // Step 1 — match by company name
     if (orgName) {
       const { data: matchedSupplier } = await (supabase.from("suppliers") as any)
         .select("id")
@@ -35,22 +48,22 @@ export default async function CorporatePage() {
       supplierId = matchedSupplier?.id ?? null;
     }
 
-    // Step 2 — create a new suppliers row if still no match
     if (!supplierId) {
       const { data: newSupplier } = await (supabase.from("suppliers") as any)
         .insert({
-          company_name:          profile?.organization_name ?? profile?.full_name ?? "Unnamed Exporter",
-          legal_entity_name:     profile?.organization_name ?? null,
-          country:               profile?.country ?? null,
-          primary_contact_name:  profile?.full_name ?? null,
-          status:                "pending",
+          company_name:      profile?.organization_name ?? profile?.full_name ?? "Unnamed Exporter",
+          legal_entity_name: profile?.organization_name ?? null,
+          // country is NOT NULL — fall back to "US" as a safe default
+          country:           profile?.country ?? "US",
+          contact_json:      profile?.full_name
+            ? { name: profile.full_name }
+            : {},
         })
         .select("id")
         .maybeSingle();
       supplierId = newSupplier?.id ?? null;
     }
 
-    // Step 3 — write the resolved id back to the profile so this only runs once
     if (supplierId) {
       await (supabase.from("profiles") as any)
         .update({ supplier_id: supplierId })
@@ -58,12 +71,28 @@ export default async function CorporatePage() {
     }
   }
 
+  // Fetch supplier using only columns that actually exist on the table.
+  // Contact info lives in contact_json; status is approval_status / portal_status.
   const { data: supplier } = supplierId
     ? await (supabase.from("suppliers") as any)
-        .select("company_name, legal_entity_name, country, fda_registration_number, primary_contact_name, primary_contact_email, status")
+        .select("company_name, legal_entity_name, country, fda_registration_number, contact_json, approval_status, portal_status")
         .eq("id", supplierId)
         .maybeSingle()
     : { data: null };
+
+  const contactName: string =
+    supplier?.contact_json?.name ??
+    supplier?.contact_json?.primary_name ??
+    profile?.full_name ??
+    "Not recorded";
+
+  const contactEmail: string | null =
+    supplier?.contact_json?.email ??
+    supplier?.contact_json?.primary_email ??
+    null;
+
+  const statusValue: string | null =
+    supplier?.approval_status ?? supplier?.portal_status ?? null;
 
   return (
     <AppShell role={role}>
@@ -90,8 +119,8 @@ export default async function CorporatePage() {
                   {supplier?.company_name ?? profile?.organization_name ?? "Corporate profile"}
                 </h2>
               </div>
-              <StatusBadge tone={supplier?.status === "approved" ? "success" : "warning"}>
-                {supplier?.status ?? "pending"}
+              <StatusBadge tone={approvalTone(statusValue)}>
+                {approvalLabel(statusValue)}
               </StatusBadge>
             </div>
 
@@ -115,10 +144,10 @@ export default async function CorporatePage() {
               <div>
                 <dt className="font-semibold text-slate-500">Primary contact</dt>
                 <dd className="mt-1 text-ink">
-                  {supplier?.primary_contact_name || profile?.full_name || "Not recorded"}
-                  {supplier?.primary_contact_email ? (
-                    <span className="block text-slate-500">{supplier.primary_contact_email}</span>
-                  ) : null}
+                  {contactName}
+                  {contactEmail && (
+                    <span className="block text-slate-500">{contactEmail}</span>
+                  )}
                 </dd>
               </div>
             </dl>

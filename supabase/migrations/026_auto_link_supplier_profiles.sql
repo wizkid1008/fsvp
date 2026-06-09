@@ -105,16 +105,15 @@ begin
       company_name,
       legal_entity_name,
       country,
-      primary_contact_name,
-      primary_contact_email,
-      status
+      contact_json
     ) values (
       coalesce(v_org_name, v_full_name, 'Unnamed Exporter'),
       v_org_name,
-      v_country,
-      v_full_name,
-      v_email,
-      'pending'
+      coalesce(v_country, 'US'),
+      jsonb_build_object(
+        'name',  coalesce(v_full_name, ''),
+        'email', coalesce(v_email, '')
+      )
     )
     returning id into v_supplier_id;
   end if;
