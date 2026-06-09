@@ -12,17 +12,6 @@ import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
 
-function approvalTone(status: string | null): StatusTone {
-  if (status === "approved" || status === "active") return "success";
-  if (status === "pending" || status === "pending_review") return "warning";
-  if (status === "rejected" || status === "suspended") return "danger";
-  return "neutral";
-}
-
-function approvalLabel(status: string | null): string {
-  if (!status) return "Pending";
-  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 export default async function CorporatePage() {
   const { role, user } = await requireProfileRole("/corporate", ["supplier", "administrator"]);
@@ -102,8 +91,16 @@ export default async function CorporatePage() {
     supplier?.contact_json?.primary_email ??
     null;
 
-  const statusValue: string | null =
-    supplier?.approval_status ?? supplier?.portal_status ?? null;
+  // Profile completeness — based on fields the exporter can actually fill in,
+  // not the importer-side approval_status which means nothing to the exporter.
+  const missingFields = [
+    !supplier?.legal_entity_name,
+    !supplier?.fda_registration_number,
+    !contactEmail,
+  ].filter(Boolean).length;
+
+  const profileTone: StatusTone = missingFields === 0 ? "success" : missingFields <= 1 ? "warning" : "neutral";
+  const profileStatus = missingFields === 0 ? "Profile Complete" : `${missingFields} field${missingFields > 1 ? "s" : ""} missing`;
 
   return (
     <AppShell role={role}>
@@ -130,8 +127,8 @@ export default async function CorporatePage() {
                   {supplier?.company_name ?? profile?.organization_name ?? "Corporate profile"}
                 </h2>
               </div>
-              <StatusBadge tone={approvalTone(statusValue)}>
-                {approvalLabel(statusValue)}
+              <StatusBadge tone={profileTone}>
+                {profileStatus}
               </StatusBadge>
             </div>
 
