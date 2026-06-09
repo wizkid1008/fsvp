@@ -42,6 +42,7 @@ export const iconMap = {
 export const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", tKey: "nav.dashboard" },
   { href: "/corporate", label: "Corporate", icon: "Building2", roles: ["supplier"], matches: ["/corporate"] },
+  { href: "/my-suppliers", label: "My Suppliers", icon: "UsersRound", roles: ["supplier"], matches: ["/my-suppliers"] },
   { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.suppliers" },
   { href: "/facilities", label: "Facilities", icon: "Warehouse", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.facilities" },
   { href: "/products", label: "Products", icon: "PackageSearch", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.products" },

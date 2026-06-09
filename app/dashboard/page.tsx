@@ -251,10 +251,21 @@ export default async function DashboardPage() {
       };
 
   const completedSteps = Object.values(stepDone).filter(Boolean).length;
+  // For supplier role: count active linked suppliers
+  let linkedSupplierCount = 0;
+  if (isSupplier && profile?.supplier_id) {
+    const { count } = await (supabase.from("exporter_supplier_links") as any)
+      .select("id", { count: "exact", head: true })
+      .eq("exporter_id", profile.supplier_id)
+      .eq("status", "active") as unknown as { count: number | null };
+    linkedSupplierCount = count ?? 0;
+  }
+
   const metrics = isSupplier
     ? [
-        { label: "My Evidence",   value: String(documentCount ?? 0), sublabel: "documents submitted", href: "/my-evidence",  tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
-        { label: "Action Items",  value: String(actionCount ?? 0),   sublabel: "open items",          href: "/my-requests",  tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
+        { label: "My Suppliers",  value: String(linkedSupplierCount),  sublabel: "linked suppliers",    href: "/my-suppliers", tone: linkedSupplierCount > 0 ? "info" as const : "neutral" as const },
+        { label: "My Evidence",   value: String(documentCount ?? 0),   sublabel: "documents submitted", href: "/my-evidence",  tone: (documentCount ?? 0) > 0 ? "info" as const : "neutral" as const },
+        { label: "Action Items",  value: String(actionCount ?? 0),     sublabel: "open items",          href: "/my-requests",  tone: (actionCount ?? 0) > 0 ? "danger" as const : "success" as const },
       ]
     : [
         { label: "Suppliers",     value: String(supplierCount ?? 0),   sublabel: "on file",      href: "/suppliers",    tone: (supplierCount ?? 0) > 0 ? "info" as const : "neutral" as const },

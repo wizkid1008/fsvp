@@ -2,22 +2,63 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ProductTable, type ProductRow } from "@/components/products/ProductTable";
 import { SectionReadinessList } from "@/components/readiness/SectionReadinessList";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
 
-export default async function ProductsPage() {
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: { view?: string };
+}) {
   const { role, user } = await requireProfileRole("/products");
   const supabase = createServerSupabaseClient();
+  const isSupplier = role === "supplier";
 
   const { data: profile } = await (supabase.from("profiles") as any)
-    .select("supplier_id")
+    .select("supplier_id, organization_name")
     .eq("id", user.id)
     .maybeSingle();
-  const isSupplier = role === "supplier";
-  const supplierId = isSupplier ? profile?.supplier_id ?? "00000000-0000-0000-0000-000000000000" : "";
+
+  const ownSupplierId: string = isSupplier
+    ? (profile?.supplier_id ?? "00000000-0000-0000-0000-000000000000")
+    : "";
+
+  // Context switcher: exporter can view a linked supplier's products via ?view=<id>
+  const viewId = searchParams.view ?? "";
+  let activeSupplierId = ownSupplierId;
+  let viewingLinkedSupplier: { id: string; company_name: string } | null = null;
+
+  if (isSupplier && ownSupplierId && viewId && viewId !== ownSupplierId) {
+    const { data: link } = await (supabase.from("exporter_supplier_links") as any)
+      .select("supplier_id, supplier:supplier_id(id, company_name)")
+      .eq("exporter_id", ownSupplierId)
+      .eq("supplier_id", viewId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (link?.supplier) {
+      activeSupplierId = viewId;
+      viewingLinkedSupplier = link.supplier as { id: string; company_name: string };
+    }
+  }
+
+  // Fetch linked suppliers for context switcher dropdown
+  const { data: linkedSupplierRows } = isSupplier && ownSupplierId
+    ? await (supabase.from("exporter_supplier_links") as any)
+        .select("supplier:supplier_id(id, company_name)")
+        .eq("exporter_id", ownSupplierId)
+        .eq("status", "active")
+    : { data: [] };
+
+  const linkedSuppliers = ((linkedSupplierRows ?? []) as Array<{
+    supplier: { id: string; company_name: string } | null;
+  }>)
+    .map((r) => r.supplier)
+    .filter(Boolean) as Array<{ id: string; company_name: string }>;
 
   let productsQuery = (supabase.from("products_verify") as any)
     .select("id, product_name, product_description, country_of_origin, raw_or_processed, intended_use, ingredient_list, allergen_information, supplier_id, facility_id, suppliers(company_name), facilities_verify(facility_name)")
@@ -33,9 +74,9 @@ export default async function ProductsPage() {
     .order("created_at");
 
   if (isSupplier) {
-    productsQuery = productsQuery.eq("supplier_id", supplierId);
-    suppliersQuery = suppliersQuery.eq("id", supplierId);
-    facilityAccessQuery = facilityAccessQuery.eq("supplier_id", supplierId);
+    productsQuery  = productsQuery.eq("supplier_id", activeSupplierId);
+    suppliersQuery = suppliersQuery.eq("id", activeSupplierId);
+    facilityAccessQuery = facilityAccessQuery.eq("supplier_id", activeSupplierId);
   }
 
   const [{ data: rawProducts }, { data: countries }, { data: suppliers }, { data: facilities }, { data: facilityAccess }, { data: documents }] = await Promise.all([
@@ -48,7 +89,7 @@ export default async function ProductsPage() {
     facilitiesQuery,
     facilityAccessQuery,
     supabase.from("documents")
-      .select("linked_entity_type, linked_entity_id")
+      .select("linked_entity_type, linked_entity_id"),
   ]);
 
   const evidenceCountByProduct = new Map<string, number>();
@@ -60,42 +101,64 @@ export default async function ProductsPage() {
 
   const products = ((rawProducts ?? []) as unknown as ProductRow[]).map((product) => ({
     ...product,
-    evidence_count: evidenceCountByProduct.get(product.id) ?? 0
+    evidence_count: evidenceCountByProduct.get(product.id) ?? 0,
   }));
+
   const accessByFacility = new Map<string, string[]>();
   for (const access of (facilityAccess ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
     const existing = accessByFacility.get(access.facility_id) ?? [];
     existing.push(access.supplier_id);
     accessByFacility.set(access.facility_id, existing);
   }
-  const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
+
+  const countryOptions  = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
   const supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
   const facilityOptions = ((facilities ?? []) as Array<{ id: string; facility_name: string; supplier_id: string | null }>)
     .map((facility) => ({
       ...facility,
-      supplier_ids: accessByFacility.get(facility.id) ?? (facility.supplier_id ? [facility.supplier_id] : [])
+      supplier_ids: accessByFacility.get(facility.id) ?? (facility.supplier_id ? [facility.supplier_id] : []),
     }))
-    .filter((facility) => !isSupplier || Boolean(supplierId && facility.supplier_ids.includes(supplierId)));
+    .filter((facility) => !isSupplier || Boolean(activeSupplierId && facility.supplier_ids.includes(activeSupplierId)));
 
   return (
     <AppShell role={role}>
       <SectionHeader
-        title="Products"
+        title={viewingLinkedSupplier
+          ? `Products — ${viewingLinkedSupplier.company_name}`
+          : "Products"}
         description="Track every supplier product by facility, ingredients, allergens, intended use, and origin."
       />
-      {isSupplier ? (
+
+      {/* Context switcher */}
+      {isSupplier && linkedSuppliers.length > 0 && (
+        <SupplierContextSwitcher
+          ownId={ownSupplierId}
+          ownLabel={profile?.organization_name ?? "My Products"}
+          linkedSuppliers={linkedSuppliers}
+          currentViewId={activeSupplierId}
+          basePath="/products"
+        />
+      )}
+
+      {isSupplier && (
         <div className="mt-6">
           <SectionReadinessList
             appliesTo="product"
             emptyText="Product readiness requirements are not configured yet."
-            supplierId={supplierId}
+            supplierId={activeSupplierId}
             supabase={supabase}
             title="Product Readiness Requirements"
           />
         </div>
-      ) : null}
+      )}
+
       <div className="mt-6">
-      <ProductTable countries={countryOptions} facilities={facilityOptions} products={products} suppliers={supplierOptions} />
+        <ProductTable
+          countries={countryOptions}
+          facilities={facilityOptions}
+          products={products}
+          suppliers={supplierOptions}
+        />
       </div>
     </AppShell>
   );

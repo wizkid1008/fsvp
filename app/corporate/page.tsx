@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { CorporateScoreCard } from "@/components/corporate/CorporateScoreCard";
 import { CorporateScopeList } from "@/components/corporate/CorporateScopeList";
+import { CorporateRelationshipsPanel } from "@/components/corporate/CorporateRelationshipsPanel";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -171,6 +172,13 @@ export default async function CorporatePage() {
           <CorporateScopeList supplierId={supplierId} supabase={supabase} />
         </section>
       </div>
+
+      {/* ── Supply chain relationships ────────────────────────── */}
+      {supplierId && (
+        <div className="mt-6">
+          <CorporateRelationshipsPanel supplierId={supplierId} supabase={supabase} />
+        </div>
+      )}
     </AppShell>
   );
 }
