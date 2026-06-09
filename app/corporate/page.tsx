@@ -18,7 +18,19 @@ export default async function CorporatePage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const supplierId = profile?.supplier_id ?? null;
+  let supplierId: string | null = profile?.supplier_id ?? null;
+
+  // Fallback: if supplier_id isn't set on the profile, try to find the matching
+  // suppliers row by organization name. Migration 026 back-fills this at the DB
+  // level; this ensures the page works even before that migration runs.
+  if (!supplierId && profile?.organization_name) {
+    const { data: matchedSupplier } = await (supabase.from("suppliers") as any)
+      .select("id")
+      .ilike("company_name", profile.organization_name)
+      .maybeSingle();
+    supplierId = matchedSupplier?.id ?? null;
+  }
+
   const { data: supplier } = supplierId
     ? await (supabase.from("suppliers") as any)
         .select("company_name, legal_entity_name, country, fda_registration_number, primary_contact_name, primary_contact_email, status")
