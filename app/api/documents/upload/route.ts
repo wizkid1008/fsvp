@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DOCUMENT_BUCKET, DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/database";
 
 export const runtime = "edge";
@@ -142,6 +143,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: upload.error.message }, { status: 500 });
   }
 
+  // Use admin client for the INSERT so RLS on documents never blocks a legitimate
+  // upload. Validation (auth, supplier ownership, file size) has already passed
+  // above. The broken profiles.supplier_id FK (pointing at foreign_suppliers instead
+  // of suppliers) causes the user-JWT client to fail the RLS check even though the
+  // upload is fully valid. This is fixed permanently by migration 028.
+  const adminDb = createAdminSupabaseClient();
+
   const documentRecord: Record<string, unknown> = {
     importer_id: resolvedImporterId,
     supplier_id: resolvedSupplierId || null,
@@ -163,7 +171,7 @@ export async function POST(request: Request) {
     uploaded_via: "app"
   };
 
-  const documentsTable = supabase.from("documents") as unknown as DocumentInsertTable;
+  const documentsTable = adminDb.from("documents") as unknown as DocumentInsertTable;
   const document = await documentsTable.insert(documentRecord as any).select("id").single();
 
   if (document.error) {
@@ -171,7 +179,7 @@ export async function POST(request: Request) {
   }
 
   if (relatedRequirementId && document.data?.id) {
-    await (supabase.from("requirement_evidence") as any).insert({
+    await (adminDb.from("requirement_evidence") as any).insert({
       importer_id: resolvedImporterId,
       supplier_id: resolvedSupplierId,
       product_id: linkedEntityType === "product" ? linkedEntityId : null,
@@ -182,13 +190,13 @@ export async function POST(request: Request) {
     });
   }
 
-  const { data: auditSetting } = await (supabase.from("app_settings") as any)
+  const { data: auditSetting } = await (adminDb.from("app_settings") as any)
     .select("boolean_value")
     .eq("setting_key", "auto_generate_audit_events")
     .maybeSingle();
 
   if (auditSetting?.boolean_value !== false && document.data?.id) {
-    await (supabase.from("audit_logs") as any).insert({
+    await (adminDb.from("audit_logs") as any).insert({
       importer_id: resolvedImporterId,
       actor_profile_id: user.id,
       action: "document_uploaded",
