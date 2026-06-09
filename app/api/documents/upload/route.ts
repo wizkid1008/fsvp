@@ -62,13 +62,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Supplier is required for evidence uploads." }, { status: 400 });
   }
 
-  const supplier = await (supabase.from("suppliers") as any)
-    .select("id")
-    .eq("id", resolvedSupplierId)
-    .maybeSingle();
+  // Skip the supplier existence check when the uploader IS the supplier uploading
+  // their own evidence — the supplier_id came from their own profile so it is valid.
+  // The RLS on suppliers can block this read when profiles.supplier_id isn't yet
+  // persisted, causing a false "invalid supplier" rejection.
+  const uploaderIsOwner =
+    uploaderProfile?.role === "supplier" &&
+    resolvedSupplierId === (uploaderProfile?.supplier_id || supplierId);
 
-  if (supplier.error || !supplier.data) {
-    return NextResponse.json({ error: "Select a valid supplier for this evidence." }, { status: 400 });
+  if (!uploaderIsOwner) {
+    const supplier = await (supabase.from("suppliers") as any)
+      .select("id")
+      .eq("id", resolvedSupplierId)
+      .maybeSingle();
+
+    if (supplier.error || !supplier.data) {
+      return NextResponse.json({ error: "Select a valid supplier for this evidence." }, { status: 400 });
+    }
   }
 
   let linkedEntityType = "supplier";
