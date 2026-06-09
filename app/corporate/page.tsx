@@ -18,7 +18,7 @@ export default async function CorporatePage() {
   const supabase = createServerSupabaseClient();
 
   const { data: profile } = await (supabase.from("profiles") as any)
-    .select("supplier_id, full_name, organization_name, country")
+    .select("supplier_id, full_name, organization_name, country, legal_entity_name, fda_registration_number")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -94,8 +94,8 @@ export default async function CorporatePage() {
   // Profile completeness — based on fields the exporter can actually fill in,
   // not the importer-side approval_status which means nothing to the exporter.
   const missingFields = [
-    !supplier?.legal_entity_name,
-    !supplier?.fda_registration_number,
+    !(supplier?.legal_entity_name || profile?.legal_entity_name),
+    !(supplier?.fda_registration_number || profile?.fda_registration_number),
     !contactEmail,
   ].filter(Boolean).length;
 
@@ -135,7 +135,7 @@ export default async function CorporatePage() {
             <dl className="mt-5 space-y-3 text-sm">
               <div>
                 <dt className="font-semibold text-slate-500">Legal entity</dt>
-                <dd className="mt-1 text-ink">{supplier?.legal_entity_name || "Not recorded"}</dd>
+                <dd className="mt-1 text-ink">{supplier?.legal_entity_name || profile?.legal_entity_name || "Not recorded"}</dd>
               </div>
               <div>
                 <dt className="font-semibold text-slate-500">Country</dt>
@@ -146,7 +146,7 @@ export default async function CorporatePage() {
               <div>
                 <dt className="font-semibold text-slate-500">FDA registration</dt>
                 <dd className="mt-1 text-ink">
-                  {supplier?.fda_registration_number || "Not recorded"}
+                  {supplier?.fda_registration_number || profile?.fda_registration_number || "Not recorded"}
                 </dd>
               </div>
               <div>

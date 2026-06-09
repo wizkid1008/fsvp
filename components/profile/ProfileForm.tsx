@@ -9,7 +9,7 @@ import { CountryCombobox } from "@/components/profile/CountryCombobox";
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 type ProfileUpdate = Pick<
   Profile,
-  "country" | "email" | "full_name" | "importer_type" | "organization_name" | "phone_number" | "position" | "preferred_language" | "supplier_type"
+  "country" | "email" | "full_name" | "importer_type" | "organization_name" | "legal_entity_name" | "fda_registration_number" | "phone_number" | "position" | "preferred_language" | "supplier_type"
 >;
 type ProfileInsert = ProfileUpdate & Pick<Profile, "id" | "role" | "user_status">;
 type ProfileMutationResult = PromiseLike<{ error: Error | null }>;
@@ -79,6 +79,8 @@ export function ProfileForm({
           email: authEmail,
           full_name: cleanFormValue(formData, "full_name"),
           organization_name: cleanFormValue(formData, "organization_name"),
+          legal_entity_name: cleanFormValue(formData, "legal_entity_name"),
+          fda_registration_number: cleanFormValue(formData, "fda_registration_number"),
           position: cleanFormValue(formData, "position"),
           phone_number: cleanFormValue(formData, "phone_number"),
           country,
@@ -108,6 +110,60 @@ export function ProfileForm({
             .select("id")
             .single();
           if (insertError) throw insertError;
+        }
+
+        // For supplier-role users: sync relevant fields to the linked suppliers record.
+        // This keeps the Corporate page in sync without requiring a separate form.
+        if (role === "supplier") {
+          const { data: currentProfile } = await (supabase.from("profiles") as any)
+            .select("supplier_id")
+            .eq("id", userId)
+            .maybeSingle();
+
+          const supplierId = currentProfile?.supplier_id ?? null;
+
+          if (supplierId) {
+            // Update existing suppliers row
+            await (supabase.from("suppliers") as any)
+              .update({
+                company_name:          cleanFormValue(formData, "organization_name") ?? undefined,
+                legal_entity_name:     cleanFormValue(formData, "legal_entity_name"),
+                country:               country ?? undefined,
+                fda_registration_number: cleanFormValue(formData, "fda_registration_number"),
+                contact_json: {
+                  name:  cleanFormValue(formData, "full_name"),
+                  email: authEmail,
+                  phone: cleanFormValue(formData, "phone_number"),
+                },
+              })
+              .eq("id", supplierId);
+          } else {
+            // Bootstrap: no supplier row yet — create one and link it
+            const orgName = cleanFormValue(formData, "organization_name") ?? cleanFormValue(formData, "full_name") ?? "Unnamed Exporter";
+            const { data: newSupplier } = await (supabase.from("suppliers") as any)
+              .insert({
+                company_name:             orgName,
+                legal_entity_name:        cleanFormValue(formData, "legal_entity_name"),
+                country:                  country ?? "US",
+                fda_registration_number:  cleanFormValue(formData, "fda_registration_number"),
+                contact_json: {
+                  name:  cleanFormValue(formData, "full_name"),
+                  email: authEmail,
+                  phone: cleanFormValue(formData, "phone_number"),
+                },
+                address_json:             {},
+                approval_status:          "pending_review",
+                certification_status:     "pending_review",
+              })
+              .select("id")
+              .maybeSingle();
+
+            if (newSupplier?.id) {
+              await (supabase.from("profiles") as any)
+                .update({ supplier_id: newSupplier.id })
+                .eq("id", userId);
+            }
+          }
         }
 
         setMessage("Profile saved.");
@@ -165,6 +221,20 @@ export function ProfileForm({
           <label className="text-sm font-medium text-slate-700">
             Supplier Type
             <input name="supplier_type" defaultValue={profile?.supplier_type ?? ""} className={fieldClassName()} placeholder="e.g. Manufacturer, Processor, Farm" />
+          </label>
+        )}
+
+        {role === "supplier" && (
+          <label className="text-sm font-medium text-slate-700">
+            Legal Entity Name
+            <input name="legal_entity_name" defaultValue={profile?.legal_entity_name ?? ""} className={fieldClassName()} placeholder="Registered legal entity name" />
+          </label>
+        )}
+
+        {role === "supplier" && (
+          <label className="text-sm font-medium text-slate-700">
+            FDA Registration #
+            <input name="fda_registration_number" defaultValue={profile?.fda_registration_number ?? ""} className={fieldClassName()} placeholder="FDA facility registration number" />
           </label>
         )}
 

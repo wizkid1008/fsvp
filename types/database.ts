@@ -5,6 +5,8 @@ export type Profile = {
   full_name: string | null;
   email: string;
   organization_name: string | null;
+  legal_entity_name: string | null;
+  fda_registration_number: string | null;
   position: string | null;
   phone_number: string | null;
   country: string | null;
