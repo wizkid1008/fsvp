@@ -73,6 +73,11 @@ end $$;
 
 alter table exporter_supplier_links enable row level security;
 
+drop policy if exists esl_read   on exporter_supplier_links;
+drop policy if exists esl_insert on exporter_supplier_links;
+drop policy if exists esl_update on exporter_supplier_links;
+drop policy if exists esl_delete on exporter_supplier_links;
+
 -- Exporters can see all links where they are the exporter
 -- Suppliers can see all links where they are the supplier
 -- Admins see everything
