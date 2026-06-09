@@ -20,15 +20,42 @@ export default async function CorporatePage() {
 
   let supplierId: string | null = profile?.supplier_id ?? null;
 
-  // Fallback: if supplier_id isn't set on the profile, try to find the matching
-  // suppliers row by organization name. Migration 026 back-fills this at the DB
-  // level; this ensures the page works even before that migration runs.
-  if (!supplierId && profile?.organization_name) {
-    const { data: matchedSupplier } = await (supabase.from("suppliers") as any)
-      .select("id")
-      .ilike("company_name", profile.organization_name)
-      .maybeSingle();
-    supplierId = matchedSupplier?.id ?? null;
+  // If supplier_id is not set on the profile, resolve it in three steps:
+  // 1. Look for an existing suppliers row matching the org name
+  // 2. If none found, create one from the profile data and link it
+  if (!supplierId) {
+    const orgName = profile?.organization_name ?? profile?.full_name ?? null;
+
+    // Step 1 — match by company name
+    if (orgName) {
+      const { data: matchedSupplier } = await (supabase.from("suppliers") as any)
+        .select("id")
+        .ilike("company_name", orgName)
+        .maybeSingle();
+      supplierId = matchedSupplier?.id ?? null;
+    }
+
+    // Step 2 — create a new suppliers row if still no match
+    if (!supplierId) {
+      const { data: newSupplier } = await (supabase.from("suppliers") as any)
+        .insert({
+          company_name:          profile?.organization_name ?? profile?.full_name ?? "Unnamed Exporter",
+          legal_entity_name:     profile?.organization_name ?? null,
+          country:               profile?.country ?? null,
+          primary_contact_name:  profile?.full_name ?? null,
+          status:                "pending",
+        })
+        .select("id")
+        .maybeSingle();
+      supplierId = newSupplier?.id ?? null;
+    }
+
+    // Step 3 — write the resolved id back to the profile so this only runs once
+    if (supplierId) {
+      await (supabase.from("profiles") as any)
+        .update({ supplier_id: supplierId })
+        .eq("id", user.id);
+    }
   }
 
   const { data: supplier } = supplierId
