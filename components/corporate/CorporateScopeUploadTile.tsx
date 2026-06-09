@@ -13,12 +13,12 @@ import type { StatusTone } from "@/types/platform";
 
 // Maps section_key → default document_kind for the upload API
 const SECTION_CATEGORY_MAP: Record<string, string> = {
-  supplier_legal_entity:        "Other",
-  supplier_contacts:            "Other",
+  supplier_legal_entity:        "Legal Entity and Ownership",
+  supplier_contacts:            "Primary Contacts",
   supplier_questionnaire:       "Supplier Questionnaire",
-  supplier_food_safety_policy:  "Food Safety Plan",
-  supplier_recall_traceability: "Recall Record",
-  supplier_importer_assurances: "Other",
+  supplier_food_safety_policy:  "Corporate Food Safety Policy",
+  supplier_recall_traceability: "Recall and Traceability Programs",
+  supplier_importer_assurances: "Importer Relationship and Written Assurances",
 };
 
 export interface SectionProgressProps {
