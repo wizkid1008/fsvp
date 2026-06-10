@@ -104,6 +104,17 @@ export default async function ProductsPage({
     evidence_count: evidenceCountByProduct.get(product.id) ?? 0,
   }));
 
+  let supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
+
+  // Same fallback as Facilities — guarantee own supplier appears so Add Product button shows
+  if (isSupplier && activeSupplierId && !supplierOptions.some((s) => s.id === activeSupplierId)) {
+    const { data: ownSupplier } = await (supabase.from("suppliers") as any)
+      .select("id, company_name")
+      .eq("id", activeSupplierId)
+      .maybeSingle();
+    if (ownSupplier) supplierOptions = [ownSupplier, ...supplierOptions];
+  }
+
   const accessByFacility = new Map<string, string[]>();
   for (const access of (facilityAccess ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
     const existing = accessByFacility.get(access.facility_id) ?? [];
@@ -112,7 +123,6 @@ export default async function ProductsPage({
   }
 
   const countryOptions  = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
-  const supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
   const facilityOptions = ((facilities ?? []) as Array<{ id: string; facility_name: string; supplier_id: string | null }>)
     .map((facility) => ({
       ...facility,

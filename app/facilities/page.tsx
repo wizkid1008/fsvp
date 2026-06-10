@@ -92,7 +92,21 @@ export default async function FacilitiesPage({
     }
   }
 
-  const supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
+  let supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
+
+  // Guarantee the current supplier-role user's own record appears in the form options
+  // even if the DB query returned empty (can happen when profiles.supplier_id isn't set
+  // yet or RLS hasn't propagated). Without this, canAddFacility = false hides the button.
+  if (isSupplier && ownSupplierId && !supplierOptions.some((s) => s.id === ownSupplierId)) {
+    const { data: ownSupplier } = await (supabase.from("suppliers") as any)
+      .select("id, company_name")
+      .eq("id", ownSupplierId)
+      .maybeSingle();
+    if (ownSupplier) {
+      supplierOptions = [ownSupplier, ...supplierOptions];
+    }
+  }
+
   const supplierById    = new Map(supplierOptions.map((s) => [s.id, s.company_name]));
   const accessByFacility = new Map<string, string[]>();
 
