@@ -49,7 +49,9 @@ export async function POST(request: NextRequest) {
   const contactName  = body.contact_name?.trim() ?? "";
   const country      = body.country?.trim() ?? "US";
   const notes        = body.notes?.trim() ?? null;
-  const supplierType = ["manufacturer", "trader", "broker", "exporter_manufacturer"].includes(body.supplier_type ?? "")
+  // Upstream suppliers must be manufacturers or brokers — not exporters.
+  // Exporters link at the importer level via importer_supplier_links.
+  const supplierType = ["manufacturer", "broker"].includes(body.supplier_type ?? "")
     ? body.supplier_type!
     : "manufacturer";
 

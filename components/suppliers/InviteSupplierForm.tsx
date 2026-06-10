@@ -8,11 +8,11 @@ import { CountryCombobox } from "@/components/profile/CountryCombobox";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 
+// Upstream suppliers are never exporters themselves in this context —
+// they supply TO the exporter. Only manufacturer/broker types belong here.
 const SUPPLIER_TYPES = [
-  { value: "manufacturer",          label: "Manufacturer / Processor" },
-  { value: "trader",                label: "Trader / Broker" },
-  { value: "broker",                label: "Broker only" },
-  { value: "exporter_manufacturer", label: "Exporter + Manufacturer" },
+  { value: "manufacturer", label: "Manufacturer / Processor" },
+  { value: "broker",       label: "Broker / Agent" },
 ];
 
 export function InviteSupplierForm({
@@ -71,6 +71,13 @@ export function InviteSupplierForm({
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100 transition">
             <X className="h-4 w-4 text-slate-500" />
           </button>
+        </div>
+        <div className="border-b border-line bg-amber-50 px-6 py-3">
+          <p className="text-xs text-amber-800">
+            <span className="font-semibold">Upstream suppliers</span> manufacture or process goods that you export.
+            They are <span className="font-semibold">not</span> exporters themselves — you hold the importer relationship.
+            If the company is itself an exporter, link them through the Importers module instead.
+          </p>
         </div>
 
         {success ? (
