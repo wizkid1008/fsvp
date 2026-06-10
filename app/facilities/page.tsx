@@ -5,6 +5,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSupplierType } from "@/lib/supplier-context";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -136,7 +137,7 @@ export default async function FacilitiesPage({
     : supplierOptions;
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} supplierType={await getSupplierType(supabase as any, ownSupplierId || null)}>
       <SectionHeader
         title={viewingLinkedSupplier
           ? `Facilities — ${viewingLinkedSupplier.company_name}`

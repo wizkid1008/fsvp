@@ -2,6 +2,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { MyEvidenceTable, type EvidenceRow } from "@/components/evidence/MyEvidenceTable";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { FileArchive } from "lucide-react";
@@ -28,10 +29,11 @@ export default async function MyEvidencePage() {
     ? await docsQuery.eq("supplier_id", supplierId)
     : await docsQuery.eq("uploaded_by_profile_id", user.id);
 
-  const documents = (rawDocs ?? []) as EvidenceRow[];
+  const documents    = (rawDocs ?? []) as EvidenceRow[];
+  const supplierType = await getSupplierType(supabase as any, supplierId || null);
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} supplierType={supplierType}>
       <SectionHeader
         title="My Evidence"
         description="All documents you have submitted. Upload evidence directly from the Corporate, Facilities, or Products pages."

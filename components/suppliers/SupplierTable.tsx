@@ -19,6 +19,7 @@ export type SupplierRow = {
   certification_status: string;
   fda_registration_number: string | null;
   contact_json: Record<string, string> | null;
+  supplier_type?: string | null;
   evidence_count?: number;
   updated_at: string;
 };
@@ -110,6 +111,11 @@ export function SupplierTable({ countries, suppliers }: { countries: CountryOpti
                   <tr key={supplier.id} className={`relative border-l-4 ${borderColor} hover:bg-slate-50 transition-colors`}>
                     <td className="px-4 py-3">
                       <p className="font-semibold text-ink">{supplier.company_name}</p>
+                      {supplier.supplier_type && (
+                        <span className="mt-0.5 inline-block text-xs capitalize text-slate-400">
+                          {supplier.supplier_type.replace(/_/g, " ")}
+                        </span>
+                      )}
                       {supplier.contact_json?.email && (
                         <p className="text-xs text-slate-500">{supplier.contact_json.email}</p>
                       )}

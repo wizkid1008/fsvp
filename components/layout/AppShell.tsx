@@ -10,14 +10,15 @@ import { RolePreviewBanner } from "@/components/admin/RolePreview";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { isExporterType, supplierRoleLabel } from "@/lib/supplier-context";
 import type { AppRole } from "@/types/platform";
 
 const PREVIEW_KEY = "fsvp_preview_role";
 
 const ROLE_LABELS: Record<AppRole, string> = {
-  supplier: "Supplier",
-  us_importer: "US Importer",
-  reviewer: "Reviewer",
+  supplier:      "Supplier",
+  us_importer:   "US Importer",
+  reviewer:      "Reviewer",
   administrator: "Administrator",
 };
 
@@ -33,13 +34,16 @@ function initials(name: string | null, email: string): string {
 
 export function AppShell({
   children,
-  role: serverRole = "supplier"
+  role: serverRole = "supplier",
+  supplierType: serverSupplierType,
 }: {
   children: React.ReactNode;
   role?: AppRole;
+  supplierType?: string | null;
 }) {
   const pathname = usePathname();
-  const [role, setRole] = useState<AppRole>(serverRole);
+  const [role, setRole]               = useState<AppRole>(serverRole);
+  const [supplierType, setSupplierType] = useState<string | null>(serverSupplierType ?? null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [userInitials, setUserInitials] = useState<string>("..");
 
@@ -57,27 +61,55 @@ export function AppShell({
       if (!user) return;
 
       const { data: profile } = await (supabase.from("profiles") as any)
-        .select("full_name, organization_name")
+        .select("full_name, organization_name, supplier_id")
         .eq("id", user.id)
         .maybeSingle();
 
       const name = profile?.full_name ?? null;
-      const email = user.email ?? "";
-      setUserInitials(initials(name, email));
-      setDisplayName(name || email.split("@")[0]);
+      setUserInitials(initials(name, user.email ?? ""));
+      setDisplayName(name || (user.email ?? "").split("@")[0]);
+
+      // Fetch supplier_type if not passed from server
+      if (!serverSupplierType && profile?.supplier_id) {
+        const { data: supplier } = await (supabase.from("suppliers") as any)
+          .select("supplier_type")
+          .eq("id", profile.supplier_id)
+          .maybeSingle();
+        if (supplier?.supplier_type) setSupplierType(supplier.supplier_type);
+      }
     }
     void loadUser();
-  }, []);
+  }, [serverSupplierType]);
 
   const { locale, t } = useLocale();
-  // Filter nav by preview role, but always show admin link for real administrators
+
+  // Determine which nav items to show
   const visibleItems = navItems.filter((item) => {
-    if (!item.roles) return true;
-    if (item.roles.includes(role)) return true;
-    // Always show admin to real admins even when previewing another role
-    if (serverRole === "administrator" && item.href === "/admin") return true;
-    return false;
+    // Role check
+    if (item.roles && !item.roles.includes(role)) {
+      // Always show admin to real admins even when previewing
+      if (serverRole === "administrator" && item.href === "/admin") return true;
+      return false;
+    }
+
+    // Supplier-type check (only applies when role is supplier)
+    if (role === "supplier" && item.supplierTypes && supplierType) {
+      const isExp = isExporterType(supplierType);
+      if (item.supplierTypes.includes("exporter") && !item.supplierTypes.includes("manufacturer")) {
+        return isExp;
+      }
+      if (item.supplierTypes.includes("manufacturer") && !item.supplierTypes.includes("exporter")) {
+        return !isExp;
+      }
+    }
+
+    return true;
   });
+
+  // Role label shown at the bottom of sidebar
+  const roleLabel = serverRole === "supplier" && supplierType
+    ? supplierRoleLabel(supplierType)
+    : ROLE_LABELS[role];
 
   return (
     <div className="min-h-screen bg-white text-black">
@@ -85,7 +117,7 @@ export function AppShell({
         <nav className="space-y-1">
           {visibleItems.map((item) => {
             const Icon = iconMap[item.icon as keyof typeof iconMap];
-            const active = pathname === item.href || item.matches?.some((route) => pathname.startsWith(route));
+            const active = pathname === item.href || item.matches?.some((r) => pathname.startsWith(r));
             return (
               <Link
                 key={item.href}
@@ -102,7 +134,6 @@ export function AppShell({
           })}
         </nav>
 
-        {/* Language + user identity at sidebar bottom */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-black/10 p-4 space-y-3">
           <LanguageSwitcher currentLocale={locale} />
           <Link href="/account" className="flex items-center gap-3 group">
@@ -114,7 +145,7 @@ export function AppShell({
                 {displayName ?? "..."}
               </p>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-black/40">
-                {ROLE_LABELS[role]}
+                {roleLabel}
               </p>
             </div>
           </Link>
@@ -123,7 +154,6 @@ export function AppShell({
 
       <div className="lg:pl-72">
         {serverRole === "administrator" && <RolePreviewBanner />}
-        {/* Mobile nav only; sidebar handles desktop navigation. */}
         <nav className="flex gap-2 overflow-x-auto border-b border-black/10 bg-white/95 px-5 py-2 lg:hidden">
           {visibleItems.map((item) => (
             <Link
@@ -131,7 +161,7 @@ export function AppShell({
               href={item.href}
               className={cn(
                 "whitespace-nowrap border px-3 py-2 text-sm font-bold",
-                pathname === item.href || item.matches?.some((route) => pathname.startsWith(route))
+                pathname === item.href || item.matches?.some((r) => pathname.startsWith(r))
                   ? "border-black bg-black text-white"
                   : "border-black/10 bg-white text-black/60"
               )}

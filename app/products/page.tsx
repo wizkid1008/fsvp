@@ -3,6 +3,7 @@ import { ProductTable, type ProductRow } from "@/components/products/ProductTabl
 import { SectionReadinessList } from "@/components/readiness/SectionReadinessList";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
+import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Country } from "@/types/database";
@@ -131,7 +132,7 @@ export default async function ProductsPage({
     .filter((facility) => !isSupplier || Boolean(activeSupplierId && facility.supplier_ids.includes(activeSupplierId)));
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} supplierType={isSupplier ? await getSupplierType(supabase as any, ownSupplierId || null) : undefined}>
       <SectionHeader
         title={viewingLinkedSupplier
           ? `Products — ${viewingLinkedSupplier.company_name}`

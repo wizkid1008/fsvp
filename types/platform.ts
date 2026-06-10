@@ -9,6 +9,10 @@ export type NavItem = {
   matches?: string[];
   roles?: AppRole[];
   tKey?: string;
+  // "exporter" = export-eligible supplier types (exporter, exporter_manufacturer, trader)
+  // "manufacturer" = non-exporting types (manufacturer, broker)
+  // If omitted, shown to all supplier types
+  supplierTypes?: ("exporter" | "manufacturer")[];
 };
 
 export type ModuleRecord = {

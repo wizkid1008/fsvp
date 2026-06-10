@@ -13,7 +13,10 @@ export default async function SuppliersPage() {
 
   const [{ data: rawSuppliers }, { data: countries }, { data: products }, { data: facilities }, { data: facilityAccess }, { data: documents }] = await Promise.all([
     (supabase.from("suppliers") as any)
-      .select("id, company_name, legal_entity_name, country, website, approval_status, certification_status, fda_registration_number, contact_json, updated_at")
+      .select("id, company_name, legal_entity_name, country, website, approval_status, certification_status, fda_registration_number, contact_json, supplier_type, updated_at")
+      // Only show export-eligible suppliers on the importer Suppliers page.
+      // Manufacturers/brokers are upstream of exporters and not directly the importer's concern.
+      .in("supplier_type", ["exporter", "exporter_manufacturer", "trader"])
       .order("updated_at", { ascending: false }),
     (supabase.from("countries") as any)
       .select("country_code,country_name")

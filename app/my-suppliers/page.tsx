@@ -2,6 +2,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { LinkedSuppliersPanel } from "@/components/suppliers/LinkedSuppliersPanel";
 import { LinkedExportersPanel } from "@/components/suppliers/LinkedExportersPanel";
+import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Country } from "@/types/database";
@@ -97,8 +98,10 @@ export default async function MySuppliersPage() {
     } : null,
   }));
 
+  const supplierType = await getSupplierType(supabase as any, supplierId);
+
   return (
-    <AppShell role={role}>
+    <AppShell role={role} supplierType={supplierType}>
       <SectionHeader
         title="My Suppliers"
         description="Add and manage the manufacturers or processors that produce goods you export. Link them here, then add their facilities and products."

@@ -39,23 +39,37 @@ export const iconMap = {
   Warehouse
 };
 
+// supplierTypes: if set, item only shows when the logged-in supplier's
+// supplier_type is in this list. "exporter" means export-eligible types
+// (exporter, exporter_manufacturer, trader). "manufacturer" means non-exporters.
 export const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", tKey: "nav.dashboard" },
-  { href: "/corporate", label: "Corporate", icon: "Building2", roles: ["supplier"], matches: ["/corporate"] },
-  { href: "/my-suppliers", label: "My Suppliers", icon: "UsersRound", roles: ["supplier"], matches: ["/my-suppliers"] },
-  { href: "/suppliers", label: "Suppliers", icon: "Building2", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.suppliers" },
-  { href: "/facilities", label: "Facilities", icon: "Warehouse", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.facilities" },
-  { href: "/products", label: "Products", icon: "PackageSearch", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.products" },
-  { href: "/my-evidence", label: "My Evidence", icon: "FileArchive", roles: ["supplier"], tKey: "nav.myEvidence" },
-  { href: "/my-requests", label: "Action Items", icon: "AlertTriangle", roles: ["supplier"], tKey: "nav.actionItems" },
-  { href: "/evidence", label: "Evidence", icon: "FileArchive", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.evidence" },
-  { href: "/fsvp-records", label: "FSVP Records", icon: "FolderCheck", roles: ["us_importer", "reviewer", "administrator"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
+  { href: "/dashboard",    label: "Dashboard",     icon: "LayoutDashboard", tKey: "nav.dashboard" },
+
+  // ── Exporter-only nav ────────────────────────────────────────
+  { href: "/corporate",    label: "Corporate",     icon: "Building2",   roles: ["supplier"], supplierTypes: ["exporter"], matches: ["/corporate"] },
+  { href: "/my-suppliers", label: "My Suppliers",  icon: "UsersRound",  roles: ["supplier"], supplierTypes: ["exporter"], matches: ["/my-suppliers"] },
+
+  // ── Manufacturer-only nav ────────────────────────────────────
+  { href: "/my-tasks",     label: "My Tasks",      icon: "ClipboardList", roles: ["supplier"], supplierTypes: ["manufacturer"], matches: ["/my-tasks"] },
+
+  // ── All supplier types ───────────────────────────────────────
+  { href: "/facilities",   label: "Facilities",    icon: "Warehouse",   roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.facilities" },
+  { href: "/products",     label: "Products",      icon: "PackageSearch", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.products" },
+  { href: "/my-evidence",  label: "My Evidence",   icon: "FileArchive", roles: ["supplier"], tKey: "nav.myEvidence" },
+  { href: "/my-requests",  label: "Action Items",  icon: "AlertTriangle", roles: ["supplier"], tKey: "nav.actionItems" },
+
+  // ── Importer nav ─────────────────────────────────────────────
+  { href: "/suppliers",    label: "Suppliers",     icon: "Building2",   roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.suppliers" },
+  { href: "/evidence",     label: "Evidence",      icon: "FileArchive", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.evidence" },
+  { href: "/fsvp-records", label: "FSVP Records",  icon: "FolderCheck", roles: ["us_importer", "reviewer", "administrator"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
   { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer", "administrator"], tKey: "nav.gapsActions" },
-  { href: "/readiness", label: "Readiness", icon: "Gauge", roles: ["us_importer", "administrator"], tKey: "nav.readiness" },
-  { href: "/reports", label: "Reports", icon: "FileCheck2", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.reports" },
-  { href: "/reviewer", label: "Review Queue", icon: "ClipboardCheck", roles: ["reviewer", "administrator"], tKey: "nav.reviewQueue" },
-  { href: "/audit-log", label: "Audit Log", icon: "ClipboardList", roles: ["reviewer", "administrator"], tKey: "nav.auditLog" },
-  { href: "/admin", label: "Admin", icon: "ShieldCheck", roles: ["administrator"], tKey: "nav.admin" },
+  { href: "/readiness",    label: "Readiness",     icon: "Gauge",       roles: ["us_importer", "administrator"], tKey: "nav.readiness" },
+  { href: "/reports",      label: "Reports",       icon: "FileCheck2",  roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.reports" },
+
+  // ── Reviewer + Admin nav ─────────────────────────────────────
+  { href: "/reviewer",     label: "Review Queue",  icon: "ClipboardCheck", roles: ["reviewer", "administrator"], tKey: "nav.reviewQueue" },
+  { href: "/audit-log",    label: "Audit Log",     icon: "ClipboardList",  roles: ["reviewer", "administrator"], tKey: "nav.auditLog" },
+  { href: "/admin",        label: "Admin",         icon: "ShieldCheck", roles: ["administrator"], tKey: "nav.admin" },
 ];
 
 export const dashboardMetrics = [
