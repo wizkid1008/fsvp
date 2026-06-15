@@ -60,8 +60,9 @@ export async function ExporterDashboard({
 
     // Upstream suppliers
     supplierId
-      ? (supabase.from("exporter_supplier_links") as any)
+      ? (supabase.from("supplier_relationships") as any)
           .select("id, status, supplier:supplier_id(company_name, supplier_type)")
+          .eq("relationship_type", "exporter_supplier")
           .eq("exporter_id", supplierId)
           .eq("status", "active")
       : Promise.resolve({ data: [] }),

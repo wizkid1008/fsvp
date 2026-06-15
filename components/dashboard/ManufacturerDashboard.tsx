@@ -40,8 +40,9 @@ export async function ManufacturerDashboard({
 
     // Exporters that have linked this manufacturer
     supplierId
-      ? (supabase.from("exporter_supplier_links") as any)
+      ? (supabase.from("supplier_relationships") as any)
           .select("id, status, exporter:exporter_id(id, company_name, country)")
+          .eq("relationship_type", "exporter_supplier")
           .eq("supplier_id", supplierId)
           .eq("status", "active")
       : Promise.resolve({ data: [] }),

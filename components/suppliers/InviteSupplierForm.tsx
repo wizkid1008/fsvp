@@ -102,7 +102,7 @@ export function InviteSupplierForm({
                 </select>
               </label>
 
-              <CountryCombobox countries={countries} defaultValue="US" />
+              <CountryCombobox countries={countries} required />
             </div>
 
             <div className="border-t border-line pt-4">

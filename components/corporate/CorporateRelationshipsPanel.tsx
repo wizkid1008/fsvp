@@ -22,22 +22,24 @@ export async function CorporateRelationshipsPanel({
   // Fetch both directions in parallel
   const [upstreamRes, exporterRes] = await Promise.all([
     // Upstream suppliers this entity has linked (as exporter)
-    (supabase.from("exporter_supplier_links") as any)
+    (supabase.from("supplier_relationships") as any)
       .select(`
         id, status,
         supplier:supplier_id ( id, company_name, country, approval_status, supplier_type )
       `)
+      .eq("relationship_type", "exporter_supplier")
       .eq("exporter_id", supplierId)
       .in("status", ["active", "pending_invite"])
       .order("created_at", { ascending: false })
       .limit(5),
 
     // Exporters this entity supplies to (as upstream supplier)
-    (supabase.from("exporter_supplier_links") as any)
+    (supabase.from("supplier_relationships") as any)
       .select(`
         id, status,
         exporter:exporter_id ( id, company_name, country, approval_status )
       `)
+      .eq("relationship_type", "exporter_supplier")
       .eq("supplier_id", supplierId)
       .eq("status", "active")
       .order("accepted_at", { ascending: false })

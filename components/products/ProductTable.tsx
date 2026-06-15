@@ -277,11 +277,13 @@ export function ProductTable({
   countries,
   facilities,
   products,
+  supplierHref = "/suppliers",
   suppliers
 }: {
   countries: CountryOption[];
   facilities: FacilityOption[];
   products: ProductRow[];
+  supplierHref?: string;
   suppliers: SupplierOption[];
 }) {
   const [showForm, setShowForm] = useState(false);
@@ -342,7 +344,7 @@ export function ProductTable({
             </button>
           ) : (
             <a
-              href={suppliers.length === 0 ? "/suppliers" : "/facilities"}
+              href={suppliers.length === 0 ? supplierHref : "/facilities"}
               className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
             >
               {suppliers.length === 0 ? "Add a supplier first" : "Add a facility first"}

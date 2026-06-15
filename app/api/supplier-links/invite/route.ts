@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   const companyName = body.company_name?.trim() ?? "";
   const contactEmail = body.contact_email?.trim().toLowerCase() ?? "";
   const contactName  = body.contact_name?.trim() ?? "";
-  const country      = body.country?.trim() ?? "US";
+  const country      = body.country?.trim() ?? "";
   const notes        = body.notes?.trim() ?? null;
   // Upstream suppliers must be manufacturers or brokers — not exporters.
   // Exporters link at the importer level via importer_supplier_links.
@@ -57,6 +57,9 @@ export async function POST(request: NextRequest) {
 
   if (!companyName) {
     return NextResponse.json({ error: "Company name is required." }, { status: 400 });
+  }
+  if (!country) {
+    return NextResponse.json({ error: "Country is required." }, { status: 400 });
   }
   if (contactEmail && !isValidEmail(contactEmail)) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
@@ -101,8 +104,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Check for an existing link
-    const { data: existingLink } = await (supabase.from("exporter_supplier_links") as any)
+    const { data: existingLink } = await (supabase.from("supplier_relationships") as any)
       .select("id, status")
+      .eq("relationship_type", "exporter_supplier")
       .eq("exporter_id", exporterId)
       .eq("supplier_id", supplierId)
       .maybeSingle();
@@ -112,14 +116,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "This supplier is already linked to your account." }, { status: 409 });
       }
       // Re-activate declined/terminated link
-      await (supabase.from("exporter_supplier_links") as any)
+      await (supabase.from("supplier_relationships") as any)
         .update({ status: "pending_invite", invite_email: contactEmail || null, invite_sent_at: new Date().toISOString() })
         .eq("id", existingLink.id);
     } else {
       // 3. Create the link record
       const token = generateToken();
-      const { error: linkError } = await (supabase.from("exporter_supplier_links") as any)
+      const { error: linkError } = await (supabase.from("supplier_relationships") as any)
         .insert({
+          relationship_type:     "exporter_supplier",
           exporter_id:           exporterId,
           supplier_id:           supplierId,
           status:                contactEmail ? "pending_invite" : "active",
@@ -127,7 +132,7 @@ export async function POST(request: NextRequest) {
           invite_token:          contactEmail ? token : null,
           invite_sent_at:        contactEmail ? new Date().toISOString() : null,
           accepted_at:           contactEmail ? null : new Date().toISOString(),
-          invited_by_profile_id: user.id,
+          linked_by_profile_id:  user.id,
           notes,
         });
 
@@ -179,7 +184,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, supplier_id: supplierId });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not create supplier link.";
+    const message =
+      err instanceof Error ? err.message :
+      (err as { message?: string })?.message ?? "Could not create supplier link.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

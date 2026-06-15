@@ -21,13 +21,14 @@ export async function LinkedExportersPanel({
 }) {
   if (!supplierId) return null;
 
-  const { data: links } = await (supabase.from("exporter_supplier_links") as any)
+  const { data: links } = await (supabase.from("supplier_relationships") as any)
     .select(`
       id, status, accepted_at,
       exporter:exporter_id (
         id, company_name, country, approval_status, portal_status
       )
     `)
+    .eq("relationship_type", "exporter_supplier")
     .eq("supplier_id", supplierId)
     .eq("status", "active")
     .order("accepted_at", { ascending: false });

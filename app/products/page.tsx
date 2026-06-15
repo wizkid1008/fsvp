@@ -34,8 +34,9 @@ export default async function ProductsPage({
   let viewingLinkedSupplier: { id: string; company_name: string } | null = null;
 
   if (isSupplier && ownSupplierId && viewId && viewId !== ownSupplierId) {
-    const { data: link } = await (supabase.from("exporter_supplier_links") as any)
+    const { data: link } = await (supabase.from("supplier_relationships") as any)
       .select("supplier_id, supplier:supplier_id(id, company_name)")
+      .eq("relationship_type", "exporter_supplier")
       .eq("exporter_id", ownSupplierId)
       .eq("supplier_id", viewId)
       .eq("status", "active")
@@ -49,8 +50,9 @@ export default async function ProductsPage({
 
   // Fetch linked suppliers for context switcher dropdown
   const { data: linkedSupplierRows } = isSupplier && ownSupplierId
-    ? await (supabase.from("exporter_supplier_links") as any)
+    ? await (supabase.from("supplier_relationships") as any)
         .select("supplier:supplier_id(id, company_name)")
+        .eq("relationship_type", "exporter_supplier")
         .eq("exporter_id", ownSupplierId)
         .eq("status", "active")
     : { data: [] };
@@ -168,6 +170,7 @@ export default async function ProductsPage({
           countries={countryOptions}
           facilities={facilityOptions}
           products={products}
+          supplierHref={isSupplier ? "/my-suppliers" : "/suppliers"}
           suppliers={supplierOptions}
         />
       </div>

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Find the link by token
-  const { data: link } = await (supabase.from("exporter_supplier_links") as any)
+  const { data: link } = await (supabase.from("supplier_relationships") as any)
     .select("id, exporter_id, supplier_id, status, invite_email")
     .eq("invite_token", token)
     .maybeSingle();
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   // Update link status
   const now = new Date().toISOString();
-  await (supabase.from("exporter_supplier_links") as any)
+  await (supabase.from("supplier_relationships") as any)
     .update(declining
       ? { status: "declined", declined_at: now }
       : { status: "active",  accepted_at: now, invite_token: null }
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerSupabaseClient();
 
-  const { data: link } = await (supabase.from("exporter_supplier_links") as any)
+  const { data: link } = await (supabase.from("supplier_relationships") as any)
     .select(`
       id, status, invite_email,
       exporter:exporter_id ( company_name ),

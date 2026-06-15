@@ -18,7 +18,7 @@ export default async function AcceptInvitePage({
   // Look up the invite server-side
   const supabase = createServerSupabaseClient();
 
-  const { data: link } = await (supabase.from("exporter_supplier_links") as any)
+  const { data: link } = await (supabase.from("supplier_relationships") as any)
     .select(`
       id, status, invite_email,
       exporter:exporter_id ( company_name ),

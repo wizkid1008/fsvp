@@ -358,10 +358,12 @@ function AddFacilityForm({
 export function FacilityTable({
   countries,
   facilities,
+  supplierHref = "/suppliers",
   suppliers
 }: {
   countries: CountryOption[];
   facilities: FacilityRow[];
+  supplierHref?: string;
   suppliers: SupplierOption[];
 }) {
   const [showForm, setShowForm] = useState(false);
@@ -422,7 +424,7 @@ export function FacilityTable({
             </button>
           ) : (
             <a
-              href="/suppliers"
+              href={supplierHref}
               className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
             >
               Add a supplier first

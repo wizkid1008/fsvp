@@ -19,14 +19,16 @@ export async function ExportEligibilityBanner({
   const isEligible = EXPORT_ELIGIBLE_TYPES.includes(supplierType ?? "");
 
   // Count active importer links
-  const { count: importerLinkCount } = await (supabase.from("importer_supplier_links") as any)
+  const { count: importerLinkCount } = await (supabase.from("supplier_relationships") as any)
     .select("id", { count: "exact", head: true })
+    .eq("relationship_type", "importer_supplier")
     .eq("supplier_id", supplierId)
-    .eq("relationship_status", "active") as { count: number | null };
+    .eq("status", "active") as { count: number | null };
 
   // Count exporters this entity supplies to (if it's a manufacturer)
-  const { count: exporterLinkCount } = await (supabase.from("exporter_supplier_links") as any)
+  const { count: exporterLinkCount } = await (supabase.from("supplier_relationships") as any)
     .select("id", { count: "exact", head: true })
+    .eq("relationship_type", "exporter_supplier")
     .eq("supplier_id", supplierId)
     .eq("status", "active") as { count: number | null };
 

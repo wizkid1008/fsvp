@@ -33,8 +33,9 @@ export default async function FacilitiesPage({
 
   if (isSupplier && ownSupplierId && viewId && viewId !== ownSupplierId) {
     // Validate the requested view is actually a linked supplier
-    const { data: link } = await (supabase.from("exporter_supplier_links") as any)
+    const { data: link } = await (supabase.from("supplier_relationships") as any)
       .select("supplier_id, supplier:supplier_id(id, company_name)")
+      .eq("relationship_type", "exporter_supplier")
       .eq("exporter_id", ownSupplierId)
       .eq("supplier_id", viewId)
       .eq("status", "active")
@@ -48,8 +49,9 @@ export default async function FacilitiesPage({
 
   // Fetch linked suppliers for context switcher dropdown
   const { data: linkedSupplierRows } = isSupplier && ownSupplierId
-    ? await (supabase.from("exporter_supplier_links") as any)
+    ? await (supabase.from("supplier_relationships") as any)
         .select("supplier:supplier_id(id, company_name)")
+        .eq("relationship_type", "exporter_supplier")
         .eq("exporter_id", ownSupplierId)
         .eq("status", "active")
     : { data: [] };
@@ -172,6 +174,7 @@ export default async function FacilitiesPage({
         <FacilityTable
           countries={countryOptions}
           facilities={facilities}
+          supplierHref={isSupplier ? "/my-suppliers" : "/suppliers"}
           suppliers={formSupplierOptions}
         />
       </div>
