@@ -69,8 +69,12 @@ export async function POST(request: NextRequest) {
     // 1. Find or create the supplier record for this company
     let supplierId: string | null = null;
 
+    // Use the admin client for supplier lookup/creation to bypass RLS —
+    // creating a shared supplier record is a system-level operation.
+    const adminSupabase = createAdminSupabaseClient();
+
     // Check if a suppliers row with this name already exists
-    const { data: existingSupplier } = await (supabase.from("suppliers") as any)
+    const { data: existingSupplier } = await (adminSupabase.from("suppliers") as any)
       .select("id")
       .ilike("company_name", companyName)
       .maybeSingle();
@@ -79,7 +83,7 @@ export async function POST(request: NextRequest) {
       supplierId = existingSupplier.id;
     } else {
       // Create a new suppliers row for this upstream supplier
-      const { data: newSupplier, error: createError } = await (supabase.from("suppliers") as any)
+      const { data: newSupplier, error: createError } = await (adminSupabase.from("suppliers") as any)
         .insert({
           company_name:      companyName,
           legal_entity_name: companyName,
