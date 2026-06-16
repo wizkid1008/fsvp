@@ -464,7 +464,7 @@ export function ProductTable({
                   <td className="px-4 py-3 text-slate-600">{product.allergen_information ?? "None declared"}</td>
                   <td className="px-4 py-3">
                     <a
-                      href={`/evidence?entity=product&id=${product.id}`}
+                      href={`/products/${product.id}`}
                       className="font-semibold text-forest hover:underline"
                     >
                       {product.evidence_count ?? 0} documents

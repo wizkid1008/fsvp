@@ -509,7 +509,7 @@ export function FacilityTable({
                     </td>
                     <td className="px-4 py-3">
                       <a
-                        href={`/evidence?entity=facility&id=${facility.id}`}
+                        href={`/facilities/${facility.id}`}
                         className="font-semibold text-forest hover:underline"
                       >
                         {facility.evidence_count ?? 0} documents
