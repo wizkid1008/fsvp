@@ -1,0 +1,76 @@
+// POST { id?, product_name, supplier_id, facility_id, country_of_origin, raw_or_processed,
+//        intended_use, ingredient_list, allergen_information, product_description }
+// Creates or updates a product. Uses the admin client for the write so RLS never blocks a
+// legitimate save — the same broken-FK/overlapping-policy issue documented in
+// app/api/documents/upload/route.ts also affects products_verify (multiple RLS policies from
+// different schema generations don't agree on importer/admin-on-behalf-of-supplier writes).
+// Authorization is enforced here instead: a supplier may only write their own supplier_id;
+// reviewers/importers/admins may write any supplier's product.
+
+import { NextRequest, NextResponse } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+
+export const runtime = "edge";
+
+const NON_SUPPLIER_ROLES = new Set(["reviewer", "administrator", "us_importer"]);
+
+export async function POST(req: NextRequest) {
+  const supabase = createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: profile } = await (supabase.from("profiles") as any)
+    .select("role, supplier_id, importer_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 403 });
+
+  const body = await req.json();
+  const {
+    id, product_name, supplier_id, facility_id, country_of_origin,
+    raw_or_processed, intended_use, ingredient_list, allergen_information, product_description,
+  } = body as Record<string, string | null | undefined>;
+
+  if (!product_name || !supplier_id || !facility_id || !country_of_origin) {
+    return NextResponse.json({ error: "product_name, supplier_id, facility_id, and country_of_origin are required" }, { status: 400 });
+  }
+
+  const isOwnSupplier = profile.role === "supplier" && profile.supplier_id === supplier_id;
+  if (!isOwnSupplier && !NON_SUPPLIER_ROLES.has(profile.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const admin = createAdminSupabaseClient();
+
+  const facility = await (admin.from("facilities_verify") as any)
+    .select("id, supplier_id")
+    .eq("id", facility_id)
+    .maybeSingle();
+
+  if (facility.error || !facility.data || facility.data.supplier_id !== supplier_id) {
+    return NextResponse.json({ error: "Select a facility that belongs to the selected supplier." }, { status: 400 });
+  }
+
+  const record: Record<string, unknown> = {
+    product_name,
+    supplier_id,
+    facility_id,
+    country_of_origin,
+    raw_or_processed: raw_or_processed || null,
+    intended_use: intended_use || null,
+    ingredient_list: ingredient_list || null,
+    allergen_information: allergen_information || null,
+    product_description: product_description || null,
+  };
+  if (profile.importer_id) record.importer_id = profile.importer_id;
+
+  const result = id
+    ? await (admin.from("products_verify") as any).update(record).eq("id", id).select("id").single()
+    : await (admin.from("products_verify") as any).insert(record).select("id").single();
+
+  if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
+
+  return NextResponse.json({ id: result.data.id });
+}

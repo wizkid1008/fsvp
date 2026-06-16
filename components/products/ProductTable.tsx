@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit2, PackageSearch, X } from "lucide-react";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Country } from "@/types/database";
 
@@ -184,24 +183,15 @@ function AddProductForm({
           allergen_information: allergenInformation,
           product_description: clean(formData.get("product_description"))
         };
-        const supabase = createBrowserSupabaseClient();
-        const {
-          data: { user }
-        } = await supabase.auth.getUser();
-        const { data: profile } = user
-          ? await (supabase.from("profiles") as any)
-              .select("importer_id")
-              .eq("id", user.id)
-              .maybeSingle()
-          : { data: null };
-        const savePayload = profile?.importer_id
-          ? { ...payload, importer_id: profile.importer_id }
-          : payload;
-        const { error: saveError } = product
-          ? await (supabase.from("products_verify") as any).update(savePayload).eq("id", product.id)
-          : await (supabase.from("products_verify") as any).insert(savePayload);
 
-        if (saveError) throw saveError;
+        const res = await fetch("/api/products/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(product ? { ...payload, id: product.id } : payload),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Could not save product.");
+
         router.refresh();
         onClose();
       } catch (err) {
