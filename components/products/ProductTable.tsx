@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit2, PackageSearch, X } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import { CountryCombobox } from "@/components/profile/CountryCombobox";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Country } from "@/types/database";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
@@ -19,6 +19,7 @@ type FacilityOption = {
   facility_name: string;
   supplier_id?: string | null;
   supplier_ids?: string[];
+  country?: string | null;
 };
 
 export type ProductRow = {
@@ -35,7 +36,15 @@ export type ProductRow = {
   suppliers: { company_name: string } | null;
   facilities_verify: { facility_name: string } | null;
   evidence_count?: number;
+  approval_status?: string;
 };
+
+function approvalTone(status?: string): "success" | "warning" | "danger" | "neutral" {
+  if (status === "approved") return "success";
+  if (status === "conditionally_approved") return "warning";
+  if (status === "improvement_required" || status === "not_approved") return "danger";
+  return "neutral";
+}
 
 const INTENDED_USES = [
   { value: "", label: "Select intended use" },
@@ -96,6 +105,8 @@ function AddProductForm({
         : [];
     return supplierIds.includes(supplierId);
   });
+  const selectedFacility = facilities.find((facility) => facility.id === facilityId) ?? null;
+  const facilityCountry = selectedFacility?.country ?? null;
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -104,13 +115,6 @@ function AddProductForm({
 
     startTransition(async () => {
       try {
-        const country = clean(formData.get("country_of_origin"));
-
-        if (!country || !countries.some((option) => option.country_name.toLowerCase() === country.toLowerCase())) {
-          setError("Select a country of origin from the dropdown list.");
-          return;
-        }
-
         const selectedSupplierId = clean(formData.get("supplier_id"));
         const selectedFacilityId = clean(formData.get("facility_id"));
 
@@ -119,15 +123,23 @@ function AddProductForm({
           return;
         }
 
-        if (!selectedFacilityId || !facilities.some((facility) => {
+        const matchedFacility = facilities.find((facility) => {
           const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
             ? facility.supplier_ids
             : facility.supplier_id
               ? [facility.supplier_id]
               : [];
           return facility.id === selectedFacilityId && supplierIds.includes(selectedSupplierId);
-        })) {
+        });
+
+        if (!selectedFacilityId || !matchedFacility) {
           setError("Select a facility that is available to the selected supplier.");
+          return;
+        }
+
+        const country = matchedFacility.country ?? null;
+        if (!country) {
+          setError("The selected facility has no country set. Add a country to the facility's address before creating a product.");
           return;
         }
 
@@ -225,7 +237,16 @@ function AddProductForm({
                 <span className="mt-1 block text-xs text-amber-700">Add a facility for this supplier before creating a product.</span>
               ) : null}
             </label>
-            <CountryCombobox countries={countries} defaultValue={product?.country_of_origin ?? ""} label="Country of origin" name="country_of_origin" required />
+            <label className={labelClass}>
+              Country of origin
+              <input
+                readOnly
+                disabled
+                value={facilityCountry ?? (facilityId ? "Facility has no country set" : "Select a facility first")}
+                className={`${inputClass} cursor-not-allowed bg-slate-50 text-slate-600`}
+              />
+              <span className="mt-1 block text-xs text-slate-400">Inherited from the selected facility.</span>
+            </label>
             <label className={labelClass}>
               Intended Use
               <select name="intended_use" className={inputClass} defaultValue={product?.intended_use ?? ""}>
@@ -357,6 +378,7 @@ export function ProductTable({
             <thead>
               <tr className="border-b border-line bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Product</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Facility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Origin</th>
@@ -369,7 +391,16 @@ export function ProductTable({
             <tbody className="divide-y divide-line">
               {products.map((product) => (
                 <tr key={product.id} className="transition-colors hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-ink">{product.product_name}</td>
+                  <td className="px-4 py-3 font-medium text-ink">
+                    <a href={`/products/${product.id}`} className="text-forest hover:underline">
+                      {product.product_name}
+                    </a>
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge tone={approvalTone(product.approval_status)}>
+                      {labelize(product.approval_status ?? "pending")}
+                    </StatusBadge>
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{product.suppliers?.company_name ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{product.facilities_verify?.facility_name ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{product.country_of_origin ?? "-"}</td>

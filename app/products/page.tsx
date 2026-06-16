@@ -1,7 +1,8 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { ProductTable, type ProductRow } from "@/components/products/ProductTable";
-import { SectionReadinessList } from "@/components/readiness/SectionReadinessList";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import type { StatusTone } from "@/types/platform";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
 import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -64,13 +65,13 @@ export default async function ProductsPage({
     .filter(Boolean) as Array<{ id: string; company_name: string }>;
 
   let productsQuery = (supabase.from("products_verify") as any)
-    .select("id, product_name, product_description, country_of_origin, raw_or_processed, intended_use, ingredient_list, allergen_information, supplier_id, facility_id, suppliers(company_name), facilities_verify(facility_name)")
+    .select("id, product_name, product_description, country_of_origin, raw_or_processed, intended_use, ingredient_list, allergen_information, supplier_id, facility_id, approval_status, suppliers(company_name), facilities_verify(facility_name)")
     .order("created_at", { ascending: false });
   let suppliersQuery = (supabase.from("suppliers") as any)
     .select("id, company_name")
     .order("company_name");
   let facilitiesQuery = (supabase.from("facilities_verify") as any)
-    .select("id, facility_name, supplier_id")
+    .select("id, facility_name, supplier_id, facility_address_json")
     .order("facility_name");
   let facilityAccessQuery = (supabase.from("facility_supplier_access") as any)
     .select("facility_id, supplier_id")
@@ -126,12 +127,29 @@ export default async function ProductsPage({
   }
 
   const countryOptions  = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
-  const facilityOptions = ((facilities ?? []) as Array<{ id: string; facility_name: string; supplier_id: string | null }>)
+  const facilityOptions = ((facilities ?? []) as Array<{
+    id: string;
+    facility_name: string;
+    supplier_id: string | null;
+    facility_address_json: { country?: string } | null;
+  }>)
     .map((facility) => ({
-      ...facility,
+      id: facility.id,
+      facility_name: facility.facility_name,
+      supplier_id: facility.supplier_id,
+      country: facility.facility_address_json?.country ?? null,
       supplier_ids: accessByFacility.get(facility.id) ?? (facility.supplier_id ? [facility.supplier_id] : []),
     }))
     .filter((facility) => !isSupplier || Boolean(activeSupplierId && facility.supplier_ids.includes(activeSupplierId)));
+
+  const productsAdded = products.length;
+  const productsApproved = products.filter((p) => p.approval_status === "approved").length;
+  const productsNeedingUpdates = products.filter((p) =>
+    ["improvement_required", "not_approved", "conditionally_approved"].includes(p.approval_status ?? "")
+  ).length;
+
+  const metricTone = (v: number, warnAbove = 0): StatusTone =>
+    v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";
 
   return (
     <AppShell role={role} supplierType={isSupplier ? await getSupplierType(supabase as any, ownSupplierId || null) : undefined}>
@@ -153,17 +171,21 @@ export default async function ProductsPage({
         />
       )}
 
-      {isSupplier && (
-        <div className="mt-6">
-          <SectionReadinessList
-            appliesTo="product"
-            emptyText="Product readiness requirements are not configured yet."
-            supplierId={activeSupplierId}
-            supabase={supabase}
-            title="Product Readiness Requirements"
-          />
-        </div>
-      )}
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        {[
+          { label: "Products Added", value: productsAdded, tone: "info" as StatusTone },
+          { label: "Products Approved", value: productsApproved, tone: "success" as StatusTone },
+          { label: "Products Needing Updates", value: productsNeedingUpdates, tone: metricTone(productsNeedingUpdates, 0) },
+        ].map((m) => (
+          <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
+            <p className="text-xs font-medium text-slate-500">{m.label}</p>
+            <div className="mt-2 flex items-end justify-between">
+              <p className="text-3xl font-semibold text-ink">{m.value}</p>
+              <StatusBadge tone={m.tone}>{m.value > 0 ? "Active" : "None"}</StatusBadge>
+            </div>
+          </div>
+        ))}
+      </div>
 
       <div className="mt-6">
         <ProductTable

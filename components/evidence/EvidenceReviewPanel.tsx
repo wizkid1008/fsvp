@@ -18,14 +18,21 @@ interface ReviewDocument {
   review_notes: string | null;
   expiration_date: string | null;
   linked_entity_type: string | null;
+  facility_id: string | null;
   requirement_item_name: string | null;
   uploaded_by_name: string | null;
+}
+
+interface FacilityOption {
+  id: string;
+  facility_name: string;
 }
 
 interface SupplierGroup {
   supplier_id: string;
   supplier_name: string;
   documents: ReviewDocument[];
+  facilities: FacilityOption[];
 }
 
 function evidenceTone(status: EvidenceStatus): StatusTone {
@@ -49,11 +56,52 @@ function evidenceLabel(status: EvidenceStatus): string {
   return map[status] ?? status;
 }
 
+function LinkedToCell({ doc, facilities }: { doc: ReviewDocument; facilities: FacilityOption[] }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const value = doc.linked_entity_type === "facility" ? (doc.facility_id ?? "") : "supplier";
+
+  function handleChange(next: string) {
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch("/api/documents/relink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          next === "supplier"
+            ? { document_id: doc.id, link_type: "supplier" }
+            : { document_id: doc.id, link_type: "facility", facility_id: next }
+        ),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error); return; }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div>
+      <select
+        value={value}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={pending}
+        className="rounded-md border border-line bg-white px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
+      >
+        <option value="supplier">Supplier-wide (exporter level)</option>
+        {facilities.map((f) => (
+          <option key={f.id} value={f.id}>{f.facility_name}</option>
+        ))}
+      </select>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 function ReviewActions({ doc }: { doc: ReviewDocument }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState(doc.review_notes ?? "");
-  const [expDate, setExpDate] = useState(doc.expiration_date ?? "");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +115,7 @@ function ReviewActions({ doc }: { doc: ReviewDocument }) {
       const res = await fetch("/api/evidence/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document_id: doc.id, decision, notes: notes.trim() || undefined, expiration_date: expDate || undefined }),
+        body: JSON.stringify({ document_id: doc.id, decision, notes: notes.trim() || undefined }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error); return; }
@@ -98,15 +146,6 @@ function ReviewActions({ doc }: { doc: ReviewDocument }) {
             rows={3}
             className="w-full rounded-md border border-line px-2.5 py-2 text-xs text-ink placeholder-slate-400 focus:border-forest focus:outline-none resize-none"
           />
-          <div className="mt-2">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Expiration date (optional)</label>
-            <input
-              type="date"
-              value={expDate}
-              onChange={(e) => setExpDate(e.target.value)}
-              className="h-8 w-full rounded-md border border-line px-2 text-xs text-ink focus:border-forest focus:outline-none"
-            />
-          </div>
           {error && <p className="mt-1.5 text-xs text-red-600">{error}</p>}
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             <button onClick={() => decide("under_review")} disabled={pending}
@@ -211,8 +250,8 @@ export function EvidenceReviewPanel({ groups }: { groups: SupplierGroup[] }) {
                             </p>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-600 capitalize">
-                          {doc.linked_entity_type?.replace(/_/g, " ") ?? "Supplier-wide"}
+                        <td className="px-4 py-3">
+                          <LinkedToCell doc={doc} facilities={group.facilities} />
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-600">
                           {doc.requirement_item_name ?? "—"}
@@ -227,9 +266,6 @@ export function EvidenceReviewPanel({ groups }: { groups: SupplierGroup[] }) {
                           <StatusBadge tone={evidenceTone(doc.evidence_status)}>
                             {evidenceLabel(doc.evidence_status)}
                           </StatusBadge>
-                          {doc.expiration_date && (
-                            <p className="mt-1 text-xs text-slate-400">Exp: {doc.expiration_date}</p>
-                          )}
                         </td>
                         <td className="px-4 py-3">
                           <ReviewActions doc={doc} />

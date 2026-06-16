@@ -3,7 +3,6 @@ import { AppShell } from "@/components/layout/AppShell";
 import { CorporateScoreCard } from "@/components/corporate/CorporateScoreCard";
 import { CorporateScopeList } from "@/components/corporate/CorporateScopeList";
 import { CorporateRelationshipsPanel } from "@/components/corporate/CorporateRelationshipsPanel";
-import { ExportEligibilityBanner } from "@/components/corporate/ExportEligibilityBanner";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -117,13 +116,6 @@ export default async function CorporatePage() {
 
           {/* 1. Readiness Score */}
           <CorporateScoreCard supplierId={supplierId} supabase={supabase} />
-
-          {/* 2. Export eligibility */}
-          <ExportEligibilityBanner
-            supplierId={supplierId}
-            supplierType={supplier?.supplier_type ?? null}
-            supabase={supabase}
-          />
 
           {/* 3. Exporter Profile */}
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">

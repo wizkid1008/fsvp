@@ -18,7 +18,7 @@ export default async function ReviewerPage() {
     .select(`
       id, title, document_kind, original_filename, uploaded_at,
       evidence_status, review_notes, expiration_date,
-      linked_entity_type, requirement_item_id, supplier_id,
+      linked_entity_type, facility_id, requirement_item_id, supplier_id,
       uploaded_by_profile_id
     `)
     .is("soft_deleted_at", null)
@@ -35,6 +35,7 @@ export default async function ReviewerPage() {
     review_notes: string | null;
     expiration_date: string | null;
     linked_entity_type: string | null;
+    facility_id: string | null;
     requirement_item_id: string | null;
     supplier_id: string | null;
     uploaded_by_profile_id: string | null;
@@ -45,7 +46,7 @@ export default async function ReviewerPage() {
   const itemIds = [...new Set(docs.map((d) => d.requirement_item_id).filter(Boolean))] as string[];
   const profileIds = [...new Set(docs.map((d) => d.uploaded_by_profile_id).filter(Boolean))] as string[];
 
-  const [suppliersRes, itemsRes, profilesRes] = await Promise.all([
+  const [suppliersRes, itemsRes, profilesRes, facilitiesRes] = await Promise.all([
     supplierIds.length > 0
       ? (supabase.from("suppliers") as any).select("id, company_name").in("id", supplierIds)
       : Promise.resolve({ data: [] }),
@@ -54,6 +55,9 @@ export default async function ReviewerPage() {
       : Promise.resolve({ data: [] }),
     profileIds.length > 0
       ? (supabase.from("profiles") as any).select("id, full_name, email").in("id", profileIds)
+      : Promise.resolve({ data: [] }),
+    supplierIds.length > 0
+      ? (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").in("supplier_id", supplierIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -69,6 +73,12 @@ export default async function ReviewerPage() {
     ((profilesRes.data ?? []) as Array<{ id: string; full_name: string | null; email: string }>)
       .map((p) => [p.id, p.full_name || p.email])
   );
+  const facilitiesBySupplier = new Map<string, Array<{ id: string; facility_name: string }>>();
+  for (const f of (facilitiesRes.data ?? []) as Array<{ id: string; facility_name: string; supplier_id: string }>) {
+    const existing = facilitiesBySupplier.get(f.supplier_id) ?? [];
+    existing.push({ id: f.id, facility_name: f.facility_name });
+    facilitiesBySupplier.set(f.supplier_id, existing);
+  }
 
   // Group documents by supplier
   const groupMap = new Map<string, { supplier_id: string; supplier_name: string; documents: typeof docs }>();
@@ -84,6 +94,7 @@ export default async function ReviewerPage() {
 
   const groups = Array.from(groupMap.values()).map((g) => ({
     ...g,
+    facilities: facilitiesBySupplier.get(g.supplier_id) ?? [],
     documents: g.documents.map((d) => ({
       id: d.id,
       title: d.title,
@@ -94,6 +105,7 @@ export default async function ReviewerPage() {
       review_notes: d.review_notes,
       expiration_date: d.expiration_date,
       linked_entity_type: d.linked_entity_type,
+      facility_id: d.facility_id,
       requirement_item_name: d.requirement_item_id ? itemMap.get(d.requirement_item_id) ?? null : null,
       uploaded_by_name: d.uploaded_by_profile_id ? profileMap.get(d.uploaded_by_profile_id) ?? null : null,
     })),

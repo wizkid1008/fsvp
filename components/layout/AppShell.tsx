@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LEGAL_DISCLAIMER } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ export function AppShell({
   supplierType?: string | null;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [role, setRole]               = useState<AppRole>(serverRole);
   const [supplierType, setSupplierType] = useState<string | null>(serverSupplierType ?? null);
   const [displayName, setDisplayName] = useState<string | null>(null);
@@ -82,6 +83,13 @@ export function AppShell({
   }, [serverSupplierType]);
 
   const { locale, t } = useLocale();
+
+  async function handleLogout() {
+    const supabase = createBrowserSupabaseClient();
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
+  }
 
   // Determine which nav items to show
   const visibleItems = navItems.filter((item) => {
@@ -136,19 +144,30 @@ export function AppShell({
 
         <div className="absolute bottom-0 left-0 right-0 border-t border-black/10 p-4 space-y-3">
           <LanguageSwitcher currentLocale={locale} />
-          <Link href="/account" className="flex items-center gap-3 group">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-xs font-black text-white">
-              {userInitials}
+          <div className="group relative">
+            <Link href="/account" className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-xs font-black text-white">
+                {userInitials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-bold text-black transition group-hover:text-black/70">
+                  {displayName ?? "..."}
+                </p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-black/40">
+                  {roleLabel}
+                </p>
+              </div>
+            </Link>
+            <div className="invisible absolute bottom-full left-0 mb-2 w-full opacity-0 transition group-hover:visible group-hover:opacity-100">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full border border-black/10 bg-white px-3 py-2 text-left text-xs font-bold text-black shadow-soft hover:bg-black/5"
+              >
+                Log out
+              </button>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-bold text-black group-hover:text-black/70 transition">
-                {displayName ?? "..."}
-              </p>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-black/40">
-                {roleLabel}
-              </p>
-            </div>
-          </Link>
+          </div>
         </div>
       </aside>
 

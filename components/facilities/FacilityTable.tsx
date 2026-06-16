@@ -30,6 +30,7 @@ export type FacilityRow = {
   supplier_names?: string[];
   suppliers: { company_name: string } | null;
   evidence_count?: number;
+  approval_status?: string;
 };
 
 const FACILITY_TYPES = [
@@ -59,6 +60,13 @@ function selectedValues(select: HTMLSelectElement) {
 
 function labelize(value: string) {
   return value.replace(/_/g, " ");
+}
+
+function approvalTone(status?: string): "success" | "warning" | "danger" | "neutral" {
+  if (status === "approved") return "success";
+  if (status === "conditionally_approved") return "warning";
+  if (status === "improvement_required" || status === "not_approved" || status === "suspended") return "danger";
+  return "neutral";
 }
 
 function readJsonString(value: Json | undefined) {
@@ -437,6 +445,7 @@ export function FacilityTable({
             <thead>
               <tr className="border-b border-line bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Facility</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Type</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
@@ -455,7 +464,16 @@ export function FacilityTable({
 
                 return (
                   <tr key={facility.id} className="transition-colors hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-ink">{facility.facility_name}</td>
+                    <td className="px-4 py-3 font-medium text-ink">
+                      <a href={`/facilities/${facility.id}`} className="text-forest hover:underline">
+                        {facility.facility_name}
+                      </a>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge tone={approvalTone(facility.approval_status)}>
+                        {labelize(facility.approval_status ?? "pending")}
+                      </StatusBadge>
+                    </td>
                     <td className="px-4 py-3 text-slate-600">
                       {facility.supplier_names && facility.supplier_names.length > 0
                         ? facility.supplier_names.join(", ")

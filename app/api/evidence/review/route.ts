@@ -27,11 +27,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { document_id, decision, notes, expiration_date } = body as {
+  const { document_id, decision, notes } = body as {
     document_id: string;
     decision: Decision;
     notes?: string;
-    expiration_date?: string;
   };
 
   if (!document_id || !decision) {
@@ -62,9 +61,6 @@ export async function POST(req: NextRequest) {
     reviewer_profile_id: user.id,
     review_notes: notes ?? null,
   };
-  if (decision === "accepted" && expiration_date) {
-    updates.expiration_date = expiration_date;
-  }
   // Keep approval_status in sync for backward compat
   updates.approval_status = decision === "accepted" ? "accepted"
     : decision === "needs_revision" ? "revision_required"

@@ -1,7 +1,8 @@
 import { FacilityTable, type FacilityRow } from "@/components/facilities/FacilityTable";
 import { AppShell } from "@/components/layout/AppShell";
-import { SectionReadinessList } from "@/components/readiness/SectionReadinessList";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import type { StatusTone } from "@/types/platform";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -76,7 +77,7 @@ export default async function FacilitiesPage({
 
   const [{ data: rawFacilities }, { data: countries }, { data: suppliers }, { data: accessRows }, { data: documents }] = await Promise.all([
     (supabase.from("facilities_verify") as any)
-      .select("id, facility_name, facility_type, facility_address_json, fda_registration_number, production_capacity, manufacturing_processes, food_safety_certifications, supplier_id, suppliers(company_name)")
+      .select("id, facility_name, facility_type, facility_address_json, fda_registration_number, production_capacity, manufacturing_processes, food_safety_certifications, supplier_id, approval_status, suppliers(company_name)")
       .order("created_at", { ascending: false }),
     (supabase.from("countries") as any)
       .select("country_code,country_name")
@@ -133,6 +134,15 @@ export default async function FacilitiesPage({
 
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 
+  const facilitiesAdded = facilities.length;
+  const facilitiesApproved = facilities.filter((f) => f.approval_status === "approved").length;
+  const facilitiesNeedingUpdates = facilities.filter((f) =>
+    ["improvement_required", "not_approved", "suspended", "conditionally_approved"].includes(f.approval_status ?? "")
+  ).length;
+
+  const metricTone = (v: number, warnAbove = 0): StatusTone =>
+    v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";
+
   // For the FacilityTable form, use the active supplier as the default
   const formSupplierOptions = viewingLinkedSupplier
     ? [viewingLinkedSupplier]
@@ -158,17 +168,21 @@ export default async function FacilitiesPage({
         />
       )}
 
-      {isSupplier && (
-        <div className="mt-6">
-          <SectionReadinessList
-            appliesTo="facility"
-            emptyText="Facility readiness requirements are not configured yet."
-            supplierId={activeSupplierId}
-            supabase={supabase}
-            title="Facility Readiness Requirements"
-          />
-        </div>
-      )}
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        {[
+          { label: "Facilities Added", value: facilitiesAdded, tone: "info" as StatusTone },
+          { label: "Facilities Approved", value: facilitiesApproved, tone: "success" as StatusTone },
+          { label: "Facilities Needing Updates", value: facilitiesNeedingUpdates, tone: metricTone(facilitiesNeedingUpdates, 0) },
+        ].map((m) => (
+          <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
+            <p className="text-xs font-medium text-slate-500">{m.label}</p>
+            <div className="mt-2 flex items-end justify-between">
+              <p className="text-3xl font-semibold text-ink">{m.value}</p>
+              <StatusBadge tone={m.tone}>{m.value > 0 ? "Active" : "None"}</StatusBadge>
+            </div>
+          </div>
+        ))}
+      </div>
 
       <div className="mt-6">
         <FacilityTable
