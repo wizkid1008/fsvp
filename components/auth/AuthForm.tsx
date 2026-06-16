@@ -34,6 +34,7 @@ const VERIFICATION_HELP_MESSAGE =
 export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; nextPath?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState<"supplier" | "us_importer">("supplier");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -59,7 +60,10 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
           const { data, error: authError } = await supabase.auth.signUp({
             email: emailValue,
             password: passwordValue,
-            options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/verified` }
+            options: {
+              emailRedirectTo: `${window.location.origin}/auth/callback?next=/verified`,
+              data: { role: accountType }
+            }
           });
           const accountAlreadyExists = data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0;
           if (accountAlreadyExists) {
@@ -67,7 +71,11 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
             return;
           }
           if (authError) throw authError;
-          setMessage(VERIFICATION_HELP_MESSAGE);
+          setMessage(
+            accountType === "us_importer"
+              ? `${VERIFICATION_HELP_MESSAGE} Importer accounts also require administrator approval before you can log in.`
+              : VERIFICATION_HELP_MESSAGE
+          );
         }
 
         if (mode === "forgot") {
@@ -126,6 +134,36 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
     <form onSubmit={submit} className="w-full max-w-md border border-black/10 bg-white p-6 shadow-soft">
       <h1 className="text-5xl font-normal leading-[0.95] tracking-[-0.045em] text-black">{copy[mode].title}</h1>
       <p className="mt-4 text-base leading-7 text-black/60">{copy[mode].helper}</p>
+      {mode === "signup" ? (
+        <fieldset className="mt-6">
+          <legend className="text-sm font-bold text-black">Account type</legend>
+          <div className="mt-2 grid grid-cols-2 gap-3">
+            {([
+              { value: "supplier" as const, label: "Supplier", helper: "Foreign supplier / exporter" },
+              { value: "us_importer" as const, label: "Importer", helper: "Requires admin approval" }
+            ]).map((option) => (
+              <label
+                key={option.value}
+                className={`flex cursor-pointer flex-col border px-3 py-2.5 transition ${
+                  accountType === option.value ? "border-black bg-black/5" : "border-black/15 hover:border-black/40"
+                }`}
+              >
+                <span className="flex items-center gap-2 text-sm font-bold text-black">
+                  <input
+                    type="radio"
+                    name="account_type"
+                    value={option.value}
+                    checked={accountType === option.value}
+                    onChange={() => setAccountType(option.value)}
+                  />
+                  {option.label}
+                </span>
+                <span className="mt-1 text-xs text-black/50">{option.helper}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
       {mode !== "reset" ? (
         <label className="mt-6 block text-sm font-bold text-black">
           Email

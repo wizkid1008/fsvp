@@ -16,6 +16,8 @@ function restrictedRedirect(nextPath: string) {
   redirect(`/dashboard?restricted=${encodeURIComponent(nextPath)}`);
 }
 
+const PENDING_APPROVAL_EXEMPT_PATHS = new Set(["/pending-approval", "/account"]);
+
 export async function requireUser(nextPath: string): Promise<{ supabase: ReturnType<typeof createServerSupabaseClient>; user: User }> {
   const supabase = createServerSupabaseClient();
   const {
@@ -25,6 +27,19 @@ export async function requireUser(nextPath: string): Promise<{ supabase: ReturnT
   if (!user) {
     loginRedirect(nextPath);
     throw new Error("unreachable");
+  }
+
+  if (!PENDING_APPROVAL_EXEMPT_PATHS.has(nextPath)) {
+    const { data: gateProfile } = await (supabase.from("profiles") as any)
+      .select("role, user_status")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    // Importer accounts self-register but must be approved by an administrator
+    // before they can access anything beyond /account and /pending-approval.
+    if (gateProfile?.role === "us_importer" && gateProfile.user_status !== "active") {
+      redirect("/pending-approval");
+    }
   }
 
   return { supabase, user };
