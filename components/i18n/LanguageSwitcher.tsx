@@ -62,14 +62,14 @@ export function LanguageSwitcher({ currentLocale, variant = "header" }: { curren
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-line bg-white shadow-xl overflow-hidden">
+          <div className="absolute right-0 bottom-full z-50 mb-1 w-40 border border-black/10 bg-white shadow-xl">
             {LOCALES.map((locale) => (
               <button
                 key={locale}
                 onClick={() => select(locale)}
                 className={`w-full px-4 py-2.5 text-left text-sm transition ${
                   locale === currentLocale
-                    ? "bg-forest text-white font-semibold"
+                    ? "bg-black text-white font-semibold"
                     : "text-slate-700 hover:bg-slate-50"
                 }`}
               >
