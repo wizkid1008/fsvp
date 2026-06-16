@@ -83,7 +83,7 @@ export default async function ProductsPage({
     facilityAccessQuery = facilityAccessQuery.eq("supplier_id", activeSupplierId);
   }
 
-  const [{ data: rawProducts }, { data: countries }, { data: suppliers }, { data: facilities }, { data: facilityAccess }, { data: documents }] = await Promise.all([
+  const [productsRes, countriesRes, suppliersRes, facilitiesRes, facilityAccessRes, documentsRes] = await Promise.all([
     productsQuery,
     (supabase.from("countries") as any)
       .select("country_code,country_name")
@@ -95,6 +95,17 @@ export default async function ProductsPage({
     supabase.from("documents")
       .select("linked_entity_type, linked_entity_id"),
   ]);
+
+  const { data: rawProducts, error: productsError } = productsRes;
+  const { data: countries } = countriesRes;
+  const { data: suppliers } = suppliersRes;
+  const { data: facilities } = facilitiesRes;
+  const { data: facilityAccess } = facilityAccessRes;
+  const { data: documents } = documentsRes;
+
+  if (productsError) {
+    console.error("products_verify query failed:", productsError);
+  }
 
   const evidenceCountByProduct = new Map<string, number>();
   for (const doc of (documents ?? []) as Array<{ linked_entity_type: string | null; linked_entity_id: string | null }>) {
@@ -169,6 +180,12 @@ export default async function ProductsPage({
           currentViewId={activeSupplierId}
           basePath="/products"
         />
+      )}
+
+      {productsError && (
+        <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          Could not load products: {productsError.message}
+        </div>
       )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
