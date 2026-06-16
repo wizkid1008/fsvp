@@ -158,7 +158,7 @@ export function AppShell({
                 </p>
               </div>
             </Link>
-            <div className="invisible absolute bottom-full left-0 mb-2 w-full opacity-0 transition group-hover:visible group-hover:opacity-100">
+            <div className="invisible absolute bottom-full left-0 w-full pb-2 opacity-0 transition group-hover:visible group-hover:opacity-100">
               <button
                 type="button"
                 onClick={handleLogout}
