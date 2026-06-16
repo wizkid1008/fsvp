@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { FacilityScoreCard } from "@/components/facilities/FacilityScoreCard";
 import { DirectEntityUploadTile } from "@/components/evidence/DirectEntityUploadTile";
+import { RequiredEvidenceChecklist } from "@/components/evidence/RequiredEvidenceChecklist";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -77,6 +78,15 @@ export default async function FacilityDetailPage({ params }: { params: { id: str
         <FacilityScoreCard facilityId={params.id} supabase={supabase} />
 
         <div className="space-y-6">
+          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <h2 className="text-base font-semibold text-ink">Required Documents</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              These are the specific documents this facility needs. Click "Upload" next to any missing or
+              rejected item to attach it directly.
+            </p>
+            <RequiredEvidenceChecklist linkType="facility" entityId={params.id} supplierId={facility.supplier_id} supabase={supabase} />
+          </section>
+
           <DirectEntityUploadTile linkType="facility" entityId={params.id} supplierId={facility.supplier_id} />
 
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">

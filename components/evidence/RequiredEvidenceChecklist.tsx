@@ -1,0 +1,122 @@
+import { RequirementItemRow } from "./RequirementItemRow";
+
+type SupabaseLike = { from: (table: string) => any };
+
+function bestStatus(statuses: string[]): string {
+  if (statuses.includes("accepted")) return "accepted";
+  if (statuses.includes("under_review")) return "under_review";
+  if (statuses.includes("submitted")) return "submitted";
+  if (statuses.includes("needs_revision")) return "needs_revision";
+  if (statuses.includes("rejected")) return "rejected";
+  return "not_submitted";
+}
+
+export async function RequiredEvidenceChecklist({
+  linkType,
+  entityId,
+  supplierId,
+  supabase,
+}: {
+  linkType: "facility" | "product";
+  entityId: string;
+  supplierId: string;
+  supabase: SupabaseLike;
+}) {
+  const { data: pubVersion } = await (supabase.from("rule_versions") as any)
+    .select("id")
+    .eq("status", "published")
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!pubVersion?.id) {
+    return (
+      <p className="mt-4 rounded-md border border-dashed border-line bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+        Readiness requirements are not configured yet.
+      </p>
+    );
+  }
+
+  const [sectionsRes, itemsRes, docsRes] = await Promise.all([
+    (supabase.from("requirement_sections") as any)
+      .select("id, section_key, section_name, sort_order")
+      .eq("rule_version_id", pubVersion.id)
+      .eq("applies_to", linkType)
+      .order("sort_order"),
+
+    (supabase.from("requirement_sections") as any)
+      .select("id, requirement_items(id, item_name, is_required, is_critical_blocker, sort_order)")
+      .eq("rule_version_id", pubVersion.id)
+      .eq("applies_to", linkType),
+
+    linkType === "facility"
+      ? (supabase.from("documents") as any)
+          .select("requirement_item_id, evidence_status")
+          .eq("facility_id", entityId)
+          .is("soft_deleted_at", null)
+          .not("requirement_item_id", "is", null)
+      : (supabase.from("documents") as any)
+          .select("requirement_item_id, evidence_status")
+          .eq("linked_entity_type", "product")
+          .eq("linked_entity_id", entityId)
+          .is("soft_deleted_at", null)
+          .not("requirement_item_id", "is", null),
+  ]);
+
+  const sections: Array<{ id: string; section_key: string; section_name: string }> = sectionsRes.data ?? [];
+
+  type RawItem = { id: string; item_name: string; is_required: boolean; is_critical_blocker: boolean; sort_order: number };
+  type RawSec = { id: string; requirement_items: RawItem[] };
+
+  const itemsBySectionId = new Map<string, RawItem[]>();
+  for (const sec of (itemsRes.data ?? []) as RawSec[]) {
+    const sorted = [...(sec.requirement_items ?? [])]
+      .filter((i) => i.is_required)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    itemsBySectionId.set(sec.id, sorted);
+  }
+
+  const docByItemId = new Map<string, string[]>();
+  for (const doc of (docsRes.data ?? []) as Array<{ requirement_item_id: string | null; evidence_status: string | null }>) {
+    if (!doc.requirement_item_id) continue;
+    const existing = docByItemId.get(doc.requirement_item_id) ?? [];
+    existing.push(doc.evidence_status ?? "not_submitted");
+    docByItemId.set(doc.requirement_item_id, existing);
+  }
+
+  const sectionsWithItems = sections
+    .map((sec) => ({ ...sec, items: itemsBySectionId.get(sec.id) ?? [] }))
+    .filter((sec) => sec.items.length > 0);
+
+  if (sectionsWithItems.length === 0) {
+    return (
+      <p className="mt-4 rounded-md border border-dashed border-line bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+        No specific documents are required for this {linkType} yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-4">
+      {sectionsWithItems.map((sec) => (
+        <div key={sec.section_key} className="overflow-hidden rounded-lg border border-line">
+          <div className="border-b border-line bg-slate-50 px-4 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{sec.section_name}</p>
+          </div>
+          {sec.items.map((item) => (
+            <RequirementItemRow
+              key={item.id}
+              itemName={item.item_name}
+              status={bestStatus(docByItemId.get(item.id) ?? [])}
+              isCriticalBlocker={item.is_critical_blocker}
+              linkType={linkType}
+              entityId={entityId}
+              supplierId={supplierId}
+              requirementItemId={item.id}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
