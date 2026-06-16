@@ -7,6 +7,7 @@ import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextS
 import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -107,6 +108,13 @@ export default async function ProductsPage({
     console.error("products_verify query failed:", productsError);
   }
 
+  // Temporary diagnostic: compare what RLS lets this user see vs. what actually
+  // exists for this supplier, using the admin client (bypasses RLS).
+  const admin = createAdminSupabaseClient();
+  const { data: adminProducts, error: adminProductsError } = await (admin.from("products_verify") as any)
+    .select("id, product_name, supplier_id, facility_id")
+    .eq("supplier_id", activeSupplierId || "00000000-0000-0000-0000-000000000000");
+
   const evidenceCountByProduct = new Map<string, number>();
   for (const doc of (documents ?? []) as Array<{ linked_entity_type: string | null; linked_entity_id: string | null }>) {
     if (doc.linked_entity_type === "product" && doc.linked_entity_id) {
@@ -187,6 +195,19 @@ export default async function ProductsPage({
           Could not load products: {productsError.message}
         </div>
       )}
+
+      <div className="mt-6 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs font-mono text-amber-900">
+        DEBUG — ownSupplierId: {ownSupplierId || "(empty)"} | activeSupplierId: {activeSupplierId || "(empty)"} |
+        RLS-visible rows: {rawProducts?.length ?? 0} | actual rows for this supplier (admin, bypasses RLS): {adminProducts?.length ?? 0}
+        {adminProductsError ? ` | admin query error: ${adminProductsError.message}` : ""}
+        {adminProducts && adminProducts.length > 0 ? (
+          <ul className="mt-1 list-disc pl-4">
+            {adminProducts.map((p: any) => (
+              <li key={p.id}>{p.product_name} — supplier_id: {p.supplier_id}, facility_id: {p.facility_id}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {[
