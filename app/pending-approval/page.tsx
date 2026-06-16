@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
+export const runtime = "edge";
+
 export default function PendingApprovalPage() {
   const router = useRouter();
 
