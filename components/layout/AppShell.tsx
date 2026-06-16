@@ -158,11 +158,11 @@ export function AppShell({
                 </p>
               </div>
             </Link>
-            <div className="invisible absolute bottom-full left-0 w-full pb-2 opacity-0 transition group-hover:visible group-hover:opacity-100">
+            <div className="absolute bottom-full left-0 z-10 hidden w-full pb-2 group-hover:block">
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full border border-black/10 bg-white px-3 py-2 text-left text-xs font-bold text-black shadow-soft hover:bg-black/5"
+                className="w-full border border-black/10 bg-white px-3 py-2 text-left text-xs font-bold text-black shadow-lg hover:bg-black/5"
               >
                 Log out
               </button>
