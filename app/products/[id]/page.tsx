@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProductScoreCard } from "@/components/products/ProductScoreCard";
+import { DirectEntityUploadTile } from "@/components/evidence/DirectEntityUploadTile";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -69,6 +70,9 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       <div className="mt-6 grid gap-6 lg:grid-cols-[340px_1fr]">
         <ProductScoreCard productId={params.id} supabase={supabase} />
 
+        <div className="space-y-6">
+          <DirectEntityUploadTile linkType="product" entityId={params.id} supplierId={product.supplier_id} />
+
         <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <h2 className="text-base font-semibold text-ink">Documents tagged to this product</h2>
           <p className="mt-1 text-sm text-slate-500">
@@ -108,6 +112,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             </table>
           )}
         </section>
+        </div>
       </div>
     </AppShell>
   );

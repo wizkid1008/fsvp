@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { FacilityScoreCard } from "@/components/facilities/FacilityScoreCard";
+import { DirectEntityUploadTile } from "@/components/evidence/DirectEntityUploadTile";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -76,6 +77,8 @@ export default async function FacilityDetailPage({ params }: { params: { id: str
         <FacilityScoreCard facilityId={params.id} supabase={supabase} />
 
         <div className="space-y-6">
+          <DirectEntityUploadTile linkType="facility" entityId={params.id} supplierId={facility.supplier_id} />
+
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <h2 className="text-base font-semibold text-ink">Documents tagged to this facility</h2>
             <p className="mt-1 text-sm text-slate-500">
