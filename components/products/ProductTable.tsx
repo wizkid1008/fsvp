@@ -62,6 +62,24 @@ const PROCESSING_STATES = [
   { value: "both", label: "Both" }
 ];
 
+const MAJOR_ALLERGENS = [
+  "Milk", "Eggs", "Fish", "Crustacean shellfish", "Tree nuts",
+  "Peanuts", "Wheat", "Soybeans", "Sesame"
+];
+
+const OTHER_ALLERGENS = [
+  "Celery", "Mustard", "Lupin", "Molluscs", "Sulphites", "Buckwheat", "Gluten (barley/rye)"
+];
+
+function parseAllergens(value: string | null): { selected: string[]; other: string } {
+  if (!value) return { selected: [], other: "" };
+  const known = new Set([...MAJOR_ALLERGENS, ...OTHER_ALLERGENS]);
+  const parts = value.split(",").map((p) => p.trim()).filter(Boolean);
+  const selected = parts.filter((p) => known.has(p));
+  const other = parts.filter((p) => !known.has(p)).join(", ");
+  return { selected, other };
+}
+
 function clean(value: FormDataEntryValue | null) {
   const text = value?.toString().trim() ?? "";
   return text || null;
@@ -107,6 +125,15 @@ function AddProductForm({
   });
   const selectedFacility = facilities.find((facility) => facility.id === facilityId) ?? null;
   const facilityCountry = selectedFacility?.country ?? null;
+  const initialAllergens = parseAllergens(product?.allergen_information ?? null);
+  const [selectedAllergens, setSelectedAllergens] = useState<string[]>(initialAllergens.selected);
+  const [otherAllergens, setOtherAllergens] = useState(initialAllergens.other);
+
+  function toggleAllergen(name: string) {
+    setSelectedAllergens((prev) =>
+      prev.includes(name) ? prev.filter((a) => a !== name) : [...prev, name]
+    );
+  }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -143,6 +170,9 @@ function AddProductForm({
           return;
         }
 
+        const allergenList = [...selectedAllergens, ...otherAllergens.split(",").map((a) => a.trim()).filter(Boolean)];
+        const allergenInformation = allergenList.length > 0 ? allergenList.join(", ") : null;
+
         const payload = {
           product_name: formData.get("product_name")?.toString().trim() ?? "",
           supplier_id: selectedSupplierId,
@@ -151,7 +181,7 @@ function AddProductForm({
           raw_or_processed: clean(formData.get("raw_or_processed")),
           intended_use: clean(formData.get("intended_use")),
           ingredient_list: clean(formData.get("ingredient_list")),
-          allergen_information: clean(formData.get("allergen_information")),
+          allergen_information: allergenInformation,
           product_description: clean(formData.get("product_description"))
         };
         const supabase = createBrowserSupabaseClient();
@@ -263,9 +293,45 @@ function AddProductForm({
                 ))}
               </select>
             </label>
-            <label className={labelClass}>
-              Allergen Details
-              <input name="allergen_information" defaultValue={product?.allergen_information ?? ""} className={inputClass} placeholder="None declared, milk, peanuts..." />
+          </div>
+
+          <div>
+            <p className={labelClass}>Allergens — FDA Major Allergens</p>
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {MAJOR_ALLERGENS.map((allergen) => (
+                <label key={allergen} className="flex items-center gap-1.5 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedAllergens.includes(allergen)}
+                    onChange={() => toggleAllergen(allergen)}
+                    className="h-4 w-4 rounded border-line text-forest focus:ring-forest"
+                  />
+                  {allergen}
+                </label>
+              ))}
+            </div>
+            <p className={`${labelClass} mt-3`}>Other Regulated Allergens</p>
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {OTHER_ALLERGENS.map((allergen) => (
+                <label key={allergen} className="flex items-center gap-1.5 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedAllergens.includes(allergen)}
+                    onChange={() => toggleAllergen(allergen)}
+                    className="h-4 w-4 rounded border-line text-forest focus:ring-forest"
+                  />
+                  {allergen}
+                </label>
+              ))}
+            </div>
+            <label className={`${labelClass} mt-3 block`}>
+              Other (comma-separated, not listed above)
+              <input
+                value={otherAllergens}
+                onChange={(e) => setOtherAllergens(e.target.value)}
+                className={inputClass}
+                placeholder="e.g. coconut"
+              />
             </label>
           </div>
 
