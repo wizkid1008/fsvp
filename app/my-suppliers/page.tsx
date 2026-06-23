@@ -28,15 +28,17 @@ export default async function MySuppliersPage() {
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 
   // Fetch linked upstream suppliers with counts of facilities, products, documents
+  // Uses supplier_relationships (migration 033 consolidated exporter_supplier_links into this table)
   const { data: rawLinks } = supplierId
-    ? await (supabase.from("exporter_supplier_links") as any)
+    ? await (supabase.from("supplier_relationships") as any)
         .select(`
-          id, status, invite_email, accepted_at, notes,
+          id, status, invite_email, accepted_at, notes, relationship_type,
           supplier:supplier_id (
             id, company_name, country, approval_status, supplier_type
           )
         `)
         .eq("exporter_id", supplierId)
+        .in("relationship_type", ["exporter_supplier", "self_supply"])
         .order("created_at", { ascending: false })
     : { data: [] };
 
@@ -46,6 +48,7 @@ export default async function MySuppliersPage() {
     invite_email: string | null;
     accepted_at: string | null;
     notes: string | null;
+    relationship_type: string;
     supplier: { id: string; company_name: string; country: string; approval_status: string; supplier_type: string | null } | null;
   }>;
 
@@ -90,6 +93,7 @@ export default async function MySuppliersPage() {
 
   const linkedSuppliers = rawLinkList.map((link) => ({
     ...link,
+    isSelfSupply: link.relationship_type === "self_supply",
     counts: link.supplier ? {
       facilities: facilityCount.get(link.supplier.id) ?? 0,
       products:   productCount.get(link.supplier.id) ?? 0,

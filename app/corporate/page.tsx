@@ -71,6 +71,33 @@ export default async function CorporatePage() {
     }
   }
 
+  // Ensure a self-supply relationship exists so the exporter appears in My Suppliers
+  // as their own production source (allows adding facilities/products under their own entity).
+  if (supplierId) {
+    try {
+      const admin = createAdminSupabaseClient();
+      const { data: selfLink } = await (admin.from("supplier_relationships") as any)
+        .select("id")
+        .eq("exporter_id", supplierId)
+        .eq("supplier_id", supplierId)
+        .eq("relationship_type", "self_supply")
+        .maybeSingle();
+
+      if (!selfLink) {
+        await (admin.from("supplier_relationships") as any)
+          .insert({
+            exporter_id:       supplierId,
+            supplier_id:       supplierId,
+            relationship_type: "self_supply",
+            status:            "active",
+            notes:             "Own production",
+          });
+      }
+    } catch {
+      // Non-fatal — admin client not configured or relationship already exists
+    }
+  }
+
   // Fetch supplier using only columns that actually exist on the table.
   // Contact info lives in contact_json; status is approval_status / portal_status.
   const { data: supplier } = supplierId

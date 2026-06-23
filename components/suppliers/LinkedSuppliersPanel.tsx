@@ -26,6 +26,7 @@ type LinkedSupplier = {
   invite_email: string | null;
   accepted_at:  string | null;
   notes:        string | null;
+  isSelfSupply: boolean;
   counts:       SupplierCounts | null;
   supplier: {
     id: string;
@@ -161,7 +162,11 @@ export function LinkedSuppliersPanel({
                     <p className="text-sm font-semibold text-ink">
                       {link.supplier?.company_name ?? "Unknown"}
                     </p>
-                    <StatusBadge tone={linkTone(link.status)}>{linkLabel(link.status)}</StatusBadge>
+                    {link.isSelfSupply ? (
+                      <StatusBadge tone="neutral">Self Supply</StatusBadge>
+                    ) : (
+                      <StatusBadge tone={linkTone(link.status)}>{linkLabel(link.status)}</StatusBadge>
+                    )}
                     {link.supplier?.supplier_type && (
                       <span className="text-xs capitalize text-slate-400">
                         {link.supplier.supplier_type.replace(/_/g, " ")}
