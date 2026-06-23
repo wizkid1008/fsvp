@@ -210,7 +210,12 @@ export default async function ProductsPage({
           facilities={facilityOptions}
           products={products}
           supplierHref={isSupplier ? "/my-suppliers" : "/suppliers"}
-          suppliers={supplierOptions}
+          suppliers={viewingLinkedSupplier
+            ? [viewingLinkedSupplier]
+            : [
+                ...supplierOptions,
+                ...linkedSuppliers.filter((s) => !supplierOptions.some((o) => o.id === s.id)),
+              ]}
         />
       </div>
     </AppShell>

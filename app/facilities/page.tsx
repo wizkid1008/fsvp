@@ -143,10 +143,13 @@ export default async function FacilitiesPage({
   const metricTone = (v: number, warnAbove = 0): StatusTone =>
     v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";
 
-  // For the FacilityTable form, use the active supplier as the default
+  // For the FacilityTable form, include own company + all linked upstream suppliers
   const formSupplierOptions = viewingLinkedSupplier
     ? [viewingLinkedSupplier]
-    : supplierOptions;
+    : [
+        ...supplierOptions,
+        ...linkedSuppliers.filter((s) => !supplierOptions.some((o) => o.id === s.id)),
+      ];
 
   return (
     <AppShell role={role} supplierType={await getSupplierType(supabase as any, ownSupplierId || null)}>
