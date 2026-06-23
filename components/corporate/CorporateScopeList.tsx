@@ -1,4 +1,5 @@
 import { CorporateScopeUploadTile, type SectionProgressProps, type RequirementItem } from "./CorporateScopeUploadTile";
+import { CorporateContactsSection, type ContactJson } from "./CorporateContactsSection";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -61,9 +62,11 @@ const FALLBACK_SECTIONS = [
 export async function CorporateScopeList({
   supplierId,
   supabase,
+  contactJson = {},
 }: {
-  supplierId: string | null;
-  supabase:   SupabaseLike;
+  supplierId:   string | null;
+  supabase:     SupabaseLike;
+  contactJson?: ContactJson;
 }) {
   const { data: pubVersion } = await (supabase.from("rule_versions") as any)
     .select("id")
@@ -76,6 +79,11 @@ export async function CorporateScopeList({
     return (
       <div className="mt-4 overflow-hidden rounded-lg border border-line divide-y divide-line">
         {FALLBACK_SECTIONS.map((sec) => {
+          if (sec.section_key === "supplier_contacts") {
+            return (
+              <CorporateContactsSection key={sec.section_key} contactJson={contactJson} />
+            );
+          }
           const progress: SectionProgressProps = {
             required_count:       sec.items.length,
             accepted_count:       0,
@@ -220,17 +228,24 @@ export async function CorporateScopeList({
 
   return (
     <div className="mt-4 overflow-hidden rounded-lg border border-line divide-y divide-line">
-      {sectionData.map((sec) => (
-        <CorporateScopeUploadTile
-          key={sec.section_key}
-          sectionKey={sec.section_key}
-          label={sec.section_name}
-          description={sec.description}
-          items={sec.items}
-          supplierId={supplierId}
-          progress={sec.progress}
-        />
-      ))}
+      {sectionData.map((sec) => {
+        if (sec.section_key === "supplier_contacts") {
+          return (
+            <CorporateContactsSection key={sec.section_key} contactJson={contactJson} />
+          );
+        }
+        return (
+          <CorporateScopeUploadTile
+            key={sec.section_key}
+            sectionKey={sec.section_key}
+            label={sec.section_name}
+            description={sec.description}
+            items={sec.items}
+            supplierId={supplierId}
+            progress={sec.progress}
+          />
+        );
+      })}
     </div>
   );
 }
