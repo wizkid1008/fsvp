@@ -4,14 +4,13 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Upload, FileText, X,
-  CheckCircle2, XCircle, Clock, AlertCircle,
+  CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { StatusTone } from "@/types/platform";
 
-// Maps section_key → default document_kind for the upload API
 const SECTION_CATEGORY_MAP: Record<string, string> = {
   supplier_legal_entity:        "Legal Entity and Ownership",
   supplier_contacts:            "Primary Contacts",
@@ -20,6 +19,14 @@ const SECTION_CATEGORY_MAP: Record<string, string> = {
   supplier_recall_traceability: "Recall and Traceability Programs",
   supplier_importer_assurances: "Importer Relationship and Written Assurances",
 };
+
+export interface RequirementItem {
+  id:                  string;
+  item_name:           string;
+  description:         string | null;
+  is_critical_blocker: boolean;
+  status:              string; // "not_submitted" | "submitted" | "under_review" | "accepted" | "needs_revision" | "rejected"
+}
 
 export interface SectionProgressProps {
   required_count:       number;
@@ -32,68 +39,55 @@ export interface SectionProgressProps {
   weight_percent:       number;
 }
 
-function sectionStatus(p: SectionProgressProps | null): string | null {
-  if (!p || p.required_count === 0) return null;
-  if (p.accepted_count >= p.required_count) return "accepted";
-  if (p.needs_revision_count > 0)           return "needs_revision";
-  if (p.under_review_count > 0)             return "under_review";
-  if (p.submitted_count > 0)               return "submitted";
-  return null;
-}
-
-function StatusIcon({ status }: { status: string | null }) {
-  if (status === "accepted")
-    return <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />;
-  if (status === "under_review" || status === "submitted")
-    return <Clock className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />;
-  if (status === "needs_revision")
-    return <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />;
-  return <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-300" />;
-}
-
-function statusTone(status: string | null): StatusTone {
-  if (status === "accepted")                        return "success";
-  if (status === "under_review")                    return "info";
-  if (status === "submitted")                       return "warning";
-  if (status === "needs_revision")                  return "danger";
+function itemStatusTone(status: string): StatusTone {
+  if (status === "accepted")       return "success";
+  if (status === "under_review")   return "info";
+  if (status === "submitted")      return "warning";
+  if (status === "needs_revision") return "danger";
+  if (status === "rejected")       return "danger";
   return "neutral";
 }
 
-function statusLabel(status: string | null): string {
-  if (!status)                    return "Not started";
-  if (status === "accepted")      return "Complete";
-  if (status === "under_review")  return "Under Review";
-  if (status === "submitted")     return "Submitted";
+function itemStatusLabel(status: string): string {
+  if (status === "accepted")       return "Accepted";
+  if (status === "under_review")   return "Under Review";
+  if (status === "submitted")      return "Submitted";
   if (status === "needs_revision") return "Needs Revision";
-  return status;
+  if (status === "rejected")       return "Rejected";
+  return "Not started";
 }
 
-export function CorporateScopeUploadTile({
-  sectionKey,
-  label,
-  description,
-  requiredItems,
-  supplierId,
-  progress,
-}: {
-  sectionKey:    string;
-  label:         string;
-  description:   string;
-  requiredItems: string;   // comma-separated item names
-  supplierId:    string | null;
-  progress:      SectionProgressProps | null;
-}) {
-  const router    = useRouter();
-  const inputRef  = useRef<HTMLInputElement>(null);
-  const [open, setOpen]           = useState(false);
-  const [dragging, setDragging]   = useState(false);
-  const [file, setFile]           = useState<File | null>(null);
-  const [message, setMessage]     = useState<string | null>(null);
-  const [error, setError]         = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+function SectionIcon({ progress }: { progress: SectionProgressProps | null }) {
+  if (!progress || progress.required_count === 0)
+    return <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-300" />;
+  if (progress.accepted_count >= progress.required_count)
+    return <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />;
+  if (progress.needs_revision_count > 0)
+    return <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />;
+  if (progress.under_review_count > 0 || progress.submitted_count > 0)
+    return <Clock className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />;
+  return <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-300" />;
+}
 
-  const status = sectionStatus(progress);
-  const isComplete = status === "accepted";
+function ItemUploadSlot({
+  item,
+  sectionKey,
+  supplierId,
+}: {
+  item:       RequirementItem;
+  sectionKey: string;
+  supplierId: string | null;
+}) {
+  const router   = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen]               = useState(false);
+  const [dragging, setDragging]       = useState(false);
+  const [file, setFile]               = useState<File | null>(null);
+  const [message, setMessage]         = useState<string | null>(null);
+  const [error, setError]             = useState<string | null>(null);
+  const [pending, startTransition]    = useTransition();
+
+  const isComplete = item.status === "accepted";
 
   function handleFiles(files: FileList | null) {
     const next = files?.[0];
@@ -131,11 +125,12 @@ export function CorporateScopeUploadTile({
           .maybeSingle();
 
         const body = new FormData();
-        body.append("file", file);
-        body.append("title", title);
-        body.append("document_kind", SECTION_CATEGORY_MAP[sectionKey] ?? "Other");
-        body.append("supplier_id", supplierId);
-        body.append("link_type", "supplier");
+        body.append("file",                 file);
+        body.append("title",                title);
+        body.append("document_kind",        SECTION_CATEGORY_MAP[sectionKey] ?? "Other");
+        body.append("supplier_id",          supplierId);
+        body.append("link_type",            "supplier");
+        body.append("requirement_item_id",  item.id);
         if (profile?.importer_id) body.append("importer_id", profile.importer_id);
         if (expirationDate)       body.append("expiration_date", expirationDate);
 
@@ -146,6 +141,7 @@ export function CorporateScopeUploadTile({
         setMessage("Uploaded successfully.");
         setFile(null);
         if (inputRef.current) inputRef.current.value = "";
+        setOpen(false);
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed.");
@@ -154,38 +150,29 @@ export function CorporateScopeUploadTile({
   }
 
   return (
-    <div>
-      {/* ── Row (always visible) ─────────────────────────────── */}
-      <div className="flex items-start gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
-        <StatusIcon status={status} />
+    <div className="border-t border-line first:border-t-0">
+      {/* Item row */}
+      <div className="flex items-start gap-3 px-5 py-3 hover:bg-slate-50 transition-colors">
+        <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300 mt-2" />
 
-        {/* Text block */}
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink">{label}</p>
-          {description && (
-            <p className="mt-0.5 text-xs leading-5 text-slate-500">{description}</p>
+          <p className="text-sm font-semibold text-ink">{item.item_name}</p>
+          {item.description && (
+            <p className="mt-0.5 text-xs leading-5 text-slate-500">{item.description}</p>
           )}
-          {requiredItems && (
-            <p className="mt-1 text-xs text-slate-400">
-              <span className="font-medium text-slate-500">Required: </span>
-              {requiredItems}
-            </p>
-          )}
-          {progress && progress.required_count > 0 && (
-            <p className="mt-1 text-xs text-slate-400">
-              {progress.accepted_count} of {progress.required_count} accepted
-              {progress.has_critical_blocker && !isComplete && (
-                <span className="ml-2 font-semibold text-red-600">· Critical blocker</span>
-              )}
-            </p>
-          )}
+          <div className="mt-1 flex items-center gap-2">
+            {item.status !== "not_submitted" && (
+              <StatusBadge tone={itemStatusTone(item.status)}>
+                {itemStatusLabel(item.status)}
+              </StatusBadge>
+            )}
+            {item.is_critical_blocker && !isComplete && (
+              <span className="text-xs font-semibold text-red-600">Critical blocker</span>
+            )}
+          </div>
         </div>
 
-        {/* Right action */}
-        <div className="flex shrink-0 items-center gap-2">
-          {status && status !== "accepted" && (
-            <StatusBadge tone={statusTone(status)}>{statusLabel(status)}</StatusBadge>
-          )}
+        <div className="shrink-0">
           {isComplete ? (
             <StatusBadge tone="success">Complete</StatusBadge>
           ) : (
@@ -196,12 +183,13 @@ export function CorporateScopeUploadTile({
             >
               <Upload className="h-3.5 w-3.5" />
               Upload
+              {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Inline upload panel ──────────────────────────────── */}
+      {/* Inline upload panel */}
       {open && (
         <div className="border-t border-line bg-slate-50 px-5 pb-4 pt-3">
           {!supplierId ? (
@@ -210,16 +198,13 @@ export function CorporateScopeUploadTile({
             </p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
-              {/* Drop zone */}
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={(e) => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files); }}
                 onClick={() => inputRef.current?.click()}
                 className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed py-6 transition ${
-                  dragging
-                    ? "border-forest bg-emerald-50"
-                    : "border-line hover:border-forest hover:bg-white"
+                  dragging ? "border-forest bg-emerald-50" : "border-line hover:border-forest hover:bg-white"
                 }`}
               >
                 {file ? (
@@ -290,6 +275,68 @@ export function CorporateScopeUploadTile({
               )}
             </form>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CorporateScopeUploadTile({
+  sectionKey,
+  label,
+  description,
+  items,
+  supplierId,
+  progress,
+}: {
+  sectionKey:  string;
+  label:       string;
+  description: string;
+  items:       RequirementItem[];
+  supplierId:  string | null;
+  progress:    SectionProgressProps | null;
+}) {
+  const isComplete = progress
+    ? progress.accepted_count >= progress.required_count && progress.required_count > 0
+    : false;
+
+  return (
+    <div>
+      {/* Section header */}
+      <div className="flex items-start gap-4 px-5 py-4">
+        <SectionIcon progress={progress} />
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">{label}</p>
+          {description && (
+            <p className="mt-0.5 text-xs leading-5 text-slate-500">{description}</p>
+          )}
+          {progress && progress.required_count > 0 && (
+            <p className="mt-1 text-xs text-slate-400">
+              {progress.accepted_count} of {progress.required_count} accepted
+              {progress.has_critical_blocker && !isComplete && (
+                <span className="ml-2 font-semibold text-red-600">· Critical blocker</span>
+              )}
+            </p>
+          )}
+        </div>
+
+        {isComplete && (
+          <StatusBadge tone="success">Complete</StatusBadge>
+        )}
+      </div>
+
+      {/* Per-item upload slots */}
+      {items.length > 0 && (
+        <div className="mx-5 mb-4 overflow-hidden rounded-md border border-line bg-white">
+          {items.map((item) => (
+            <ItemUploadSlot
+              key={item.id}
+              item={item}
+              sectionKey={sectionKey}
+              supplierId={supplierId}
+            />
+          ))}
         </div>
       )}
     </div>
