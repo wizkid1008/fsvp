@@ -261,7 +261,7 @@ function AddFacilityForm({
               <input name="facility_name" required defaultValue={facility?.facility_name ?? ""} className={inputClass} placeholder="Santiago Plant 2" />
             </label>
             <label className={labelClass}>
-              Supplier access <span className="text-red-500">*</span>
+              Supplier <span className="text-red-500">*</span>
               <select
                 name="supplier_ids"
                 required
