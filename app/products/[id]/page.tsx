@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProductScoreCard } from "@/components/products/ProductScoreCard";
-import { DirectEntityUploadTile } from "@/components/evidence/DirectEntityUploadTile";
 import { RequiredEvidenceChecklist } from "@/components/evidence/RequiredEvidenceChecklist";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -13,13 +12,6 @@ import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
 
-function evidenceTone(status: string | null): StatusTone {
-  if (status === "accepted") return "success";
-  if (status === "under_review") return "info";
-  if (status === "submitted") return "warning";
-  if (status === "needs_revision" || status === "rejected" || status === "expired") return "danger";
-  return "neutral";
-}
 
 function approvalTone(status: string | null): StatusTone {
   if (status === "approved") return "success";
@@ -44,13 +36,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     .maybeSingle();
 
   if (!product) notFound();
-
-  const { data: productDocs } = await (supabase.from("documents") as any)
-    .select("id, title, document_kind, evidence_status, uploaded_at, original_filename")
-    .eq("linked_entity_type", "product")
-    .eq("linked_entity_id", params.id)
-    .is("soft_deleted_at", null)
-    .order("uploaded_at", { ascending: false });
 
   return (
     <AppShell role={role} supplierType={await getSupplierType(supabase as any, ownSupplierId)}>
@@ -81,47 +66,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             <RequiredEvidenceChecklist linkType="product" entityId={params.id} supplierId={product.supplier_id} supabase={supabase} />
           </section>
 
-          <DirectEntityUploadTile linkType="product" entityId={params.id} supplierId={product.supplier_id} />
-
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <h2 className="text-base font-semibold text-ink">Documents tagged to this product</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            These documents count toward this product's score.
-          </p>
-          {(productDocs ?? []).length === 0 ? (
-            <p className="mt-4 rounded-md border border-dashed border-line bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-              No documents are tagged to this product yet.
-            </p>
-          ) : (
-            <table className="mt-4 w-full text-sm">
-              <thead>
-                <tr className="border-b border-line bg-slate-50">
-                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Document</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Submitted</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {(productDocs ?? []).map((doc: any) => (
-                  <tr key={doc.id}>
-                    <td className="px-3 py-2.5">
-                      <p className="font-medium text-ink">{doc.title}</p>
-                      {doc.original_filename && <p className="text-xs text-slate-400">{doc.original_filename}</p>}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-slate-500">
-                      {new Date(doc.uploaded_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <StatusBadge tone={evidenceTone(doc.evidence_status)}>
-                        {(doc.evidence_status ?? "not_submitted").replace(/_/g, " ")}
-                      </StatusBadge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
         </div>
       </div>
     </AppShell>
