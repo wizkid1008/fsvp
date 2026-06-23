@@ -5,6 +5,7 @@ import { LinkedExportersPanel } from "@/components/suppliers/LinkedExportersPane
 import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -27,35 +28,44 @@ export default async function MySuppliersPage() {
   const supplierId: string | null = profile?.supplier_id ?? null;
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 
-  // Fetch linked upstream suppliers with counts of facilities, products, documents
-  // Uses supplier_relationships (migration 033 consolidated exporter_supplier_links into this table)
+  // Fetch linked upstream suppliers (RLS blocks the user-scoped join on suppliers table,
+  // so we fetch link rows first, then resolve supplier details via admin client)
   const { data: rawLinks } = supplierId
     ? await (supabase.from("supplier_relationships") as any)
-        .select(`
-          id, status, invite_email, accepted_at, notes, relationship_type,
-          supplier:supplier_id (
-            id, company_name, country, approval_status, supplier_type
-          )
-        `)
+        .select("id, status, invite_email, accepted_at, notes, relationship_type, supplier_id")
         .eq("exporter_id", supplierId)
         .in("relationship_type", ["exporter_supplier", "self_supply"])
         .order("created_at", { ascending: false })
     : { data: [] };
 
-  const rawLinkList = (rawLinks ?? []) as Array<{
+  type RawLink = {
     id: string;
     status: string;
     invite_email: string | null;
     accepted_at: string | null;
     notes: string | null;
     relationship_type: string;
-    supplier: { id: string; company_name: string; country: string; approval_status: string; supplier_type: string | null } | null;
-  }>;
+    supplier_id: string | null;
+  };
+  const rawLinkList = (rawLinks ?? []) as RawLink[];
+
+  // Resolve supplier details using admin client (bypasses RLS on suppliers table)
+  const linkedSupplierIds = [...new Set(rawLinkList.map((l) => l.supplier_id).filter(Boolean))] as string[];
+  const supplierMap = new Map<string, { id: string; company_name: string; country: string; approval_status: string; supplier_type: string | null }>();
+  if (linkedSupplierIds.length > 0) {
+    const admin = createAdminSupabaseClient();
+    const { data: supplierRows } = await (admin.from("suppliers") as any)
+      .select("id, company_name, country, approval_status, supplier_type")
+      .in("id", linkedSupplierIds);
+    for (const s of (supplierRows ?? []) as Array<{ id: string; company_name: string; country: string; approval_status: string; supplier_type: string | null }>) {
+      supplierMap.set(s.id, s);
+    }
+  }
 
   // For active links, fetch facility + product counts per supplier
   const activeSupplierIds = rawLinkList
-    .filter((l) => l.status === "active" && l.supplier?.id)
-    .map((l) => l.supplier!.id);
+    .filter((l) => l.status === "active" && l.supplier_id)
+    .map((l) => l.supplier_id as string);
 
   const [facilitiesRes, productsRes, documentsRes] = activeSupplierIds.length > 0
     ? await Promise.all([
@@ -91,16 +101,20 @@ export default async function MySuppliersPage() {
     }
   }
 
-  const linkedSuppliers = rawLinkList.map((link) => ({
-    ...link,
-    isSelfSupply: link.relationship_type === "self_supply",
-    counts: link.supplier ? {
-      facilities: facilityCount.get(link.supplier.id) ?? 0,
-      products:   productCount.get(link.supplier.id) ?? 0,
-      documents:  docCount.get(link.supplier.id) ?? 0,
-      accepted:   acceptedCount.get(link.supplier.id) ?? 0,
-    } : null,
-  }));
+  const linkedSuppliers = rawLinkList.map((link) => {
+    const supplier = link.supplier_id ? supplierMap.get(link.supplier_id) ?? null : null;
+    return {
+      ...link,
+      supplier,
+      isSelfSupply: link.relationship_type === "self_supply",
+      counts: supplier ? {
+        facilities: facilityCount.get(supplier.id) ?? 0,
+        products:   productCount.get(supplier.id) ?? 0,
+        documents:  docCount.get(supplier.id) ?? 0,
+        accepted:   acceptedCount.get(supplier.id) ?? 0,
+      } : null,
+    };
+  });
 
   const supplierType = await getSupplierType(supabase as any, supplierId);
 
