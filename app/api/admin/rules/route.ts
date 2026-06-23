@@ -189,6 +189,18 @@ export async function POST(req: NextRequest) {
 
   // ── Archive ─────────────────────────────────────────────────────────────
   if (action === "archive") {
+    const { data: verToArchive } = await (admin.from("rule_versions") as any)
+      .select("status")
+      .eq("id", version_id)
+      .maybeSingle();
+    if (!verToArchive) return NextResponse.json({ error: "Version not found" }, { status: 404 });
+    if (verToArchive.status === "published") {
+      return NextResponse.json(
+        { error: "Published rule versions cannot be directly archived. Clone and supersede instead." },
+        { status: 400 }
+      );
+    }
+
     await (admin.from("rule_versions") as any)
       .update({ status: "archived", archived_at: new Date().toISOString() })
       .eq("id", version_id);

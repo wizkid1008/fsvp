@@ -46,12 +46,17 @@ export async function POST(req: NextRequest) {
 
   // Fetch the document to check it exists and get entity info
   const { data: doc } = await (admin.from("documents") as any)
-    .select("id, title, evidence_status, facility_id, linked_entity_type, linked_entity_id, rule_version_id, supplier_id")
+    .select("id, title, evidence_status, facility_id, linked_entity_type, linked_entity_id, rule_version_id, supplier_id, importer_id")
     .eq("id", document_id)
     .is("soft_deleted_at", null)
     .maybeSingle();
 
   if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
+
+  // Importers can only review documents belonging to their own organization
+  if (profile.role === "us_importer" && doc.importer_id !== profile.importer_id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const previousStatus = doc.evidence_status;
 
@@ -97,14 +102,14 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: { "Content-Type": "application/json", Cookie: req.headers.get("cookie") ?? "" },
         body: JSON.stringify({ entity_type: "facility", entity_id: doc.facility_id, rule_version_id: ruleVersionId }),
-      }).catch(() => {});
+      }).catch((err) => console.error("[evidence/review] facility score recalc failed:", err));
     }
     if (doc.linked_entity_type === "product" && doc.linked_entity_id) {
       fetch(`${baseUrl}/api/scoring/recalculate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Cookie: req.headers.get("cookie") ?? "" },
         body: JSON.stringify({ entity_type: "product", entity_id: doc.linked_entity_id, rule_version_id: ruleVersionId }),
-      }).catch(() => {});
+      }).catch((err) => console.error("[evidence/review] product score recalc failed:", err));
     }
   }
 

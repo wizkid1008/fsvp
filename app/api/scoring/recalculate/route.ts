@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { scoreFacility, scoreProduct, scoreFsvpRecord } from "@/lib/scoring";
 
 export const runtime = "edge";
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: profile } = await (supabase.from("profiles") as any)
-    .select("role")
+    .select("role, importer_id")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -34,6 +35,24 @@ export async function POST(req: NextRequest) {
       { error: "entity_type, entity_id, and rule_version_id are required" },
       { status: 400 }
     );
+  }
+
+  // Importers can only trigger scoring for entities linked to their own org
+  if (profile.role === "us_importer") {
+    const admin = createAdminSupabaseClient();
+    let ownerQuery;
+    if (entity_type === "fsvp_record") {
+      ownerQuery = (admin.from("fsvp_records") as any)
+        .select("id").eq("id", entity_id).eq("importer_id", profile.importer_id).maybeSingle();
+    } else if (entity_type === "facility") {
+      ownerQuery = (admin.from("fsvp_records") as any)
+        .select("id").eq("facility_id", entity_id).eq("importer_id", profile.importer_id).limit(1).maybeSingle();
+    } else {
+      ownerQuery = (admin.from("fsvp_records") as any)
+        .select("id").eq("product_id", entity_id).eq("importer_id", profile.importer_id).limit(1).maybeSingle();
+    }
+    const { data: owned } = await ownerQuery;
+    if (!owned) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {

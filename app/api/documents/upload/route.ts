@@ -36,7 +36,13 @@ export async function POST(request: Request) {
   const supplierId = String(formData.get("supplier_id") ?? "");
   const productId = String(formData.get("product_id") ?? "");
   const facilityId = String(formData.get("facility_id") ?? "");
-  const linkType = String(formData.get("link_type") ?? "supplier");
+  const linkTypeRaw = String(formData.get("link_type") ?? "supplier");
+  const ALLOWED_LINK_TYPES = ["supplier", "product", "facility"] as const;
+  type LinkType = typeof ALLOWED_LINK_TYPES[number];
+  if (!(ALLOWED_LINK_TYPES as readonly string[]).includes(linkTypeRaw)) {
+    return NextResponse.json({ error: "Invalid link_type." }, { status: 400 });
+  }
+  const linkType = linkTypeRaw as LinkType;
   const relatedRequirementId = String(formData.get("related_requirement_id") ?? "");
   const requirementItemId = String(formData.get("requirement_item_id") ?? "");
   const expirationDate = String(formData.get("expiration_date") ?? "");

@@ -48,10 +48,12 @@ export function AppShell({
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [userInitials, setUserInitials] = useState<string>("..");
 
+  const VALID_ROLES = new Set<AppRole>(["supplier", "us_importer", "reviewer", "administrator"]);
+
   useEffect(() => {
     if (serverRole === "administrator") {
       const preview = localStorage.getItem(PREVIEW_KEY) as AppRole | null;
-      if (preview) setRole(preview);
+      if (preview && VALID_ROLES.has(preview)) setRole(preview);
     }
   }, [serverRole]);
 
@@ -117,7 +119,7 @@ export function AppShell({
   // Role label shown at the bottom of sidebar
   const roleLabel = serverRole === "supplier" && supplierType
     ? supplierRoleLabel(supplierType)
-    : ROLE_LABELS[role];
+    : (ROLE_LABELS[role] ?? "Unknown");
 
   return (
     <div className="min-h-screen bg-white text-black">
@@ -158,7 +160,7 @@ export function AppShell({
                 </p>
               </div>
             </Link>
-            <div className="absolute bottom-full left-0 z-10 hidden w-full pb-2 group-hover:block">
+            <div className="absolute bottom-full left-0 z-10 hidden w-full pb-2 group-hover:block bg-white">
               <button
                 type="button"
                 onClick={handleLogout}

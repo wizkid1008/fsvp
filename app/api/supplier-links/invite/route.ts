@@ -73,10 +73,11 @@ export async function POST(request: NextRequest) {
     // creating a shared supplier record is a system-level operation.
     const adminSupabase = createAdminSupabaseClient();
 
-    // Check if a suppliers row with this name already exists
+    // Check if a suppliers row with this name and country already exists (exact + country match to avoid fuzzy collisions)
     const { data: existingSupplier } = await (adminSupabase.from("suppliers") as any)
       .select("id")
       .ilike("company_name", companyName)
+      .eq("country", country)
       .maybeSingle();
 
     if (existingSupplier?.id) {

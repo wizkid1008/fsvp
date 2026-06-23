@@ -1,4 +1,4 @@
-import { Activity, Bell, BookOpenCheck, Download, LockKeyhole, RefreshCw, Settings2, UsersRound } from "lucide-react";
+import { Activity, Bell, BookOpenCheck, Download, LockKeyhole, RefreshCw, Settings2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -49,11 +49,8 @@ export default async function AdminPage() {
   const { data: allUsers } = await supabase
     .from("profiles")
     .select("id, email, full_name, organization_name, role, user_status, last_login_at")
-    .order("created_at", { ascending: false });
-
-  const { data: supplierQueue } = await (supabase.from("suppliers") as any)
-    .select("id, company_name, country, approval_status, certification_status, updated_at, contact_json")
-    .order("updated_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(50);
 
   const [{ data: rawSettings }, { data: rawReferenceDocs }, { data: rawAuditLogs }, { data: rawNotifications }] = await Promise.all([
     (supabase.from("app_settings") as any)
@@ -75,15 +72,6 @@ export default async function AdminPage() {
       .limit(5),
   ]);
 
-  const suppliers = (supplierQueue ?? []) as Array<{
-    id: string;
-    company_name: string;
-    country: string;
-    approval_status: string;
-    certification_status: string;
-    updated_at: string;
-    contact_json: Record<string, string> | null;
-  }>;
   const workflowSettings = ((rawSettings ?? []) as WorkflowSetting[]).length > 0
     ? (rawSettings as WorkflowSetting[])
     : fallbackWorkflowSettings;
@@ -132,13 +120,9 @@ export default async function AdminPage() {
   const documentCount = await getCount("documents", supabase);
   const status = profile?.user_status ?? "pending";
 
-  const pendingSuppliers = suppliers.filter((s) => s.approval_status === "pending_review").length;
-
   const adminMetrics: Array<{ label: string; value: string; detail: string; tone: StatusTone }> = [
     { label: "Users", value: String(userCount || (user ? 1 : 0)), detail: "registered accounts", tone: "info" },
     { label: "Documents", value: String(documentCount), detail: "uploaded to Supabase", tone: documentCount > 0 ? "info" : "neutral" },
-    { label: "Suppliers", value: String(suppliers.length), detail: `${pendingSuppliers} pending review`, tone: suppliers.length > 0 ? "info" : "neutral" },
-    { label: "Pending Review", value: String(pendingSuppliers), detail: "suppliers awaiting approval", tone: pendingSuppliers > 0 ? "warning" : "success" }
   ];
 
   return (
@@ -205,59 +189,7 @@ export default async function AdminPage() {
         </aside>
       </section>
 
-      <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
-          <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-            <div>
-              <h2 className="text-base font-semibold text-ink">Supplier Oversight Queue</h2>
-              <p className="mt-1 text-sm text-slate-500">{suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""} on file</p>
-            </div>
-            <UsersRound className="h-5 w-5 text-[#2DA8FF]" />
-          </div>
-          {suppliers.length === 0 ? (
-            <div className="px-5 py-10 text-center">
-              <p className="text-base font-semibold text-ink">No suppliers yet</p>
-              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                Add suppliers from the Suppliers page to begin tracking readiness status here.
-              </p>
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line bg-slate-50">
-                  <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Supplier</th>
-                  <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Country</th>
-                  <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Status</th>
-                  <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Updated</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {suppliers.map((s) => {
-                  const tone: StatusTone =
-                    s.approval_status === "approved" ? "success" :
-                    s.approval_status === "pending_review" ? "warning" :
-                    s.approval_status === "suspended" || s.approval_status === "rejected" ? "danger" : "neutral";
-                  return (
-                    <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-ink">{s.company_name}</p>
-                        {s.contact_json?.email && <p className="text-xs text-slate-400">{s.contact_json.email}</p>}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{s.country}</td>
-                      <td className="px-4 py-3">
-                        <StatusBadge tone={tone}>
-                          {s.approval_status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </StatusBadge>
-                      </td>
-                      <td className="px-4 py-3 text-slate-500">{new Date(s.updated_at).toLocaleDateString()}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
+      <section className="mt-6">
         <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="flex items-center justify-between gap-3">
             <div>

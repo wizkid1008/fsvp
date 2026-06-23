@@ -47,7 +47,7 @@ export const navItems: NavItem[] = [
 
   // ── Exporter-only nav ────────────────────────────────────────
   { href: "/corporate",    label: "Corporate",     icon: "Building2",   roles: ["supplier"], supplierTypes: ["exporter"], matches: ["/corporate"] },
-  { href: "/my-suppliers", label: "My Suppliers",  icon: "UsersRound",  roles: ["supplier"], supplierTypes: ["exporter"], matches: ["/my-suppliers"] },
+  { href: "/my-suppliers", label: "Suppliers",  icon: "UsersRound",  roles: ["supplier"], supplierTypes: ["exporter"], matches: ["/my-suppliers"] },
 
   // ── Manufacturer-only nav ────────────────────────────────────
   { href: "/my-tasks",     label: "My Tasks",      icon: "ClipboardList", roles: ["supplier"], supplierTypes: ["manufacturer"], matches: ["/my-tasks"] },

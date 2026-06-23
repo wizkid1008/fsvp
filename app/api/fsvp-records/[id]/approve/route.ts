@@ -52,6 +52,28 @@ export async function POST(
     return NextResponse.json({ error: "Invalid decision" }, { status: 400 });
   }
 
+  if (reassessment_months !== undefined && (reassessment_months < 1 || reassessment_months > 120)) {
+    return NextResponse.json({ error: "reassessment_months must be between 1 and 120." }, { status: 400 });
+  }
+
+  // Block approval when critical compliance gaps are still open
+  if (decision === "approved" || decision === "conditionally_approved") {
+    const { data: scoringResult } = await (admin.from("scoring_results") as any)
+      .select("critical_blockers_present")
+      .eq("entity_type", "fsvp_record")
+      .eq("entity_id", id)
+      .order("calculated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (scoringResult?.critical_blockers_present) {
+      return NextResponse.json(
+        { error: "Cannot approve: unresolved critical compliance gaps remain. All critical items must be satisfied before approval." },
+        { status: 400 }
+      );
+    }
+  }
+
   const now = new Date();
   const months = reassessment_months ?? 12;
   const reassessmentDue = new Date(now);

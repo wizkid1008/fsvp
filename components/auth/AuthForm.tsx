@@ -92,7 +92,12 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
           window.location.assign("/dashboard");
         }
       } catch (authError) {
-        const message = authError instanceof Error ? authError.message : "Authentication failed.";
+        const raw = authError instanceof Error
+          ? authError.message
+          : (authError && typeof authError === "object" && "message" in authError)
+            ? String((authError as { message: unknown }).message)
+            : null;
+        const message = (!raw || raw === "{}" || raw === "[object Object]") ? "Authentication failed." : raw;
         if (mode === "signup" && message.toLowerCase().includes("already")) {
           setMessage(VERIFICATION_HELP_MESSAGE);
           return;
