@@ -5,9 +5,12 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { FsvpNarrativeForm } from "@/components/fsvp/FsvpNarrativeForm";
 import { ApprovalDecisionForm } from "@/components/fsvp/ApprovalDecisionForm";
 import { EvidencePackagePanel } from "@/components/fsvp/EvidencePackagePanel";
+import { HazardAnalysisPanel } from "@/components/fsvp/HazardAnalysisPanel";
+import { VerificationRecordsPanel } from "@/components/fsvp/VerificationRecordsPanel";
 import { PrintButton } from "@/components/fsvp/PrintButton";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
@@ -158,6 +161,43 @@ export default async function FsvpRecordPage({
   type CA = { id: string; issue_description: string; status: string; triggered_at: string };
   const corrective_actions = (rawCAs ?? []) as CA[];
 
+  // Fetch hazard analysis (latest non-superseded)
+  const { data: rawHazardAnalysis } = await (supabase.from("fsvp_plan_hazard_analyses") as any)
+    .select(`
+      id, version, status, methodology_notes, relied_on_other_party,
+      relied_on_party_name, performed_by_name, performed_at, next_reassessment_due_at,
+      requires_supplier_verification,
+      fsvp_plan_hazard_items(
+        id, hazard_type, hazard_name, requires_control, severity,
+        is_sahcodha, controlling_entity, controls_description
+      )
+    `)
+    .eq("fsvp_record_id", id)
+    .neq("status", "superseded")
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const hazardAnalysis = rawHazardAnalysis
+    ? { ...rawHazardAnalysis, items: rawHazardAnalysis.fsvp_plan_hazard_items ?? [] }
+    : null;
+
+  // Fetch verification records
+  const { data: rawVerificationRecords } = await (supabase.from("fsvp_verification_records") as any)
+    .select(`
+      id, activity_type, status, scheduled_date, completed_at,
+      result, result_notes, is_sahcodha_audit, performed_by_name, next_due_at
+    `)
+    .eq("fsvp_record_id", id)
+    .order("scheduled_date", { ascending: false });
+
+  const verificationRecords = (rawVerificationRecords ?? []) as Array<{
+    id: string; activity_type: string; status: string;
+    scheduled_date: string | null; completed_at: string | null;
+    result: string | null; result_notes: string | null;
+    is_sahcodha_audit: boolean; performed_by_name: string | null; next_due_at: string | null;
+  }>;
+
   // Fetch reassessment schedule
   const { data: schedule } = await (supabase.from("reassessment_schedules") as any)
     .select("next_due_at, frequency_months, status, last_assessed_at")
@@ -304,6 +344,36 @@ export default async function FsvpRecordPage({
           <FsvpNarrativeForm
             recordId={id}
             sections={narrativeSections}
+            readonly={!isEditable}
+          />
+        </section>
+
+        {/* Hazard Analysis */}
+        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <div className="mb-5 border-b border-line pb-4">
+            <h2 className="text-base font-semibold text-ink">Hazard Analysis</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Identify known or reasonably foreseeable biological, chemical, physical, and radiological hazards per § 1.504.
+            </p>
+          </div>
+          <HazardAnalysisPanel
+            recordId={id}
+            analysis={hazardAnalysis}
+            readonly={!isEditable}
+          />
+        </section>
+
+        {/* Verification Records */}
+        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <div className="mb-5 border-b border-line pb-4">
+            <h2 className="text-base font-semibold text-ink">Verification Activities</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Audits, sampling & testing, records reviews, and certificates of conformance per §§ 1.506–1.507.
+            </p>
+          </div>
+          <VerificationRecordsPanel
+            recordId={id}
+            records={verificationRecords}
             readonly={!isEditable}
           />
         </section>
