@@ -21,6 +21,7 @@ const ar: Messages = {
     readiness: "الاستعداد",
     reports: "التقارير",
     reviewQueue: "قائمة المراجعة",
+    importerReview: "قائمة المراجعة",
     auditLog: "سجل التدقيق",
     fsvpRecords: "سجلات FSVP",
     admin: "الإدارة",

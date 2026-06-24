@@ -21,6 +21,7 @@ const fr: Messages = {
     readiness: "Préparation",
     reports: "Rapports",
     reviewQueue: "File de révision",
+    importerReview: "File de révision",
     auditLog: "Journal d'audit",
     fsvpRecords: "Dossiers FSVP",
     admin: "Administration",

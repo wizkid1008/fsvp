@@ -22,6 +22,7 @@ const en = {
     readiness: "Readiness",
     reports: "Reports",
     reviewQueue: "Review Queue",
+    importerReview: "Review Queue",
     auditLog: "Audit Log",
     fsvpRecords: "FSVP Records",
     admin: "Admin",

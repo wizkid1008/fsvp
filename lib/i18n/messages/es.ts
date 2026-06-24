@@ -21,6 +21,7 @@ const es: Messages = {
     readiness: "Preparación",
     reports: "Informes",
     reviewQueue: "Cola de revisión",
+    importerReview: "Cola de revisión",
     auditLog: "Registro de auditoría",
     fsvpRecords: "Registros FSVP",
     admin: "Administración",
