@@ -276,6 +276,8 @@ export function EvidenceReviewPanel({ items }: { items: ReviewItem[] }) {
   const [criticalOnly, setCriticalOnly]     = useState(false);
   const [kindFilter, setKindFilter]         = useState("all");
   const [expiryFilter, setExpiryFilter]     = useState("all");
+  const [supplierFilter, setSupplierFilter] = useState("all");
+  const [entityFilter, setEntityFilter]     = useState("all");
   const [selected, setSelected]             = useState<ReviewItem | null>(null);
 
   const kinds = useMemo(() => {
@@ -283,11 +285,29 @@ export function EvidenceReviewPanel({ items }: { items: ReviewItem[] }) {
     return Array.from(set).sort();
   }, [items]);
 
+  const suppliers = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of items) map.set(i.supplier_name, i.supplier_name);
+    return Array.from(map.keys()).sort();
+  }, [items]);
+
+  // Entity options scoped to the selected supplier
+  const entities = useMemo(() => {
+    const set = new Set<string>();
+    for (const i of items) {
+      if (supplierFilter !== "all" && i.supplier_name !== supplierFilter) continue;
+      if (i.entity_name) set.add(i.entity_name);
+    }
+    return Array.from(set).sort();
+  }, [items, supplierFilter]);
+
   const filtered = useMemo(() => {
     return items.filter((item) => {
       if (statusFilter !== "all" && item.evidence_status !== statusFilter) return false;
       if (criticalOnly && !item.is_critical_blocker) return false;
       if (kindFilter !== "all" && item.document_kind !== kindFilter) return false;
+      if (supplierFilter !== "all" && item.supplier_name !== supplierFilter) return false;
+      if (entityFilter !== "all" && item.entity_name !== entityFilter) return false;
       if (expiryFilter !== "all") {
         const days = daysUntilExpiry(item.expiration_date);
         if (expiryFilter === "past") {
@@ -299,7 +319,7 @@ export function EvidenceReviewPanel({ items }: { items: ReviewItem[] }) {
       }
       return true;
     });
-  }, [items, statusFilter, criticalOnly, kindFilter, expiryFilter]);
+  }, [items, statusFilter, criticalOnly, kindFilter, supplierFilter, entityFilter, expiryFilter]);
 
   const pendingInFiltered = filtered.filter(
     (i) => i.evidence_status === "submitted" || i.evidence_status === "under_review"
@@ -320,6 +340,30 @@ export function EvidenceReviewPanel({ items }: { items: ReviewItem[] }) {
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-white px-4 py-3 shadow-soft">
         <Filter className="h-4 w-4 shrink-0 text-slate-400" />
+
+        {/* Supplier filter */}
+        {suppliers.length > 1 && (
+          <select
+            value={supplierFilter}
+            onChange={(e) => { setSupplierFilter(e.target.value); setEntityFilter("all"); }}
+            className="rounded-md border border-line bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-ink focus:border-forest focus:outline-none"
+          >
+            <option value="all">All Suppliers</option>
+            {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+
+        {/* Entity filter — only shown when a supplier is selected and has multiple entities */}
+        {supplierFilter !== "all" && entities.length > 1 && (
+          <select
+            value={entityFilter}
+            onChange={(e) => setEntityFilter(e.target.value)}
+            className="rounded-md border border-line bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-ink focus:border-forest focus:outline-none"
+          >
+            <option value="all">All Entities</option>
+            {entities.map((e) => <option key={e} value={e}>{e}</option>)}
+          </select>
+        )}
 
         <select
           value={statusFilter}

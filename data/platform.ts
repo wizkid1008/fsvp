@@ -53,18 +53,18 @@ export const navItems: NavItem[] = [
   { href: "/my-tasks",     label: "My Tasks",     icon: "ClipboardList", roles: ["supplier"],              matches: ["/my-tasks"] },
 
   // ── Both exporter and supplier ───────────────────────────────
-  { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.facilities" },
-  { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.products" },
+  { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier", "us_importer", "administrator"], tKey: "nav.facilities" },
+  { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier", "us_importer", "administrator"], tKey: "nav.products" },
   { href: "/my-evidence",  label: "My Evidence",  icon: "FileArchive",   roles: ["exporter", "supplier"], tKey: "nav.myEvidence" },
   { href: "/my-requests",  label: "Action Items", icon: "AlertTriangle", roles: ["exporter", "supplier"], tKey: "nav.actionItems" },
 
   // ── Importer nav ─────────────────────────────────────────────
-  { href: "/suppliers",    label: "Suppliers",     icon: "Building2",   roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.suppliers" },
-  { href: "/evidence",     label: "Evidence",      icon: "FileArchive", roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.evidence" },
-  { href: "/fsvp-records", label: "FSVP Records",  icon: "FolderCheck", roles: ["us_importer", "reviewer", "administrator"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
+  { href: "/suppliers",    label: "Suppliers",     icon: "Building2",   roles: ["us_importer", "administrator"], tKey: "nav.suppliers" },
+  { href: "/evidence",     label: "Evidence",      icon: "FileArchive", roles: ["us_importer", "administrator"], tKey: "nav.evidence" },
+  { href: "/fsvp-records", label: "FSVP Records",  icon: "FolderCheck", roles: ["us_importer", "administrator"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
   { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer", "administrator"], tKey: "nav.gapsActions" },
   { href: "/readiness",    label: "Readiness",     icon: "Gauge",       roles: ["us_importer", "administrator"], tKey: "nav.readiness" },
-  { href: "/reports",      label: "Reports",       icon: "FileCheck2",  roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.reports" },
+  { href: "/reports",      label: "Reports",       icon: "FileCheck2",  roles: ["us_importer", "administrator"], tKey: "nav.reports" },
 
   // ── Reviewer + Admin nav ─────────────────────────────────────
   { href: "/reviewer",     label: "Review Queue",  icon: "ClipboardCheck", roles: ["reviewer", "administrator"], tKey: "nav.reviewQueue" },
