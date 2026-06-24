@@ -104,9 +104,9 @@ export default async function SuppliersPage() {
   return (
     <AppShell role={role}>
       <SectionHeader
-        title="My Suppliers"
+        title={role === "us_importer" ? "My Exporters" : "Suppliers"}
         description={role === "us_importer"
-          ? "Foreign suppliers you import from. Add a supplier to begin collecting FSVP evidence."
+          ? "Exporters you import from. Link an exporter to begin collecting FSVP evidence."
           : "All registered foreign suppliers in the platform."}
       />
       <SupplierTable

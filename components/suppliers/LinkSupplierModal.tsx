@@ -72,7 +72,7 @@ export function LinkSupplierModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-2xl rounded-lg border border-line bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
-          <h2 className="text-lg font-semibold text-ink">Link a Supplier</h2>
+          <h2 className="text-lg font-semibold text-ink">Link an Exporter</h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100 transition">
             <X className="h-4 w-4 text-slate-500" />
           </button>
@@ -80,7 +80,7 @@ export function LinkSupplierModal({ onClose }: { onClose: () => void }) {
 
         <div className="p-6 space-y-4">
           <p className="text-sm text-slate-500">
-            Search for a registered foreign supplier in the platform and link them to your importer account. Once linked, their evidence will appear in your review queue.
+            Search for a registered exporter in the platform and link them to your importer account. Once linked, their evidence will appear in your review queue. Note: an exporter may also act as a supplier to other exporters.
           </p>
 
           <div className="relative">
@@ -95,7 +95,7 @@ export function LinkSupplierModal({ onClose }: { onClose: () => void }) {
                 }
               }}
               onFocus={() => search(query)}
-              placeholder="Search by company name…"
+              placeholder="Search by exporter name…"
               className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-forest"
             />
           </div>
@@ -106,7 +106,7 @@ export function LinkSupplierModal({ onClose }: { onClose: () => void }) {
           {searching && <p className="text-sm text-slate-400">Searching…</p>}
 
           {!searching && results.length === 0 && query.length >= 2 && (
-            <p className="text-sm text-slate-500">No unlinked suppliers found matching &ldquo;{query}&rdquo;.</p>
+            <p className="text-sm text-slate-500">No unlinked exporters found matching &ldquo;{query}&rdquo;.</p>
           )}
 
           {results.length > 0 && (

@@ -73,7 +73,7 @@ export function SupplierTable({
           <h3 className="mt-4 text-base font-semibold text-ink">No suppliers linked yet</h3>
           <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
             {isImporter
-              ? "Search for a registered foreign supplier and link them to start collecting FSVP evidence."
+              ? "Search for a registered exporter and link them to start collecting FSVP evidence."
               : "Add your first foreign supplier to begin tracking FSVP compliance, evidence, and verification activities."}
           </p>
           <button
@@ -81,7 +81,7 @@ export function SupplierTable({
             onClick={() => isImporter ? setShowLinkModal(true) : setShowForm(true)}
             className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
           >
-            {isImporter ? "Link your first supplier" : "Add your first supplier"}
+            {isImporter ? "Link your first exporter" : "Add your first supplier"}
           </button>
         </div>
       </>
@@ -98,7 +98,7 @@ export function SupplierTable({
             onClick={() => isImporter ? setShowLinkModal(true) : setShowForm(true)}
             className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
           >
-            {isImporter ? "Link a supplier" : "Add supplier"}
+            {isImporter ? "Link an exporter" : "Add supplier"}
           </button>
         </div>
         <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">

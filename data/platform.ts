@@ -59,7 +59,7 @@ export const navItems: NavItem[] = [
   { href: "/my-requests",  label: "Action Items", icon: "AlertTriangle", roles: ["exporter", "supplier"], tKey: "nav.actionItems" },
 
   // ── Importer nav ─────────────────────────────────────────────
-  { href: "/suppliers",        label: "Suppliers",     icon: "Building2",      roles: ["us_importer"], tKey: "nav.suppliers" },
+  { href: "/suppliers",        label: "Exporters",     icon: "Building2",      roles: ["us_importer"] },
   { href: "/importer-review",  label: "Review Queue",  icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview" },
   { href: "/fsvp-records",     label: "FSVP Records",  icon: "FolderCheck",    roles: ["us_importer"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
 
