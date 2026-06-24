@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2, XCircle, AlertCircle, AlertTriangle,
-  FileText, X, ExternalLink, Filter,
+  FileText, X, ExternalLink, Filter, ChevronDown, ChevronUp, Building2, PackageSearch,
 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
@@ -22,12 +22,35 @@ interface ReviewItem {
   review_notes: string | null;
   expiration_date: string | null;
   linked_entity_type: string | null;
+  linked_entity_id: string | null;
+  facility_id: string | null;
   entity_name: string | null;
   supplier_name: string;
   importer_name: string | null;
   requirement_item_name: string | null;
   is_critical_blocker: boolean;
   uploaded_by_name: string | null;
+}
+
+interface EntityContext {
+  type: "facility" | "product";
+  name: string;
+  subtype: string | null;
+  location: string | null;
+  fda_reg: string | null;
+  certifications: string[] | null;
+  status: string | null;
+  supplier_name: string | null;
+  facility_name?: string | null;
+}
+
+interface EntityDoc {
+  id: string;
+  title: string;
+  document_kind: string;
+  evidence_status: string;
+  uploaded_at: string;
+  expiration_date: string | null;
 }
 
 function evidenceTone(status: EvidenceStatus): StatusTone {
@@ -74,6 +97,27 @@ function ReviewSlideOut({ item, onClose }: { item: ReviewItem; onClose: () => vo
   const [pending, startTransition]      = useTransition();
   const [error, setError]               = useState<string | null>(null);
   const [success, setSuccess]           = useState<string | null>(null);
+
+  // Entity context
+  const [entityCtx, setEntityCtx]       = useState<{ entity: EntityContext; documents: EntityDoc[] } | null>(null);
+  const [entityLoading, setEntityLoading] = useState(false);
+  const [entityOpen, setEntityOpen]     = useState(true);
+
+  const entityType = item.linked_entity_type === "product" ? "product"
+    : item.facility_id || item.linked_entity_type === "facility" ? "facility"
+    : null;
+  const entityId = item.linked_entity_type === "product"
+    ? item.linked_entity_id
+    : item.facility_id ?? item.linked_entity_id;
+
+  useEffect(() => {
+    if (!entityType || !entityId) return;
+    setEntityLoading(true);
+    fetch(`/api/reviewer/entity-context?type=${entityType}&id=${entityId}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.entity) setEntityCtx(data); })
+      .finally(() => setEntityLoading(false));
+  }, [entityType, entityId]);
 
   async function decide(decision: "under_review" | "accepted" | "needs_revision" | "rejected") {
     if ((decision === "needs_revision" || decision === "rejected") && !notes.trim()) {
@@ -173,6 +217,100 @@ function ReviewSlideOut({ item, onClose }: { item: ReviewItem; onClose: () => vo
             <span className="text-xs text-slate-400 italic">No file attached</span>
           )}
         </div>
+
+        {/* Entity context panel */}
+        {(entityType) && (
+          <div className="border-b border-line">
+            <button
+              onClick={() => setEntityOpen((o) => !o)}
+              className="flex w-full items-center justify-between px-5 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              <span className="flex items-center gap-1.5">
+                {entityType === "facility"
+                  ? <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                  : <PackageSearch className="h-3.5 w-3.5 text-slate-400" />}
+                {entityType === "facility" ? "Facility" : "Product"} Details
+              </span>
+              {entityOpen ? <ChevronUp className="h-3.5 w-3.5 text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
+            </button>
+
+            {entityOpen && (
+              <div className="px-5 pb-4">
+                {entityLoading && (
+                  <p className="text-xs text-slate-400 py-2">Loading…</p>
+                )}
+                {!entityLoading && entityCtx && (
+                  <div className="space-y-3">
+                    {/* Entity details */}
+                    <div className="rounded-md border border-line bg-slate-50 p-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                      {entityCtx.entity.subtype && (
+                        <>
+                          <span className="text-slate-400">Type</span>
+                          <span className="text-ink font-medium capitalize">{entityCtx.entity.subtype}</span>
+                        </>
+                      )}
+                      {entityCtx.entity.location && (
+                        <>
+                          <span className="text-slate-400">{entityType === "facility" ? "Country" : "Origin"}</span>
+                          <span className="text-ink font-medium">{entityCtx.entity.location}</span>
+                        </>
+                      )}
+                      {entityCtx.entity.fda_reg && (
+                        <>
+                          <span className="text-slate-400">FDA Reg #</span>
+                          <span className="text-ink font-medium font-mono">{entityCtx.entity.fda_reg}</span>
+                        </>
+                      )}
+                      {entityCtx.entity.facility_name && (
+                        <>
+                          <span className="text-slate-400">Facility</span>
+                          <span className="text-ink font-medium">{entityCtx.entity.facility_name}</span>
+                        </>
+                      )}
+                      {entityCtx.entity.status && (
+                        <>
+                          <span className="text-slate-400">Approval</span>
+                          <span className="text-ink font-medium capitalize">{entityCtx.entity.status.replace(/_/g, " ")}</span>
+                        </>
+                      )}
+                      {entityCtx.entity.certifications && entityCtx.entity.certifications.length > 0 && (
+                        <>
+                          <span className="text-slate-400">Certs</span>
+                          <span className="text-ink font-medium">{entityCtx.entity.certifications.join(", ")}</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Other documents for this entity */}
+                    {entityCtx.documents.length > 1 && (
+                      <div>
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                          All documents for this {entityType} ({entityCtx.documents.length})
+                        </p>
+                        <div className="space-y-1">
+                          {entityCtx.documents.map((doc) => (
+                            <div key={doc.id} className={`flex items-center justify-between rounded px-2.5 py-1.5 text-xs ${doc.id === item.id ? "bg-forest/5 border border-forest/20" : "bg-slate-50"}`}>
+                              <div className="min-w-0">
+                                <p className={`font-medium truncate ${doc.id === item.id ? "text-forest" : "text-ink"}`}>{doc.title}</p>
+                                <p className="text-slate-400">{doc.document_kind}</p>
+                              </div>
+                              <StatusBadge tone={evidenceTone(doc.evidence_status as EvidenceStatus)}>
+                                {evidenceLabel(doc.evidence_status as EvidenceStatus)}
+                              </StatusBadge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!entityLoading && !entityCtx && (
+                  <p className="text-xs text-slate-400 py-2">No entity details found.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Previous notes */}
         {item.review_notes && !success && (

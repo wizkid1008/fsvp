@@ -115,6 +115,8 @@ export default async function ReviewerPage() {
       review_notes:          d.review_notes,
       expiration_date:       d.expiration_date,
       linked_entity_type:    d.linked_entity_type,
+      linked_entity_id:      d.linked_entity_id,
+      facility_id:           d.facility_id,
       entity_name:           entityName,
       supplier_name:         d.supplier_id ? (supplierMap.get(d.supplier_id) ?? "Unknown Supplier") : "—",
       importer_name:         d.importer_id ? (importerMap.get(d.importer_id) ?? null) : null,
