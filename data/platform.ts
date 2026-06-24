@@ -59,8 +59,9 @@ export const navItems: NavItem[] = [
   { href: "/my-requests",  label: "Action Items", icon: "AlertTriangle", roles: ["exporter", "supplier"], tKey: "nav.actionItems" },
 
   // ── Importer nav ─────────────────────────────────────────────
-  { href: "/suppliers",    label: "Suppliers",     icon: "Building2",   roles: ["us_importer", "administrator"], tKey: "nav.suppliers" },
-  { href: "/evidence",     label: "Evidence",      icon: "FileArchive", roles: ["us_importer", "administrator"], tKey: "nav.evidence" },
+  { href: "/suppliers",        label: "Suppliers",     icon: "Building2",      roles: ["us_importer", "administrator"], tKey: "nav.suppliers" },
+  { href: "/evidence",         label: "Evidence",      icon: "FileArchive",    roles: ["us_importer", "administrator"], tKey: "nav.evidence" },
+  { href: "/importer-review",  label: "Review Queue",  icon: "ClipboardCheck", roles: ["us_importer", "administrator"], tKey: "nav.importerReview" },
   { href: "/fsvp-records", label: "FSVP Records",  icon: "FolderCheck", roles: ["us_importer", "administrator"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
   { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer", "administrator"], tKey: "nav.gapsActions" },
   { href: "/readiness",    label: "Readiness",     icon: "Gauge",       roles: ["us_importer", "administrator"], tKey: "nav.readiness" },
