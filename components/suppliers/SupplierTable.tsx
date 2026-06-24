@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AddSupplierForm } from "@/components/suppliers/AddSupplierForm";
+import { LinkSupplierModal } from "@/components/suppliers/LinkSupplierModal";
 import { Building2, Pencil } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 import type { Country } from "@/types/database";
@@ -35,9 +36,18 @@ function approvalLabel(status: string) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function SupplierTable({ countries, suppliers }: { countries: CountryOption[]; suppliers: SupplierRow[] }) {
+export function SupplierTable({
+  countries,
+  suppliers,
+  importerId,
+}: {
+  countries: CountryOption[];
+  suppliers: SupplierRow[];
+  importerId?: string;
+}) {
   const [showForm, setShowForm] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<SupplierRow | null>(null);
+  const [showLinkModal, setShowLinkModal] = useState(false);
 
   function closeForm() {
     setShowForm(false);
@@ -49,24 +59,29 @@ export function SupplierTable({ countries, suppliers }: { countries: CountryOpti
     setShowForm(true);
   }
 
+  const isImporter = Boolean(importerId);
+
   if (suppliers.length === 0) {
     return (
       <>
-        {showForm && <AddSupplierForm countries={countries} onClose={closeForm} />}
+        {showForm && !isImporter && <AddSupplierForm countries={countries} onClose={closeForm} />}
+        {showLinkModal && <LinkSupplierModal onClose={() => setShowLinkModal(false)} />}
         <div className="mt-6 flex flex-col items-center justify-center rounded-lg border border-dashed border-line bg-slate-50 px-8 py-16 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full border border-line bg-white shadow-soft">
             <Building2 className="h-6 w-6 text-slate-400" />
           </div>
-          <h3 className="mt-4 text-base font-semibold text-ink">No suppliers yet</h3>
+          <h3 className="mt-4 text-base font-semibold text-ink">No suppliers linked yet</h3>
           <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-            Add your first foreign supplier to begin tracking FSVP compliance, evidence, and verification activities.
+            {isImporter
+              ? "Search for a registered foreign supplier and link them to start collecting FSVP evidence."
+              : "Add your first foreign supplier to begin tracking FSVP compliance, evidence, and verification activities."}
           </p>
           <button
             type="button"
-            onClick={() => setShowForm(true)}
+            onClick={() => isImporter ? setShowLinkModal(true) : setShowForm(true)}
             className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
           >
-            Add your first supplier
+            {isImporter ? "Link your first supplier" : "Add your first supplier"}
           </button>
         </div>
       </>
@@ -75,14 +90,15 @@ export function SupplierTable({ countries, suppliers }: { countries: CountryOpti
 
   return (
     <>
-      {showForm && <AddSupplierForm countries={countries} supplier={editingSupplier} onClose={closeForm} />}
+      {showForm && !isImporter && <AddSupplierForm countries={countries} supplier={editingSupplier} onClose={closeForm} />}
+      {showLinkModal && <LinkSupplierModal onClose={() => setShowLinkModal(false)} />}
       <div className="mt-6">
         <div className="mb-4 flex justify-end">
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => isImporter ? setShowLinkModal(true) : setShowForm(true)}
             className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
           >
-            Add supplier
+            {isImporter ? "Link a supplier" : "Add supplier"}
           </button>
         </div>
         <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
