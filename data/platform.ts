@@ -45,18 +45,18 @@ export const iconMap = {
 export const navItems: NavItem[] = [
   { href: "/dashboard",    label: "Dashboard",     icon: "LayoutDashboard", tKey: "nav.dashboard" },
 
-  // ── Exporter-only nav ────────────────────────────────────────
-  { href: "/corporate",    label: "Corporate",     icon: "Building2",   roles: ["supplier"], supplierTypes: ["exporter"], matches: ["/corporate"] },
-  { href: "/my-suppliers", label: "Suppliers",  icon: "UsersRound",  roles: ["supplier"], supplierTypes: ["exporter"], matches: ["/my-suppliers"] },
+  // ── Exporter nav (manages supply chain) ─────────────────────
+  { href: "/corporate",    label: "Corporate",    icon: "Building2",     roles: ["exporter", "supplier"], matches: ["/corporate"] },
+  { href: "/my-suppliers", label: "Suppliers",    icon: "UsersRound",    roles: ["exporter"],              matches: ["/my-suppliers"] },
 
-  // ── Manufacturer-only nav ────────────────────────────────────
-  { href: "/my-tasks",     label: "My Tasks",      icon: "ClipboardList", roles: ["supplier"], supplierTypes: ["manufacturer"], matches: ["/my-tasks"] },
+  // ── Supplier (manufacturer) only ─────────────────────────────
+  { href: "/my-tasks",     label: "My Tasks",     icon: "ClipboardList", roles: ["supplier"],              matches: ["/my-tasks"] },
 
-  // ── All supplier types ───────────────────────────────────────
-  { href: "/facilities",   label: "Facilities",    icon: "Warehouse",   roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.facilities" },
-  { href: "/products",     label: "Products",      icon: "PackageSearch", roles: ["supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.products" },
-  { href: "/my-evidence",  label: "My Evidence",   icon: "FileArchive", roles: ["supplier"], tKey: "nav.myEvidence" },
-  { href: "/my-requests",  label: "Action Items",  icon: "AlertTriangle", roles: ["supplier"], tKey: "nav.actionItems" },
+  // ── Both exporter and supplier ───────────────────────────────
+  { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.facilities" },
+  { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier", "us_importer", "reviewer", "administrator"], tKey: "nav.products" },
+  { href: "/my-evidence",  label: "My Evidence",  icon: "FileArchive",   roles: ["exporter", "supplier"], tKey: "nav.myEvidence" },
+  { href: "/my-requests",  label: "Action Items", icon: "AlertTriangle", roles: ["exporter", "supplier"], tKey: "nav.actionItems" },
 
   // ── Importer nav ─────────────────────────────────────────────
   { href: "/suppliers",    label: "Suppliers",     icon: "Building2",   roles: ["us_importer", "reviewer", "administrator"], tKey: "nav.suppliers" },

@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/layout/AppShell";
+﻿import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { MyEvidenceTable, type EvidenceRow } from "@/components/evidence/MyEvidenceTable";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -10,7 +10,7 @@ import { FileArchive } from "lucide-react";
 export const runtime = "edge";
 
 export default async function MyEvidencePage() {
-  const { role, user } = await requireProfileRole("/my-evidence", ["supplier", "administrator"]);
+  const { role, user } = await requireProfileRole("/my-evidence", ["supplier", "exporter", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   const { data: profile } = await (supabase.from("profiles") as any)
@@ -53,3 +53,4 @@ export default async function MyEvidencePage() {
     </AppShell>
   );
 }
+

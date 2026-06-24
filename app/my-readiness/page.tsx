@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/layout/AppShell";
+﻿import { AppShell } from "@/components/layout/AppShell";
 import { SupplierReadinessPanel } from "@/components/readiness/SupplierReadinessPanel";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -6,7 +6,7 @@ import { requireProfileRole } from "@/lib/auth/protection";
 export const runtime = "edge";
 
 export default async function MyReadinessPage() {
-  const { role, supabase } = await requireProfileRole("/my-readiness", ["supplier", "administrator"]);
+  const { role, supabase } = await requireProfileRole("/my-readiness", ["supplier", "exporter", "administrator"]);
 
   return (
     <AppShell role={role}>
@@ -20,3 +20,4 @@ export default async function MyReadinessPage() {
     </AppShell>
   );
 }
+

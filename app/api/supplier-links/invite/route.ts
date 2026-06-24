@@ -24,11 +24,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   }
 
-  // Must have a supplier record (i.e. be an exporter)
+  // Must be an exporter role with a supplier record
   const { data: profile } = await (supabase.from("profiles") as any)
-    .select("supplier_id, full_name, organization_name")
+    .select("supplier_id, role, full_name, organization_name")
     .eq("id", user.id)
     .maybeSingle();
+
+  if (!["exporter", "administrator"].includes(profile?.role)) {
+    return NextResponse.json({ error: "Only exporters can invite upstream suppliers." }, { status: 403 });
+  }
 
   const exporterId: string | null = profile?.supplier_id ?? null;
   if (!exporterId) {

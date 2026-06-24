@@ -11,7 +11,7 @@ import type { Country } from "@/types/database";
 export const runtime = "edge";
 
 export default async function MySuppliersPage() {
-  const { role, user } = await requireProfileRole("/my-suppliers", ["supplier", "administrator"]);
+  const { role, user } = await requireProfileRole("/my-suppliers", ["exporter", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   const [{ data: profile }, { data: countries }] = await Promise.all([

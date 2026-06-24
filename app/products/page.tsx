@@ -19,7 +19,7 @@ export default async function ProductsPage({
 }) {
   const { role, user } = await requireProfileRole("/products");
   const supabase = createServerSupabaseClient();
-  const isSupplier = role === "supplier";
+  const isSupplier = role === "supplier" || role === "exporter";
 
   const { data: profile } = await (supabase.from("profiles") as any)
     .select("supplier_id, organization_name")

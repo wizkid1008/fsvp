@@ -37,8 +37,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "product_name, supplier_id, facility_id, and country_of_origin are required" }, { status: 400 });
   }
 
-  const isOwnSupplier = profile.role === "supplier" && profile.supplier_id === supplier_id;
-  if (!isOwnSupplier && !NON_SUPPLIER_ROLES.has(profile.role)) {
+  const isOwnSupplier = ["supplier", "exporter"].includes(profile.role) && profile.supplier_id === supplier_id;
+
+  // Exporters can also save products for their linked upstream suppliers
+  let isLinkedSupplier = false;
+  if (!isOwnSupplier && profile.role === "exporter" && profile.supplier_id) {
+    const admin = createAdminSupabaseClient();
+    const { data: link } = await (admin.from("supplier_relationships") as any)
+      .select("id")
+      .eq("exporter_id", profile.supplier_id)
+      .eq("supplier_id", supplier_id)
+      .in("relationship_type", ["exporter_supplier", "self_supply"])
+      .in("status", ["active", "pending_invite"])
+      .maybeSingle();
+    isLinkedSupplier = !!link;
+  }
+
+  if (!isOwnSupplier && !isLinkedSupplier && !NON_SUPPLIER_ROLES.has(profile.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -14,7 +14,7 @@ export const runtime = "edge";
 
 
 export default async function CorporatePage() {
-  const { role, user } = await requireProfileRole("/corporate", ["supplier", "administrator"]);
+  const { role, user } = await requireProfileRole("/corporate", ["supplier", "exporter", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   const { data: profile } = await (supabase.from("profiles") as any)

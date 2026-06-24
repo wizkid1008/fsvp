@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No supplier record linked to your account." }, { status: 403 });
   }
 
-  if (!["supplier", "administrator"].includes(profile.role)) {
+  if (!["supplier", "exporter", "administrator"].includes(profile.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

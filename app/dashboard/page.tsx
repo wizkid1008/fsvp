@@ -118,22 +118,21 @@ export default async function DashboardPage() {
 
   const role        = profile?.role ?? "supplier";
   const displayName = profile?.full_name ?? user.email?.split("@")[0] ?? "User";
+  const isExporter  = role === "exporter";
   const isSupplier  = role === "supplier";
   const isImporter  = role === "us_importer";
   const isReviewer  = role === "reviewer" || role === "administrator";
 
-  // Determine supplier context for supplier-role users
-  const supplierCtx = isSupplier
+  // Fetch supplier context for exporter/supplier roles
+  const supplierCtx = (isExporter || isSupplier)
     ? await getSupplierContext(supabase as any, user.id)
     : null;
 
-  const supplierId   = supplierCtx?.supplierId   ?? null;
-  const supplierType = supplierCtx?.supplierType ?? null;
-  const isExporter   = isSupplier && isExporterType(supplierType);
+  const supplierId = supplierCtx?.supplierId ?? null;
 
   return (
-    <AppShell role={role} supplierType={supplierType}>
-      {isSupplier && isExporter && (
+    <AppShell role={role}>
+      {isExporter && (
         <ExporterDashboard
           supplierId={supplierId}
           companyName={supplierCtx?.companyName ?? null}
@@ -142,7 +141,7 @@ export default async function DashboardPage() {
         />
       )}
 
-      {isSupplier && !isExporter && (
+      {isSupplier && (
         <ManufacturerDashboard
           supplierId={supplierId}
           companyName={supplierCtx?.companyName ?? null}

@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/layout/AppShell";
+﻿import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -25,7 +25,7 @@ function statusTone(status: string): StatusTone {
 }
 
 export default async function ActionItemsPage() {
-  const { role } = await requireProfileRole("/my-requests", ["supplier", "administrator"]);
+  const { role } = await requireProfileRole("/my-requests", ["supplier", "exporter", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   type ActionRow = {
@@ -51,7 +51,7 @@ export default async function ActionItemsPage() {
     <AppShell role={role}>
       <SectionHeader
         title="Action Items"
-        description="These are tasks your importer or reviewer has asked you to complete — uploading missing documents, responding to findings, or providing additional evidence."
+        description="These are tasks your importer or reviewer has asked you to complete â€” uploading missing documents, responding to findings, or providing additional evidence."
       />
 
       {actions.length === 0 ? (
@@ -79,7 +79,7 @@ export default async function ActionItemsPage() {
                         <p className="font-semibold text-ink leading-snug">{action.issue_description}</p>
                         <p className="mt-1.5 text-xs text-slate-500">
                           Reason: <span className="font-medium text-slate-700">{TRIGGERED_BY_LABELS[action.triggered_by] ?? action.triggered_by}</span>
-                          <span className="mx-2">·</span>
+                          <span className="mx-2">Â·</span>
                           Opened: <span className="font-medium text-slate-700">{new Date(action.triggered_at).toLocaleDateString()}</span>
                         </p>
                         {action.investigation_summary && (
@@ -136,3 +136,4 @@ export default async function ActionItemsPage() {
     </AppShell>
   );
 }
+

@@ -13,7 +13,7 @@ export type Profile = {
   preferred_language: string | null;
   supplier_type: string | null;
   importer_type: string | null;
-  role: "supplier" | "us_importer" | "reviewer" | "administrator";
+  role: "supplier" | "exporter" | "us_importer" | "reviewer" | "administrator";
   supplier_id: string | null;
   importer_id: string | null;
   user_status: "active" | "pending" | "suspended";

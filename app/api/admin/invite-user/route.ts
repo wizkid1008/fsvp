@@ -17,7 +17,7 @@ type InvitePayload = {
   role?: AppRole;
 };
 
-const allowedRoles: AppRole[] = ["supplier", "us_importer", "reviewer", "administrator"];
+const allowedRoles: AppRole[] = ["supplier", "exporter", "us_importer", "reviewer", "administrator"];
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";

@@ -17,6 +17,7 @@ const PREVIEW_KEY = "fsvp_preview_role";
 
 const ROLE_LABELS: Record<AppRole, string> = {
   supplier:      "Supplier",
+  exporter:      "Exporter",
   us_importer:   "US Importer",
   reviewer:      "Reviewer",
   administrator: "Administrator",
@@ -48,7 +49,7 @@ export function AppShell({
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [userInitials, setUserInitials] = useState<string>("..");
 
-  const VALID_ROLES = new Set<AppRole>(["supplier", "us_importer", "reviewer", "administrator"]);
+  const VALID_ROLES = new Set<AppRole>(["supplier", "exporter", "us_importer", "reviewer", "administrator"]);
 
   useEffect(() => {
     if (serverRole === "administrator") {
@@ -102,24 +103,23 @@ export function AppShell({
       return false;
     }
 
-    // Supplier-type check (only applies when role is supplier)
-    if (role === "supplier" && item.supplierTypes && supplierType) {
-      const isExp = isExporterType(supplierType);
-      if (item.supplierTypes.includes("exporter") && !item.supplierTypes.includes("manufacturer")) {
-        return isExp;
+    // With the exporter/supplier role split, supplierTypes filtering is no longer
+    // needed — role itself is the discriminator. Legacy nav items that still carry
+    // supplierTypes are filtered here for backward compatibility only.
+    if (item.supplierTypes) {
+      if (role === "supplier") {
+        // supplier role = upstream manufacturer; only show manufacturer items
+        if (item.supplierTypes.includes("manufacturer") && !item.supplierTypes.includes("exporter")) return true;
+        if (item.supplierTypes.includes("exporter") && !item.supplierTypes.includes("manufacturer")) return false;
       }
-      if (item.supplierTypes.includes("manufacturer") && !item.supplierTypes.includes("exporter")) {
-        return !isExp;
-      }
+      // exporter role has no supplierTypes restriction — items already gated by roles[]
     }
 
     return true;
   });
 
   // Role label shown at the bottom of sidebar
-  const roleLabel = serverRole === "supplier" && supplierType
-    ? supplierRoleLabel(supplierType)
-    : (ROLE_LABELS[role] ?? "Unknown");
+  const roleLabel = ROLE_LABELS[role] ?? "Unknown";
 
   return (
     <div className="min-h-screen bg-white text-black">
