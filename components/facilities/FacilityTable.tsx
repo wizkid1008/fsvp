@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit2, MapPin, Warehouse, X } from "lucide-react";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
 import { FacilityMapPicker } from "@/components/facilities/FacilityMapPicker";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -177,59 +176,31 @@ function AddFacilityForm({
           return;
         }
 
-        const addressJson: Json = {
-          address_line_1: clean(formData.get("address_line_1")),
-          city: clean(formData.get("city")),
-          country,
-          latitude,
-          longitude
-        };
-        const supabase = createBrowserSupabaseClient();
-        const {
-          data: { user }
-        } = await supabase.auth.getUser();
-        const { data: profile } = user
-          ? await (supabase.from("profiles") as any)
-              .select("importer_id")
-              .eq("id", user.id)
-              .maybeSingle()
-          : { data: null };
-        const payload = {
-          facility_name: formData.get("facility_name")?.toString().trim() ?? "",
-          facility_type: formData.get("facility_type")?.toString().trim() ?? "",
-          supplier_id: selectedSupplierIds[0] ?? null,
-          ...(profile?.importer_id ? { importer_id: profile.importer_id } : {}),
-          facility_address_json: addressJson,
-          fda_registration_number: clean(formData.get("fda_registration_number")),
-          production_capacity: clean(formData.get("production_capacity")),
-          manufacturing_processes: clean(formData.get("manufacturing_processes")),
-          food_safety_certifications: splitCertifications(clean(formData.get("food_safety_certifications")))
-        };
-        const saveResult = facility
-          ? await (supabase.from("facilities_verify") as any).update(payload).eq("id", facility.id).select("id, importer_id").single()
-          : await (supabase.from("facilities_verify") as any).insert(payload).select("id, importer_id").single();
+        const res = await fetch("/api/facilities", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            facility_id: facility?.id ?? undefined,
+            supplier_ids: selectedSupplierIds,
+            facility_name: formData.get("facility_name")?.toString().trim() ?? "",
+            facility_type: formData.get("facility_type")?.toString().trim() ?? "",
+            facility_address_json: {
+              address_line_1: clean(formData.get("address_line_1")),
+              city: clean(formData.get("city")),
+              country,
+              latitude,
+              longitude,
+            },
+            fda_registration_number: clean(formData.get("fda_registration_number")),
+            production_capacity: clean(formData.get("production_capacity")),
+            manufacturing_processes: clean(formData.get("manufacturing_processes")),
+            food_safety_certifications: splitCertifications(clean(formData.get("food_safety_certifications"))),
+          }),
+        });
 
-        if (saveResult.error) throw saveResult.error;
-
-        const facilityId = saveResult.data.id;
-        const importerId = saveResult.data.importer_id ?? null;
-        await (supabase.from("facility_supplier_access") as any)
-          .delete()
-          .eq("facility_id", facilityId);
-
-        const accessRows = selectedSupplierIds.map((supplierId) => ({
-          facility_id: facilityId,
-          supplier_id: supplierId,
-          importer_id: importerId,
-          access_level: "manage"
-        }));
-
-        if (accessRows.length > 0) {
-          const { error: accessError } = await (supabase.from("facility_supplier_access") as any).upsert(accessRows, {
-            onConflict: "facility_id,supplier_id"
-          });
-
-          if (accessError) throw accessError;
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error((json as { error?: string }).error ?? "Could not save facility.");
         }
 
         router.refresh();
