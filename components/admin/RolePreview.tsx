@@ -8,9 +8,10 @@ const PREVIEW_KEY = "fsvp_preview_role";
 
 const ROLES: { value: AppRole; label: string; description: string }[] = [
   { value: "administrator", label: "Administrator", description: "Full platform access, admin panel, all pages" },
-  { value: "us_importer", label: "US Importer", description: "Supplier management, evidence, readiness, reports" },
-  { value: "reviewer", label: "Reviewer", description: "Review queue, evidence, supplier profiles, audit log" },
-  { value: "supplier", label: "Foreign Supplier", description: "My Evidence, My Requests only" },
+  { value: "us_importer",   label: "US Importer",   description: "Supplier management, evidence, readiness, reports" },
+  { value: "reviewer",      label: "Reviewer",       description: "Review queue, evidence, supplier profiles, audit log" },
+  { value: "exporter",      label: "Exporter",       description: "Corporate, My Suppliers, Facilities, Products, Evidence" },
+  { value: "supplier",      label: "Supplier",        description: "Corporate, Facilities, Products, My Evidence (own data only)" },
 ];
 
 export function RolePreviewSelector() {
