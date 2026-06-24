@@ -7,6 +7,7 @@ import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextS
 import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -49,20 +50,27 @@ export default async function ProductsPage({
     }
   }
 
-  // Fetch linked suppliers for context switcher dropdown
+  // Fetch linked suppliers for context switcher dropdown (include pending so products can be added before invite is accepted)
   const { data: linkedSupplierRows } = isSupplier && ownSupplierId
     ? await (supabase.from("supplier_relationships") as any)
-        .select("supplier:supplier_id(id, company_name)")
+        .select("supplier_id")
         .eq("relationship_type", "exporter_supplier")
         .eq("exporter_id", ownSupplierId)
-        .eq("status", "active")
+        .in("status", ["active", "pending_invite"])
     : { data: [] };
 
-  const linkedSuppliers = ((linkedSupplierRows ?? []) as Array<{
-    supplier: { id: string; company_name: string } | null;
-  }>)
-    .map((r) => r.supplier)
-    .filter(Boolean) as Array<{ id: string; company_name: string }>;
+  const linkedSupplierIdList = ((linkedSupplierRows ?? []) as Array<{ supplier_id: string | null }>)
+    .map((r) => r.supplier_id)
+    .filter(Boolean) as string[];
+
+  let linkedSuppliers: Array<{ id: string; company_name: string }> = [];
+  if (linkedSupplierIdList.length > 0) {
+    const admin = createAdminSupabaseClient();
+    const { data: supplierRows } = await (admin.from("suppliers") as any)
+      .select("id, company_name")
+      .in("id", linkedSupplierIdList);
+    linkedSuppliers = (supplierRows ?? []) as Array<{ id: string; company_name: string }>;
+  }
 
   let productsQuery = (supabase.from("products_verify") as any)
     .select("id, product_name, product_description, country_of_origin, raw_or_processed, intended_use, ingredient_list, allergen_information, supplier_id, facility_id, approval_status, suppliers(company_name), facilities_verify(facility_name)")
