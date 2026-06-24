@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Edit2, PackageSearch, X } from "lucide-react";
+import { Edit2, PackageSearch, Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Country } from "@/types/database";
 
@@ -365,7 +365,23 @@ export function ProductTable({
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
+  const [search, setSearch] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("");
   const canAddProduct = suppliers.length > 0 && facilities.length > 0;
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return products.filter((p) => {
+      const matchesSearch = !q ||
+        p.product_name.toLowerCase().includes(q) ||
+        (p.suppliers?.company_name.toLowerCase().includes(q) ?? false) ||
+        (p.facilities_verify?.facility_name.toLowerCase().includes(q) ?? false) ||
+        (p.country_of_origin?.toLowerCase().includes(q) ?? false) ||
+        (p.allergen_information?.toLowerCase().includes(q) ?? false);
+      const matchesSupplier = !supplierFilter || p.supplier_id === supplierFilter;
+      return matchesSearch && matchesSupplier;
+    });
+  }, [products, search, supplierFilter]);
 
   function openAddForm() {
     setEditingProduct(null);
@@ -389,7 +405,29 @@ export function ProductTable({
         />
       ) : null}
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search products…"
+            className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-forest"
+          />
+        </div>
+        {suppliers.length > 1 && (
+          <select
+            value={supplierFilter}
+            onChange={(e) => setSupplierFilter(e.target.value)}
+            className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
+          >
+            <option value="">All Suppliers</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>{s.company_name}</option>
+            ))}
+          </select>
+        )}
         <button
           type="button"
           disabled={!canAddProduct}
@@ -429,7 +467,12 @@ export function ProductTable({
           )}
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+        <div className="mt-4 overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-slate-400">
+              No products match your search.
+            </div>
+          ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-slate-50">
@@ -445,7 +488,7 @@ export function ProductTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {products.map((product) => (
+              {filtered.map((product) => (
                 <tr key={product.id} className="transition-colors hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-ink">
                     <a href={`/products/${product.id}`} className="text-forest hover:underline">
@@ -484,6 +527,7 @@ export function ProductTable({
               ))}
             </tbody>
           </table>
+          )}
         </div>
       )}
     </>

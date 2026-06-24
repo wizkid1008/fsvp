@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AddSupplierForm } from "@/components/suppliers/AddSupplierForm";
 import { LinkSupplierModal } from "@/components/suppliers/LinkSupplierModal";
-import { Building2, Pencil } from "lucide-react";
+import { Building2, Pencil, Search } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 import type { Country } from "@/types/database";
 
@@ -48,6 +48,21 @@ export function SupplierTable({
   const [showForm, setShowForm] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<SupplierRow | null>(null);
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return suppliers.filter((s) => {
+      const matchesSearch = !q ||
+        s.company_name.toLowerCase().includes(q) ||
+        (s.legal_entity_name?.toLowerCase().includes(q) ?? false) ||
+        s.country.toLowerCase().includes(q) ||
+        (s.fda_registration_number?.toLowerCase().includes(q) ?? false);
+      const matchesStatus = !statusFilter || s.approval_status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [suppliers, search, statusFilter]);
 
   function closeForm() {
     setShowForm(false);
@@ -93,7 +108,28 @@ export function SupplierTable({
       {showForm && !isImporter && <AddSupplierForm countries={countries} supplier={editingSupplier} onClose={closeForm} />}
       {showLinkModal && <LinkSupplierModal onClose={() => setShowLinkModal(false)} />}
       <div className="mt-6">
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={isImporter ? "Search exporters…" : "Search suppliers…"}
+              className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-forest"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
+          >
+            <option value="">All Statuses</option>
+            <option value="pending_review">Pending Review</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="suspended">Suspended</option>
+          </select>
           <button
             onClick={() => isImporter ? setShowLinkModal(true) : setShowForm(true)}
             className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
@@ -102,6 +138,11 @@ export function SupplierTable({
           </button>
         </div>
         <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-slate-400">
+              No {isImporter ? "exporters" : "suppliers"} match your search.
+            </div>
+          ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-slate-50">
@@ -115,7 +156,7 @@ export function SupplierTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {suppliers.map((supplier) => {
+              {filtered.map((supplier) => {
                 const tone = approvalTone(supplier.approval_status);
                 const borderColor =
                   tone === "success" ? "border-l-emerald-500" :
@@ -167,6 +208,7 @@ export function SupplierTable({
               })}
             </tbody>
           </table>
+          )}
         </div>
       </div>
     </>

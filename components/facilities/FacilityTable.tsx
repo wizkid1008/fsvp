@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Edit2, MapPin, Warehouse, X } from "lucide-react";
+import { Edit2, MapPin, Warehouse, X, Search } from "lucide-react";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
 import { FacilityMapPicker } from "@/components/facilities/FacilityMapPicker";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -347,7 +347,23 @@ export function FacilityTable({
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editingFacility, setEditingFacility] = useState<FacilityRow | null>(null);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const canAddFacility = suppliers.length > 0;
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return facilities.filter((f) => {
+      const matchesSearch = !q ||
+        f.facility_name.toLowerCase().includes(q) ||
+        (f.supplier_names?.join(" ").toLowerCase().includes(q) ?? false) ||
+        (f.suppliers?.company_name.toLowerCase().includes(q) ?? false) ||
+        (f.fda_registration_number?.toLowerCase().includes(q) ?? false) ||
+        (f.food_safety_certifications?.some((c) => c.toLowerCase().includes(q)) ?? false);
+      const matchesType = !typeFilter || f.facility_type === typeFilter;
+      return matchesSearch && matchesType;
+    });
+  }, [facilities, search, typeFilter]);
   const addButtonClass = "inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500";
 
   function openAddForm() {
@@ -371,7 +387,27 @@ export function FacilityTable({
         />
       ) : null}
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search facilities…"
+            className="h-10 w-full rounded-md border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-forest"
+          />
+        </div>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
+        >
+          <option value="">All Types</option>
+          {FACILITY_TYPES.filter((t) => t.value).map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
         <button
           type="button"
           disabled={!canAddFacility}
@@ -411,7 +447,12 @@ export function FacilityTable({
           )}
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+        <div className="mt-4 overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-slate-400">
+              No facilities match &ldquo;{search}&rdquo;{typeFilter ? ` with type "${typeFilter}"` : ""}.
+            </div>
+          ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-slate-50">
@@ -427,7 +468,7 @@ export function FacilityTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {facilities.map((facility) => {
+              {filtered.map((facility) => {
                 const address = readFacilityAddress(facility.facility_address_json);
                 const coordinates = address.latitude !== null && address.longitude !== null
                   ? { latitude: address.latitude, longitude: address.longitude }
@@ -501,6 +542,7 @@ export function FacilityTable({
               })}
             </tbody>
           </table>
+          )}
         </div>
       )}
     </>
