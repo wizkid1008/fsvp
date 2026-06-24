@@ -27,10 +27,11 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { document_id, decision, notes } = body as {
+  const { document_id, decision, notes, expiration_date } = body as {
     document_id: string;
     decision: Decision;
     notes?: string;
+    expiration_date?: string;
   };
 
   if (!document_id || !decision) {
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   // Fetch the document to check it exists and get entity info
   const { data: doc } = await (admin.from("documents") as any)
-    .select("id, title, evidence_status, facility_id, linked_entity_type, linked_entity_id, rule_version_id, supplier_id, importer_id")
+    .select("id, title, evidence_status, facility_id, linked_entity_type, linked_entity_id, rule_version_id, supplier_id, importer_id, uploaded_by_profile_id")
     .eq("id", document_id)
     .is("soft_deleted_at", null)
     .maybeSingle();
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
     evidence_status: decision,
     reviewer_profile_id: user.id,
     review_notes: notes ?? null,
+    ...(expiration_date ? { expiration_date } : {}),
   };
   // Keep approval_status in sync for backward compat
   updates.approval_status = decision === "accepted" ? "accepted"
@@ -89,6 +91,31 @@ export async function POST(req: NextRequest) {
     previous_value: { evidence_status: previousStatus },
     new_value: { evidence_status: decision, notes: notes ?? null },
   });
+
+  // Notify uploader when revision is requested
+  if (decision === "needs_revision" && doc.uploaded_by_profile_id) {
+    try {
+      const { data: uploaderProfile } = await (admin.from("profiles") as any)
+        .select("email, full_name")
+        .eq("id", doc.uploaded_by_profile_id)
+        .maybeSingle();
+
+      if (uploaderProfile?.email) {
+        await (admin.from("notification_deliveries") as any).insert({
+          importer_id:        profile.importer_id ?? null,
+          channel:            "in_app",
+          template_key:       "evidence_revision_requested",
+          to_address:         uploaderProfile.email,
+          subject:            `Revision requested: ${doc.title}`,
+          target_entity_type: "documents",
+          target_entity_id:   document_id,
+          sent_at:            new Date().toISOString(),
+        });
+      }
+    } catch {
+      // Non-fatal — review was saved, notification failure is logged silently
+    }
+  }
 
   // Trigger score recalculation if evidence was accepted or rejected
   // (scores become stale via DB trigger, but we also fire the recalc now
