@@ -25,8 +25,15 @@ function statusTone(status: string): StatusTone {
 }
 
 export default async function ActionItemsPage() {
-  const { role } = await requireProfileRole("/my-requests", ["supplier", "exporter", "administrator"]);
+  const { role, user } = await requireProfileRole("/my-requests", ["supplier", "exporter", "administrator"]);
   const supabase = createServerSupabaseClient();
+
+  const { data: profile } = await (supabase.from("profiles") as any)
+    .select("supplier_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const supplierId = (profile?.supplier_id as string | null) ?? null;
 
   type ActionRow = {
     id: string;
@@ -39,9 +46,13 @@ export default async function ActionItemsPage() {
     decision: string | null;
   };
 
-  const { data: rawActions } = await (supabase.from("corrective_actions") as any)
+  const query = (supabase.from("corrective_actions") as any)
     .select("id, issue_description, triggered_by, status, triggered_at, action_taken, investigation_summary, decision")
     .order("triggered_at", { ascending: false });
+
+  const { data: rawActions } = supplierId
+    ? await query.eq("supplier_id", supplierId)
+    : await query;
 
   const actions = (rawActions ?? []) as ActionRow[];
   const open = actions.filter((a) => a.status !== "closed");

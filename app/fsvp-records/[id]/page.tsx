@@ -8,6 +8,7 @@ import { EvidencePackagePanel } from "@/components/fsvp/EvidencePackagePanel";
 import { HazardAnalysisPanel } from "@/components/fsvp/HazardAnalysisPanel";
 import { VerificationRecordsPanel } from "@/components/fsvp/VerificationRecordsPanel";
 import { PrintButton } from "@/components/fsvp/PrintButton";
+import { ReassessmentSection } from "@/components/fsvp/ReassessmentSection";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -415,29 +416,7 @@ export default async function FsvpRecordPage({
         )}
 
         {/* Reassessment schedule */}
-        {schedule && (
-          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <h2 className="text-base font-semibold text-ink">Reassessment Schedule</h2>
-            <div className="mt-3 grid gap-4 sm:grid-cols-3 text-sm">
-              <div>
-                <p className="text-xs font-medium text-slate-500">Frequency</p>
-                <p className="mt-1 font-semibold text-ink">Every {schedule.frequency_months} months</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500">Last Assessed</p>
-                <p className="mt-1 font-semibold text-ink">
-                  {schedule.last_assessed_at ? new Date(schedule.last_assessed_at).toLocaleDateString() : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500">Next Due</p>
-                <p className={`mt-1 font-semibold ${new Date(schedule.next_due_at) <= new Date() ? "text-red-600" : "text-ink"}`}>
-                  {new Date(schedule.next_due_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          </section>
-        )}
+        <ReassessmentSection fsvpRecordId={id} schedule={schedule} />
 
         {/* Approval decision */}
         {isImporter && (

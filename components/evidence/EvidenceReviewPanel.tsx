@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2, XCircle, AlertCircle, AlertTriangle,
-  FileText, X, ExternalLink, Filter, ChevronDown, ChevronUp, Building2, PackageSearch,
+  FileText, X, ExternalLink, Filter, ChevronDown, ChevronUp, Building2, PackageSearch, Search, Briefcase,
 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
@@ -388,6 +388,95 @@ function ReviewSlideOut({ item, onClose }: { item: ReviewItem; onClose: () => vo
   );
 }
 
+// ── Searchable supplier dropdown ───────────────────────────────────────────
+
+function SupplierSearchSelect({
+  suppliers,
+  value,
+  onChange,
+}: {
+  suppliers: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filtered = query.trim()
+    ? suppliers.filter((s) => s.toLowerCase().includes(query.toLowerCase()))
+    : suppliers;
+
+  const label = value === "all" ? "All Suppliers" : value;
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      const el = document.getElementById("supplier-search-dropdown");
+      if (el && !el.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  return (
+    <div id="supplier-search-dropdown" className="relative">
+      <button
+        type="button"
+        onClick={() => { setOpen((o) => !o); setQuery(""); }}
+        className="flex items-center gap-1.5 rounded-md border border-line bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-white focus:border-forest focus:outline-none"
+      >
+        <span className="max-w-[140px] truncate">{label}</span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-30 mt-1 w-56 rounded-lg border border-line bg-white shadow-lg">
+          {/* Search input */}
+          <div className="flex items-center gap-1.5 border-b border-line px-2.5 py-2">
+            <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search suppliers…"
+              className="w-full bg-transparent text-xs text-ink placeholder-slate-400 focus:outline-none"
+            />
+          </div>
+
+          {/* Options */}
+          <ul className="max-h-52 overflow-y-auto py-1">
+            <li>
+              <button
+                type="button"
+                onClick={() => { onChange("all"); setOpen(false); }}
+                className={`w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 ${value === "all" ? "font-semibold text-forest" : "text-ink"}`}
+              >
+                All Suppliers
+              </button>
+            </li>
+            {filtered.map((s) => (
+              <li key={s}>
+                <button
+                  type="button"
+                  onClick={() => { onChange(s); setOpen(false); }}
+                  className={`w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 ${value === s ? "font-semibold text-forest" : "text-ink"}`}
+                >
+                  {s}
+                </button>
+              </li>
+            ))}
+            {filtered.length === 0 && (
+              <li className="px-3 py-2 text-xs text-slate-400">No matches</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Filter bar ─────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -407,6 +496,8 @@ const EXPIRY_OPTIONS: { value: string; label: string }[] = [
   { value: "past", label: "Already expired" },
 ];
 
+const IMPORTER_KEY = "reviewer_active_importer";
+
 // ── Main panel ─────────────────────────────────────────────────────────────
 
 export function EvidenceReviewPanel({ items }: { items: ReviewItem[] }) {
@@ -418,29 +509,62 @@ export function EvidenceReviewPanel({ items }: { items: ReviewItem[] }) {
   const [entityFilter, setEntityFilter]     = useState("all");
   const [selected, setSelected]             = useState<ReviewItem | null>(null);
 
-  const kinds = useMemo(() => {
-    const set = new Set(items.map((i) => i.document_kind).filter(Boolean));
-    return Array.from(set).sort();
+  // Importer context — persisted in localStorage
+  const importers = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of items) {
+      if (i.importer_name) map.set(i.importer_name, i.importer_name);
+    }
+    return Array.from(map.keys()).sort();
   }, [items]);
+
+  const [activeImporter, setActiveImporter] = useState<string | null>(null);
+  // Hydrate from localStorage and auto-select when only one importer
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem(IMPORTER_KEY) : null;
+    if (importers.length === 1) {
+      setActiveImporter(importers[0]);
+    } else if (saved && importers.includes(saved)) {
+      setActiveImporter(saved);
+    }
+  }, [importers]);
+
+  function selectImporter(name: string | null) {
+    setActiveImporter(name);
+    setSupplierFilter("all");
+    setEntityFilter("all");
+    if (name) localStorage.setItem(IMPORTER_KEY, name);
+    else localStorage.removeItem(IMPORTER_KEY);
+  }
+
+  // Items scoped to active importer before other filters apply
+  const importerItems = useMemo(() =>
+    activeImporter ? items.filter((i) => i.importer_name === activeImporter) : items,
+  [items, activeImporter]);
+
+  const kinds = useMemo(() => {
+    const set = new Set(importerItems.map((i) => i.document_kind).filter(Boolean));
+    return Array.from(set).sort();
+  }, [importerItems]);
 
   const suppliers = useMemo(() => {
     const map = new Map<string, string>();
-    for (const i of items) map.set(i.supplier_name, i.supplier_name);
+    for (const i of importerItems) map.set(i.supplier_name, i.supplier_name);
     return Array.from(map.keys()).sort();
-  }, [items]);
+  }, [importerItems]);
 
   // Entity options scoped to the selected supplier
   const entities = useMemo(() => {
     const set = new Set<string>();
-    for (const i of items) {
+    for (const i of importerItems) {
       if (supplierFilter !== "all" && i.supplier_name !== supplierFilter) continue;
       if (i.entity_name) set.add(i.entity_name);
     }
     return Array.from(set).sort();
-  }, [items, supplierFilter]);
+  }, [importerItems, supplierFilter]);
 
   const filtered = useMemo(() => {
-    return items.filter((item) => {
+    return importerItems.filter((item) => {
       if (statusFilter !== "all" && item.evidence_status !== statusFilter) return false;
       if (criticalOnly && !item.is_critical_blocker) return false;
       if (kindFilter !== "all" && item.document_kind !== kindFilter) return false;
@@ -457,11 +581,23 @@ export function EvidenceReviewPanel({ items }: { items: ReviewItem[] }) {
       }
       return true;
     });
-  }, [items, statusFilter, criticalOnly, kindFilter, supplierFilter, entityFilter, expiryFilter]);
+  }, [importerItems, statusFilter, criticalOnly, kindFilter, supplierFilter, entityFilter, expiryFilter]);
 
   const pendingInFiltered = filtered.filter(
     (i) => i.evidence_status === "submitted" || i.evidence_status === "under_review"
   ).length;
+
+  // Counts for the importer switcher badges
+  const pendingByImporter = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const i of items) {
+      if (!i.importer_name) continue;
+      if (i.evidence_status === "submitted" || i.evidence_status === "under_review") {
+        map.set(i.importer_name, (map.get(i.importer_name) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [items]);
 
   if (items.length === 0) {
     return (
@@ -474,21 +610,59 @@ export function EvidenceReviewPanel({ items }: { items: ReviewItem[] }) {
   }
 
   return (
-    <div className="mt-6">
+    <div className="mt-6 space-y-3">
+
+      {/* Importer context bar — only shown when there are multiple importers */}
+      {importers.length > 1 && (
+        <div className="rounded-lg border border-line bg-white px-4 py-3 shadow-soft">
+          <div className="flex items-center gap-2 mb-2.5">
+            <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Working for</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {importers.map((name) => {
+              const pending = pendingByImporter.get(name) ?? 0;
+              const active = activeImporter === name;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => selectImporter(active ? null : name)}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                    active
+                      ? "border-forest bg-forest text-white shadow-sm"
+                      : "border-line bg-slate-50 text-ink hover:border-forest/40 hover:bg-white"
+                  }`}
+                >
+                  {name}
+                  {pending > 0 && (
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {pending}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {!activeImporter && (
+            <p className="mt-2 text-xs text-slate-400">Select a company to focus your queue.</p>
+          )}
+        </div>
+      )}
+
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-white px-4 py-3 shadow-soft">
         <Filter className="h-4 w-4 shrink-0 text-slate-400" />
 
         {/* Supplier filter */}
         {suppliers.length > 1 && (
-          <select
+          <SupplierSearchSelect
+            suppliers={suppliers}
             value={supplierFilter}
-            onChange={(e) => { setSupplierFilter(e.target.value); setEntityFilter("all"); }}
-            className="rounded-md border border-line bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-ink focus:border-forest focus:outline-none"
-          >
-            <option value="all">All Suppliers</option>
-            {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+            onChange={(v) => { setSupplierFilter(v); setEntityFilter("all"); }}
+          />
         )}
 
         {/* Entity filter — only shown when a supplier is selected and has multiple entities */}
@@ -549,7 +723,7 @@ export function EvidenceReviewPanel({ items }: { items: ReviewItem[] }) {
       </div>
 
       {/* Queue table */}
-      <div className="mt-3 overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+      <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center py-10 text-slate-400">
             <FileText className="h-8 w-8 mb-2" />
