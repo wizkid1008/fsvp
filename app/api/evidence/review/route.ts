@@ -119,14 +119,16 @@ export async function POST(req: NextRequest) {
 
   // Auto-create a corrective action when evidence is rejected
   if (decision === "rejected" && doc.supplier_id) {
-    admin.from("corrective_actions").insert({
-      importer_id: doc.importer_id ?? profile.importer_id,
-      supplier_id: doc.supplier_id,
-      issue_description: `Evidence rejected: ${doc.title}`,
-      triggered_by: "verification_finding",
-      status: "open",
-      triggered_at: new Date().toISOString(),
-    }).then(() => {}).catch(() => {});
+    Promise.resolve(
+      (admin.from("corrective_actions") as any).insert({
+        importer_id: doc.importer_id ?? profile.importer_id,
+        supplier_id: doc.supplier_id,
+        issue_description: `Evidence rejected: ${doc.title}`,
+        triggered_by: "verification_finding",
+        status: "open",
+        triggered_at: new Date().toISOString(),
+      })
+    ).catch(() => {});
   }
 
   // Trigger score recalculation if evidence was accepted or rejected
