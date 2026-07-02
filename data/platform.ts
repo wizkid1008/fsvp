@@ -49,9 +49,6 @@ export const navItems: NavItem[] = [
   { href: "/corporate",    label: "Company Overview", icon: "Building2", roles: ["exporter", "supplier"], matches: ["/corporate"] },
   { href: "/my-suppliers", label: "Suppliers",    icon: "UsersRound",    roles: ["exporter"],              matches: ["/my-suppliers"] },
 
-  // ── Supplier (manufacturer) only ─────────────────────────────
-  { href: "/my-tasks",     label: "My Tasks",     icon: "ClipboardList", roles: ["supplier"],              matches: ["/my-tasks"] },
-
   // ── Both exporter and supplier ───────────────────────────────
   { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier", "administrator"], tKey: "nav.facilities" },
   { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier", "administrator"], tKey: "nav.products" },
