@@ -47,7 +47,7 @@ function evidenceLabel(status: string | null): string {
 function elementType(linkedEntityType: string | null): string {
   if (linkedEntityType === "product")  return "Product";
   if (linkedEntityType === "facility") return "Facility";
-  return "Corporate";
+  return "Company Overview";
 }
 
 function ElementIcon({ type }: { type: string }) {

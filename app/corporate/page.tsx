@@ -133,7 +133,7 @@ export default async function CorporatePage() {
   return (
     <AppShell role={role}>
       <SectionHeader
-        title="Corporate"
+        title="Company Overview"
         description="Manage exporter-level records, policies, contacts, attestations, and supplier-wide readiness requirements."
       />
 
@@ -152,7 +152,7 @@ export default async function CorporatePage() {
                   Exporter Profile
                 </p>
                 <h2 className="mt-2 text-xl font-semibold text-ink">
-                  {supplier?.company_name ?? profile?.organization_name ?? "Corporate profile"}
+                  {supplier?.company_name ?? profile?.organization_name ?? "Company profile"}
                 </h2>
               </div>
               <StatusBadge tone={profileTone}>
@@ -203,7 +203,7 @@ export default async function CorporatePage() {
 
         {/* ── Right column — Requirements + inline upload ──────── */}
         <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <h2 className="text-base font-semibold text-ink">Corporate Readiness Requirements</h2>
+          <h2 className="text-base font-semibold text-ink">Company Overview Readiness Requirements</h2>
           <p className="mt-1 text-sm text-slate-500">
             Click any section to upload evidence or view progress.
             Accepted documents count toward your readiness score.

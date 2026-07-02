@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CheckCircle2, AlertCircle, Clock, ArrowRight, Warehouse, Package, FileText, Building2 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ActionItemsSection } from "./ActionItemsSection";
 import type { StatusTone } from "@/types/platform";
 
 type SupabaseLike = { from: (table: string) => any };
@@ -107,6 +108,8 @@ export async function ManufacturerDashboard({
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
         {/* Setup checklist */}
         <div className="space-y-4">
+          <ActionItemsSection supplierId={supplierId} supabase={supabase} />
+
           {incomplete.length > 0 && (
             <section className="rounded-lg border border-line bg-white shadow-soft">
               <div className="border-b border-line px-5 py-4">

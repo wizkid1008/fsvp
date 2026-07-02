@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CheckCircle2, AlertCircle, Clock, ArrowRight, Building2, Package, Warehouse, FileText, Users } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ActionItemsSection } from "./ActionItemsSection";
 import type { StatusTone } from "@/types/platform";
 
 type SupabaseLike = { from: (table: string) => any };
@@ -198,6 +199,9 @@ export async function ExporterDashboard({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Next steps */}
+        <div className="space-y-4">
+        <ActionItemsSection supplierId={supplierId} supabase={supabase} />
+
         <section className="rounded-lg border border-line bg-white shadow-soft">
           <div className="border-b border-line px-5 py-4">
             <h2 className="text-sm font-semibold text-ink">Setup Checklist</h2>
@@ -221,6 +225,7 @@ export async function ExporterDashboard({
             ))}
           </div>
         </section>
+        </div>
 
         {/* Quick stats */}
         <div className="space-y-3">

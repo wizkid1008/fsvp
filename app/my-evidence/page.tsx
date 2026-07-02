@@ -36,7 +36,7 @@ export default async function MyEvidencePage() {
     <AppShell role={role} supplierType={supplierType}>
       <SectionHeader
         title="My Evidence"
-        description="All documents you have submitted. Upload evidence directly from the Corporate, Facilities, or Products pages."
+        description="All documents you have submitted. Upload evidence directly from the Company Overview, Facilities, or Products pages."
       />
 
       <div className="mt-6">
@@ -44,7 +44,7 @@ export default async function MyEvidencePage() {
           <EmptyState
             icon={FileArchive}
             title="No documents uploaded yet"
-            description="Upload evidence from the Corporate, Facilities, or Products pages. Documents will appear here once submitted."
+            description="Upload evidence from the Company Overview, Facilities, or Products pages. Documents will appear here once submitted."
           />
         ) : (
           <MyEvidenceTable rows={documents} />

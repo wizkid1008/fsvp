@@ -182,7 +182,7 @@ export async function CorporateScopeList({
   if (sections.length === 0) {
     return (
       <p className="mt-4 rounded-md border border-dashed border-line bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-        Corporate readiness requirements are not configured yet.
+        Company Overview readiness requirements are not configured yet.
       </p>
     );
   }

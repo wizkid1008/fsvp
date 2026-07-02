@@ -46,7 +46,7 @@ export const navItems: NavItem[] = [
   { href: "/dashboard",    label: "Dashboard",     icon: "LayoutDashboard", tKey: "nav.dashboard" },
 
   // ── Exporter nav (manages supply chain) ─────────────────────
-  { href: "/corporate",    label: "Corporate",    icon: "Building2",     roles: ["exporter", "supplier"], matches: ["/corporate"] },
+  { href: "/corporate",    label: "Company Overview", icon: "Building2", roles: ["exporter", "supplier"], matches: ["/corporate"] },
   { href: "/my-suppliers", label: "Suppliers",    icon: "UsersRound",    roles: ["exporter"],              matches: ["/my-suppliers"] },
 
   // ── Supplier (manufacturer) only ─────────────────────────────
@@ -56,7 +56,6 @@ export const navItems: NavItem[] = [
   { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier", "administrator"], tKey: "nav.facilities" },
   { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier", "administrator"], tKey: "nav.products" },
   { href: "/my-evidence",  label: "My Evidence",  icon: "FileArchive",   roles: ["exporter", "supplier"], tKey: "nav.myEvidence" },
-  { href: "/my-requests",  label: "Action Items", icon: "AlertTriangle", roles: ["exporter", "supplier"], tKey: "nav.actionItems" },
 
   // ── Importer nav ─────────────────────────────────────────────
   { href: "/suppliers",        label: "Exporters",       icon: "Building2",      roles: ["us_importer"] },

@@ -147,7 +147,7 @@ export async function CorporateScoreCard({
   return (
     <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
       <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-        Corporate Readiness Score
+        Company Overview Readiness Score
       </p>
 
       {/* Score + badge row */}

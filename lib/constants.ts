@@ -17,7 +17,6 @@ export const protectedRoutes = [
   "/corporate",
   "/my-evidence",
   "/my-readiness",
-  "/my-requests",
   "/suppliers",
   "/products",
   "/facilities",
@@ -49,5 +48,4 @@ export const roleProtectedRoutes: Record<string, string[]> = {
   "/reports":      ["us_importer", "administrator"],
   "/my-evidence":  ["supplier", "exporter"],
   "/my-readiness": ["supplier", "exporter"],
-  "/my-requests":  ["supplier", "exporter"],
 };
