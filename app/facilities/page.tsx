@@ -8,6 +8,7 @@ import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getSupplierType } from "@/lib/supplier-context";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -17,7 +18,7 @@ export default async function FacilitiesPage({
 }: {
   searchParams: { view?: string };
 }) {
-  const { role, user } = await requireProfileRole("/facilities");
+  const { role, realRole, user } = await requireProfileRole("/facilities");
   const supabase = createServerSupabaseClient();
   const isSupplier = role === "supplier" || role === "exporter";
 
@@ -26,7 +27,9 @@ export default async function FacilitiesPage({
     .eq("id", user.id)
     .maybeSingle();
 
-  const ownSupplierId: string = isSupplier ? (profile?.supplier_id ?? "") : "";
+  const ownSupplierId: string = isSupplier
+    ? (resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) ?? "")
+    : "";
 
   // Context switcher: exporter can view a linked supplier's facilities via ?view=<id>
   const viewId = searchParams.view ?? "";
@@ -160,7 +163,7 @@ export default async function FacilitiesPage({
       ];
 
   return (
-    <AppShell role={role} supplierType={await getSupplierType(supabase as any, ownSupplierId || null)}>
+    <AppShell role={role} realRole={realRole} supplierType={await getSupplierType(supabase as any, ownSupplierId || null)}>
       <SectionHeader
         title={viewingLinkedSupplier
           ? `Facilities — ${viewingLinkedSupplier.company_name}`

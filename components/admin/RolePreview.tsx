@@ -34,13 +34,12 @@ const ROLES: { value: AppRole; label: string; description: string }[] = [
 
 // Roles where the dashboard is scoped to a specific account's data —
 // previewing these lets the admin pick which real account to view as.
-const ACCOUNT_SCOPED_ROLES = new Set<AppRole>(["supplier", "exporter"]);
+const ACCOUNT_SCOPED_ROLES = new Set<AppRole>(["supplier", "exporter", "us_importer"]);
 
 type Account = { id: string; company_name: string | null };
 
 export function RolePreviewSelector() {
   const [current, setCurrent] = useState<AppRole | null>(null);
-  const [accountId, setAccountId] = useState<string | null>(null);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [pendingRole, setPendingRole] = useState<AppRole | null>(null);
@@ -49,7 +48,6 @@ export function RolePreviewSelector() {
 
   useEffect(() => {
     setCurrent(readCookie(PREVIEW_ROLE_COOKIE) as AppRole | null);
-    setAccountId(readCookie(PREVIEW_SUPPLIER_ID_COOKIE));
     setAccountName(readCookie(PREVIEW_SUPPLIER_NAME_COOKIE));
   }, []);
 

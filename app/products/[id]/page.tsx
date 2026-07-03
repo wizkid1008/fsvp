@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSupplierType } from "@/lib/supplier-context";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
@@ -21,14 +22,15 @@ function approvalTone(status: string | null): StatusTone {
 }
 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
-  const { role, user } = await requireProfileRole(`/products/${params.id}`);
+  const { role, realRole, user } = await requireProfileRole(`/products/${params.id}`);
   const supabase = createServerSupabaseClient();
 
   const { data: profile } = await (supabase.from("profiles") as any)
     .select("supplier_id")
     .eq("id", user.id)
     .maybeSingle();
-  const ownSupplierId: string | null = role === "supplier" ? (profile?.supplier_id ?? null) : null;
+  const ownSupplierId: string | null =
+    role === "supplier" ? resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) : null;
 
   const { data: product } = await (supabase.from("products_verify") as any)
     .select("id, product_name, approval_status, supplier_id, facility_id, suppliers(company_name), facilities_verify(facility_name)")
@@ -38,7 +40,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (!product) notFound();
 
   return (
-    <AppShell role={role} supplierType={await getSupplierType(supabase as any, ownSupplierId)}>
+    <AppShell role={role} realRole={realRole} supplierType={await getSupplierType(supabase as any, ownSupplierId)}>
       <SectionHeader
         title={product.product_name}
         description={[product.suppliers?.company_name, product.facilities_verify?.facility_name].filter(Boolean).join(" · ") || "Product detail"}

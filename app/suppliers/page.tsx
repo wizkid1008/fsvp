@@ -4,12 +4,13 @@ import { SupplierTable, type SupplierRow } from "@/components/suppliers/Supplier
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
 
 export default async function SuppliersPage() {
-  const { role, user } = await requireProfileRole("/suppliers");
+  const { role, realRole, user } = await requireProfileRole("/suppliers");
   const supabase = createServerSupabaseClient();
   const admin = createAdminSupabaseClient();
 
@@ -19,7 +20,7 @@ export default async function SuppliersPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const importerId: string | null = profile?.importer_id ?? null;
+  const importerId: string | null = resolvePreviewedAccountId(realRole, profile?.importer_id ?? null);
 
   // Resolve which supplier IDs this importer is linked to
   let linkedSupplierIds: string[] | null = null;
@@ -102,7 +103,7 @@ export default async function SuppliersPage() {
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title={role === "us_importer" ? "My Exporters" : "Suppliers"}
         description={role === "us_importer"

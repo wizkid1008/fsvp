@@ -29,7 +29,7 @@ export default async function EvidencePage({
 }: {
   searchParams?: { entity?: string; id?: string };
 }) {
-  const { role } = await requireProfileRole("/evidence");
+  const { role, realRole } = await requireProfileRole("/evidence");
   const supabase = createServerSupabaseClient();
 
   type DocRow = { id: string; importer_id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; size_bytes: number; linked_entity_type: string | null; linked_entity_id: string | null; related_requirement_id: string | null };
@@ -131,7 +131,7 @@ export default async function EvidencePage({
   const activeFilterLabel = filterLabel();
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Evidence"
         description="Upload and manage FSVP evidence documents, track review status, and map each document to its regulatory requirement."

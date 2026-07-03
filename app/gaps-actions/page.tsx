@@ -7,7 +7,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export const runtime = "edge";
 
 export default async function GapsActionsPage() {
-  const { role } = await requireProfileRole("/gaps-actions");
+  const { role, realRole } = await requireProfileRole("/gaps-actions");
   const supabase = createServerSupabaseClient();
 
   const { data: rawActions } = await (supabase.from("corrective_actions") as any)
@@ -18,7 +18,7 @@ export default async function GapsActionsPage() {
   const canCreate = role === "us_importer" || role === "reviewer" || role === "administrator";
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Gaps & Actions"
         description="Track open corrective actions from verification findings, rejected evidence, recalls, and reassessments."

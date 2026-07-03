@@ -23,10 +23,24 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const role = req.nextUrl.searchParams.get("role");
-  const types = role === "exporter" ? EXPORTER_TYPES : role === "supplier" ? MANUFACTURER_TYPES : null;
-  if (!types) return NextResponse.json({ error: "role must be supplier or exporter" }, { status: 400 });
-
   const admin = createAdminSupabaseClient();
+
+  if (role === "us_importer") {
+    const { data, error } = await (admin.from("importers") as any)
+      .select("id, display_name")
+      .order("display_name")
+      .limit(200);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const accounts = (data ?? []).map((row: { id: string; display_name: string }) => ({
+      id: row.id,
+      company_name: row.display_name,
+    }));
+    return NextResponse.json({ accounts });
+  }
+
+  const types = role === "exporter" ? EXPORTER_TYPES : role === "supplier" ? MANUFACTURER_TYPES : null;
+  if (!types) return NextResponse.json({ error: "role must be supplier, exporter, or us_importer" }, { status: 400 });
+
   const { data, error } = await (admin.from("suppliers") as any)
     .select("id, company_name, supplier_type")
     .in("supplier_type", types as unknown as string[])

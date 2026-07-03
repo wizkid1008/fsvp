@@ -10,7 +10,7 @@ import type { StatusTone } from "@/types/platform";
 export const runtime = "edge";
 
 export default async function ReviewerPage() {
-  const { role } = await requireProfileRole("/reviewer", ["reviewer", "administrator"]);
+  const { role, realRole } = await requireProfileRole("/reviewer", ["reviewer", "administrator"]);
   const supabase = createServerSupabaseClient();
   const admin = createAdminSupabaseClient();
 
@@ -134,7 +134,7 @@ export default async function ReviewerPage() {
     v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Evidence Review Queue"
         description="Review submitted supplier evidence, accept documents that meet requirements, request revisions, or reject non-compliant submissions."

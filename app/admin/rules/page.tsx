@@ -17,7 +17,8 @@ function versionTone(status: string): StatusTone {
 }
 
 export default async function AdminRulesPage() {
-  const { supabase, role } = await requireProfileRole("/admin/rules", ["administrator"]);
+  // Ignore the effective (previewed) role — admin pages always render as administrator.
+  const { supabase, realRole: role } = await requireProfileRole("/admin/rules", ["administrator"]);
 
   const { data: rawRuleSets } = await (supabase.from("rule_sets") as any)
     .select(`

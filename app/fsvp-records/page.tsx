@@ -36,7 +36,7 @@ function recordStatusLabel(status: string): string {
 }
 
 export default async function FsvpRecordsPage() {
-  const { supabase, role } = await requireProfileRole("/fsvp-records", ["us_importer", "reviewer", "administrator"]);
+  const { supabase, role, realRole } = await requireProfileRole("/fsvp-records", ["us_importer", "reviewer", "administrator"]);
 
   const { data: rawRecords } = await (supabase.from("fsvp_records") as any)
     .select(`
@@ -74,7 +74,7 @@ export default async function FsvpRecordsPage() {
   }).length;
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="FSVP Records"
         description="Importer-owned compliance records. Each record documents your decision to import a specific product from a specific supplier and facility under a specific rule version."

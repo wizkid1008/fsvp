@@ -38,7 +38,9 @@ function formatAction(action: string) {
 }
 
 export default async function AdminPage() {
-  const { supabase, user, role } = await requireProfileRole("/admin", ["administrator"]);
+  // Ignore the effective (previewed) role here — the admin panel itself must
+  // always render as administrator, regardless of what an admin is previewing.
+  const { supabase, user, realRole: role } = await requireProfileRole("/admin", ["administrator"]);
 
   const { data: profile } = (await supabase
     .from("profiles")

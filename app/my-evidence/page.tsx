@@ -5,12 +5,13 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { FileArchive } from "lucide-react";
 
 export const runtime = "edge";
 
 export default async function MyEvidencePage() {
-  const { role, user } = await requireProfileRole("/my-evidence", ["supplier", "exporter", "administrator"]);
+  const { role, realRole, user } = await requireProfileRole("/my-evidence", ["supplier", "exporter", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   const { data: profile } = await (supabase.from("profiles") as any)
@@ -18,7 +19,7 @@ export default async function MyEvidencePage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const supplierId = (profile?.supplier_id as string | null) ?? "";
+  const supplierId = resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) ?? "";
 
   const docsQuery = (supabase.from("documents") as any)
     .select("id, title, original_filename, document_kind, linked_entity_type, uploaded_at, evidence_status, review_notes, expiration_date")
@@ -33,7 +34,7 @@ export default async function MyEvidencePage() {
   const supplierType = await getSupplierType(supabase as any, supplierId || null);
 
   return (
-    <AppShell role={role} supplierType={supplierType}>
+    <AppShell role={role} realRole={realRole} supplierType={supplierType}>
       <SectionHeader
         title="My Evidence"
         description="All documents you have submitted. Upload evidence directly from the Company Overview, Facilities, or Products pages."

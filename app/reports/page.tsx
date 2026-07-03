@@ -7,7 +7,7 @@ import { ReportsPageClient } from "@/components/reports/ReportsPageClient";
 export const runtime = "edge";
 
 export default async function ReportsPage() {
-  const { role } = await requireProfileRole("/reports");
+  const { role, realRole } = await requireProfileRole("/reports");
   const supabase = createServerSupabaseClient();
 
   const { data: rawReports } = await (supabase.from("generated_reports") as any)
@@ -18,7 +18,7 @@ export default async function ReportsPage() {
   const canGenerate = role === "us_importer" || role === "reviewer" || role === "administrator";
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Reports"
         description="Generate and export audit-ready FSVP reports including readiness summaries, gap registers, and evidence indexes."

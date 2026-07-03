@@ -6,12 +6,13 @@ import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
 
 export default async function MySuppliersPage() {
-  const { role, user } = await requireProfileRole("/my-suppliers", ["exporter", "administrator"]);
+  const { role, realRole, user } = await requireProfileRole("/my-suppliers", ["exporter", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   const [{ data: profile }, { data: countries }] = await Promise.all([
@@ -25,7 +26,7 @@ export default async function MySuppliersPage() {
       .order("country_name"),
   ]);
 
-  const supplierId: string | null = profile?.supplier_id ?? null;
+  const supplierId: string | null = resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null);
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 
   // Fetch linked upstream suppliers (RLS blocks the user-scoped join on suppliers table,
@@ -119,7 +120,7 @@ export default async function MySuppliersPage() {
   const supplierType = await getSupplierType(supabase as any, supplierId);
 
   return (
-    <AppShell role={role} supplierType={supplierType}>
+    <AppShell role={role} realRole={realRole} supplierType={supplierType}>
       <SectionHeader
         title="My Suppliers"
         description="Add and manage the manufacturers or processors that produce goods you export. Link them here, then add their facilities and products."

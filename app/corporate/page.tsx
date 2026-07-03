@@ -8,13 +8,14 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
 
 
 export default async function CorporatePage() {
-  const { role, user } = await requireProfileRole("/corporate", ["supplier", "exporter", "administrator"]);
+  const { role, realRole, user } = await requireProfileRole("/corporate", ["supplier", "exporter", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   const { data: profile } = await (supabase.from("profiles") as any)
@@ -22,13 +23,15 @@ export default async function CorporatePage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  let supplierId: string | null = profile?.supplier_id ?? null;
+  let supplierId: string | null = resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null);
 
   // If supplier_id is not set on the profile, resolve in three steps:
   // 1. Match an existing suppliers row by org name
   // 2. Create a new suppliers row from profile data  ← needs admin client (RLS blocks supplier inserts)
   // 3. Write the resolved id back to profiles         ← needs admin client (FK may point to wrong table)
-  if (!supplierId) {
+  // Skip entirely for administrators (previewing or not) — this bootstrap ties a
+  // brand-new supplier row to the *signed-in* profile, which must never be an admin's.
+  if (!supplierId && realRole !== "administrator") {
     const orgName = profile?.organization_name ?? profile?.full_name ?? null;
 
     // Step 1 — user-scoped read is fine (existing row is readable via name match)
@@ -73,7 +76,8 @@ export default async function CorporatePage() {
 
   // Ensure a self-supply relationship exists so the exporter appears in My Suppliers
   // as their own production source (allows adding facilities/products under their own entity).
-  if (supplierId) {
+  // Skipped while an admin is previewing — viewing a page should never write data.
+  if (supplierId && realRole !== "administrator") {
     try {
       const admin = createAdminSupabaseClient();
       const { data: selfLink } = await (admin.from("supplier_relationships") as any)
@@ -131,7 +135,7 @@ export default async function CorporatePage() {
   const profileStatus = missingFields === 0 ? "Profile Complete" : `${missingFields} field${missingFields > 1 ? "s" : ""} missing`;
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Company Overview"
         description="Manage exporter-level records, policies, contacts, attestations, and supplier-wide readiness requirements."

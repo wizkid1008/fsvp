@@ -7,7 +7,7 @@ import { ReadinessPageClient } from "@/components/readiness/ReadinessPageClient"
 export const runtime = "edge";
 
 export default async function ReadinessPage() {
-  const { role } = await requireProfileRole("/readiness");
+  const { role, realRole } = await requireProfileRole("/readiness");
   const supabase = createServerSupabaseClient();
 
   const { data: rawAssessments } = await (supabase.from("readiness_assessments") as any)
@@ -18,7 +18,7 @@ export default async function ReadinessPage() {
   const canAssess = role === "us_importer" || role === "reviewer" || role === "administrator";
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Readiness"
         description="Review your overall FSVP readiness score, identify critical gaps, and generate audit-ready reports."

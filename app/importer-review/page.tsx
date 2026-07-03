@@ -5,12 +5,13 @@ import { EvidenceReviewPanel } from "@/components/evidence/EvidenceReviewPanel";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
 
 export default async function ImporterReviewPage() {
-  const { role, user } = await requireProfileRole("/importer-review", ["us_importer", "administrator"]);
+  const { role, realRole, user } = await requireProfileRole("/importer-review", ["us_importer", "administrator"]);
   const supabase = createServerSupabaseClient();
   const admin = createAdminSupabaseClient();
 
@@ -20,7 +21,7 @@ export default async function ImporterReviewPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const importerId: string | null = profile?.importer_id ?? null;
+  const importerId: string | null = resolvePreviewedAccountId(realRole, profile?.importer_id ?? null);
 
   // Administrators can see everything; importers are scoped to their importer_id
   let docsQuery = (admin.from("documents") as any)
@@ -141,7 +142,7 @@ export default async function ImporterReviewPage() {
     v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Supplier Review Queue"
         description="Review evidence submitted by your suppliers. Accept compliant documents, request revisions, or reject non-compliant submissions."

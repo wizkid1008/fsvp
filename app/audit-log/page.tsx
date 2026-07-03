@@ -63,7 +63,7 @@ export default async function AuditLogPage({
 }: {
   searchParams?: { action?: string; record_type?: string; limit?: string };
 }) {
-  const { role } = await requireProfileRole("/audit-log", ["reviewer", "administrator"]);
+  const { role, realRole } = await requireProfileRole("/audit-log", ["reviewer", "administrator"]);
   const supabase = createServerSupabaseClient();
 
   const filterAction = searchParams?.action ?? "";
@@ -109,7 +109,7 @@ export default async function AuditLogPage({
   }
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Audit Log"
         description="Timestamped record of all compliance actions — evidence reviews, FSVP record decisions, rule changes, and more."

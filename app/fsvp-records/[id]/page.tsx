@@ -46,7 +46,7 @@ export default async function FsvpRecordPage({
 }: {
   params: { id: string };
 }) {
-  const { supabase, role } = await requireProfileRole("/fsvp-records", [
+  const { supabase, role, realRole } = await requireProfileRole("/fsvp-records", [
     "us_importer", "reviewer", "administrator",
   ]);
   const { id } = params;
@@ -235,7 +235,7 @@ export default async function FsvpRecordPage({
   const overdue = record.reassessment_due_at && new Date(record.reassessment_due_at) <= new Date();
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       {/* Header */}
       <div className="flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-start md:justify-between">
         <div>

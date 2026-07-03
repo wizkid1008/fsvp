@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getPreviewRole, resolveEffectiveRole } from "@/lib/preview-role";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/types/database";
 import type { AppRole } from "@/types/platform";
@@ -45,19 +46,28 @@ export async function requireUser(nextPath: string): Promise<{ supabase: ReturnT
   return { supabase, user };
 }
 
-export async function requireProfileRole(nextPath: string, allowedRoles?: AppRole[]): Promise<{ supabase: ReturnType<typeof createServerSupabaseClient>; user: User; role: AppRole }> {
+export async function requireProfileRole(
+  nextPath: string,
+  allowedRoles?: AppRole[]
+): Promise<{ supabase: ReturnType<typeof createServerSupabaseClient>; user: User; role: AppRole; realRole: AppRole }> {
   const { supabase, user } = await requireUser(nextPath);
   const { data: profile } = (await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle()) as unknown as RoleLookup;
-  const role: AppRole = profile?.role ?? "supplier";
+  const realRole: AppRole = profile?.role ?? "supplier";
 
-  if (allowedRoles && !allowedRoles.includes(role)) {
+  // Access gating always uses the real role — an admin previewing as a
+  // lower-privileged role must never lose access to a page they're
+  // actually allowed on. What the page then renders/queries uses the
+  // (possibly previewed) effective role below.
+  if (allowedRoles && !allowedRoles.includes(realRole)) {
     restrictedRedirect(nextPath);
     throw new Error("unreachable");
   }
 
-  return { supabase, user, role };
+  const role = resolveEffectiveRole(realRole, getPreviewRole());
+
+  return { supabase, user, role, realRole };
 }

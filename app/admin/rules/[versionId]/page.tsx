@@ -21,7 +21,8 @@ export default async function RuleVersionPage({
 }: {
   params: { versionId: string };
 }) {
-  const { supabase, role } = await requireProfileRole("/admin/rules", ["administrator"]);
+  // Ignore the effective (previewed) role — admin pages always render as administrator.
+  const { supabase, realRole: role } = await requireProfileRole("/admin/rules", ["administrator"]);
   const { versionId } = params;
 
   const { data: version } = await (supabase.from("rule_versions") as any)
