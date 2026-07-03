@@ -34,18 +34,20 @@ export default async function CorporatePage() {
   if (!supplierId && realRole !== "administrator") {
     const orgName = profile?.organization_name ?? profile?.full_name ?? null;
 
-    // Step 1 — user-scoped read is fine (existing row is readable via name match)
-    if (orgName) {
-      const { data: matchedSupplier } = await (supabase.from("suppliers") as any)
-        .select("id")
-        .ilike("company_name", orgName)
-        .maybeSingle();
-      supplierId = matchedSupplier?.id ?? null;
-    }
-
-    // Steps 2 + 3 — use admin client to bypass RLS for the bootstrap insert/update
+    // Steps 1-3 all need the admin client: a brand-new user has no supplier_id yet,
+    // so RLS (suppliers_read) can't show them an existing row to match against —
+    // without this, every signup under the same company name silently created its
+    // own duplicate supplier row instead of finding the one that already existed.
     try {
       const admin = createAdminSupabaseClient();
+
+      if (orgName) {
+        const { data: matchedSupplier } = await (admin.from("suppliers") as any)
+          .select("id")
+          .ilike("company_name", orgName)
+          .maybeSingle();
+        supplierId = matchedSupplier?.id ?? null;
+      }
 
       if (!supplierId) {
         const { data: newSupplier } = await (admin.from("suppliers") as any)

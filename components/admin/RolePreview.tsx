@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Eye, X, ArrowLeft } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Eye, X, ArrowLeft, Search } from "lucide-react";
 import type { AppRole } from "@/types/platform";
 import { PREVIEW_ROLE_COOKIE, PREVIEW_SUPPLIER_ID_COOKIE, PREVIEW_SUPPLIER_NAME_COOKIE } from "@/lib/preview-role-constants";
 
@@ -45,6 +45,7 @@ export function RolePreviewSelector() {
   const [pendingRole, setPendingRole] = useState<AppRole | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [accountSearch, setAccountSearch] = useState("");
 
   useEffect(() => {
     setCurrent(readCookie(PREVIEW_ROLE_COOKIE) as AppRole | null);
@@ -77,6 +78,7 @@ export function RolePreviewSelector() {
     // Supplier/exporter dashboards are scoped to one account's data —
     // let the admin pick a specific real account before applying.
     setPendingRole(role);
+    setAccountSearch("");
     setLoadingAccounts(true);
     try {
       const res = await fetch(`/api/admin/preview-accounts?role=${role}`);
@@ -90,6 +92,12 @@ export function RolePreviewSelector() {
   }
 
   const activeRole = ROLES.find((r) => r.value === (current ?? "administrator"));
+
+  const filteredAccounts = useMemo(() => {
+    const q = accountSearch.trim().toLowerCase();
+    if (!q) return accounts;
+    return accounts.filter((acc) => (acc.company_name ?? "").toLowerCase().includes(q));
+  }, [accounts, accountSearch]);
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-line bg-white px-4 py-3 shadow-soft">
@@ -132,6 +140,18 @@ export function RolePreviewSelector() {
                     <p className="text-sm font-semibold text-ink">Generic {ROLES.find((r) => r.value === pendingRole)?.label}</p>
                     <p className="mt-0.5 text-xs text-slate-500">Empty-state dashboard, not tied to a real account</p>
                   </button>
+                  <div className="border-t border-line px-3 py-2">
+                    <div className="flex items-center gap-2 rounded-md border border-line bg-slate-50 px-2.5 py-1.5">
+                      <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <input
+                        autoFocus
+                        value={accountSearch}
+                        onChange={(e) => setAccountSearch(e.target.value)}
+                        placeholder="Search accounts…"
+                        className="w-full bg-transparent text-sm text-ink placeholder:text-slate-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
                   <div className="max-h-72 overflow-y-auto border-t border-line">
                     {loadingAccounts && (
                       <p className="px-4 py-3 text-xs text-slate-400">Loading accounts…</p>
@@ -139,7 +159,10 @@ export function RolePreviewSelector() {
                     {!loadingAccounts && accounts.length === 0 && (
                       <p className="px-4 py-3 text-xs text-slate-400">No {pendingRole} accounts found.</p>
                     )}
-                    {accounts.map((acc) => (
+                    {!loadingAccounts && accounts.length > 0 && filteredAccounts.length === 0 && (
+                      <p className="px-4 py-3 text-xs text-slate-400">No accounts match "{accountSearch}".</p>
+                    )}
+                    {filteredAccounts.map((acc) => (
                       <button
                         key={acc.id}
                         onClick={() => apply(pendingRole, acc)}
