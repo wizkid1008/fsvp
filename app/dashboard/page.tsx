@@ -4,6 +4,7 @@ import { ManufacturerDashboard } from "@/components/dashboard/ManufacturerDashbo
 import { ReviewerDashboard } from "@/components/dashboard/ReviewerDashboard";
 import { requireUser } from "@/lib/auth/protection";
 import { getSupplierContext, isExporterType } from "@/lib/supplier-context";
+import { getPreviewRole, resolveEffectiveRole } from "@/lib/preview-role";
 import type { Profile } from "@/types/database";
 
 export const runtime = "edge";
@@ -116,7 +117,8 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .maybeSingle() as unknown as { data: Profile | null };
 
-  const role        = profile?.role ?? "supplier";
+  const realRole = profile?.role ?? "supplier";
+  const role     = resolveEffectiveRole(realRole, getPreviewRole());
   const displayName = profile?.full_name ?? user.email?.split("@")[0] ?? "User";
   const isExporter  = role === "exporter";
   const isSupplier  = role === "supplier";
@@ -131,7 +133,7 @@ export default async function DashboardPage() {
   const supplierId = supplierCtx?.supplierId ?? null;
 
   return (
-    <AppShell role={role}>
+    <AppShell role={role} realRole={realRole}>
       {isExporter && (
         <ExporterDashboard
           supplierId={supplierId}

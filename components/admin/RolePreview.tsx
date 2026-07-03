@@ -3,8 +3,20 @@
 import { useState, useEffect } from "react";
 import { Eye, X } from "lucide-react";
 import type { AppRole } from "@/types/platform";
+import { PREVIEW_ROLE_COOKIE } from "@/lib/preview-role";
 
-const PREVIEW_KEY = "fsvp_preview_role";
+function readCookie(name: string): string | null {
+  const match = document.cookie.split("; ").find((c) => c.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split("=")[1]) : null;
+}
+
+function writeCookie(name: string, value: string) {
+  document.cookie = `${name}=${value};path=/;max-age=31536000;samesite=lax`;
+}
+
+function clearCookie(name: string) {
+  document.cookie = `${name}=;path=/;max-age=0;samesite=lax`;
+}
 
 const ROLES: { value: AppRole; label: string; description: string }[] = [
   { value: "administrator", label: "Administrator", description: "Full platform access, admin panel, all pages" },
@@ -19,16 +31,16 @@ export function RolePreviewSelector() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(PREVIEW_KEY) as AppRole | null;
+    const stored = readCookie(PREVIEW_ROLE_COOKIE) as AppRole | null;
     setCurrent(stored);
   }, []);
 
   function select(role: AppRole) {
     if (role === "administrator") {
-      localStorage.removeItem(PREVIEW_KEY);
+      clearCookie(PREVIEW_ROLE_COOKIE);
       setCurrent(null);
     } else {
-      localStorage.setItem(PREVIEW_KEY, role);
+      writeCookie(PREVIEW_ROLE_COOKIE, role);
       setCurrent(role);
     }
     setOpen(false);
@@ -101,7 +113,7 @@ export function RolePreviewBanner() {
   const [previewRole, setPreviewRole] = useState<AppRole | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem(PREVIEW_KEY) as AppRole | null;
+    const stored = readCookie(PREVIEW_ROLE_COOKIE) as AppRole | null;
     setPreviewRole(stored);
   }, []);
 
@@ -110,7 +122,7 @@ export function RolePreviewBanner() {
   const label = ROLES.find((r) => r.value === previewRole)?.label ?? previewRole;
 
   function reset() {
-    localStorage.removeItem(PREVIEW_KEY);
+    clearCookie(PREVIEW_ROLE_COOKIE);
     window.location.reload();
   }
 

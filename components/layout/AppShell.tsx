@@ -11,9 +11,13 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { isExporterType, supplierRoleLabel } from "@/lib/supplier-context";
+import { PREVIEW_ROLE_COOKIE } from "@/lib/preview-role";
 import type { AppRole } from "@/types/platform";
 
-const PREVIEW_KEY = "fsvp_preview_role";
+function readCookie(name: string): string | null {
+  const match = document.cookie.split("; ").find((c) => c.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split("=")[1]) : null;
+}
 
 const ROLE_LABELS: Record<AppRole, string> = {
   supplier:      "Supplier",
@@ -36,14 +40,20 @@ function initials(name: string | null, email: string): string {
 export function AppShell({
   children,
   role: serverRole = "supplier",
+  realRole,
   supplierType: serverSupplierType,
 }: {
   children: React.ReactNode;
   role?: AppRole;
+  // The signed-in user's actual role. Defaults to `role` for pages that
+  // haven't been updated to resolve preview roles server-side — on those
+  // pages `role` is always the real role anyway, so this stays accurate.
+  realRole?: AppRole;
   supplierType?: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const actualRole = realRole ?? serverRole;
   const [role, setRole]               = useState<AppRole>(serverRole);
   const [supplierType, setSupplierType] = useState<string | null>(serverSupplierType ?? null);
   const [displayName, setDisplayName] = useState<string | null>(null);
@@ -52,11 +62,11 @@ export function AppShell({
   const VALID_ROLES = new Set<AppRole>(["supplier", "exporter", "us_importer", "reviewer", "administrator"]);
 
   useEffect(() => {
-    if (serverRole === "administrator") {
-      const preview = localStorage.getItem(PREVIEW_KEY) as AppRole | null;
+    if (actualRole === "administrator") {
+      const preview = readCookie(PREVIEW_ROLE_COOKIE) as AppRole | null;
       if (preview && VALID_ROLES.has(preview)) setRole(preview);
     }
-  }, [serverRole]);
+  }, [actualRole]);
 
   useEffect(() => {
     async function loadUser() {
@@ -99,7 +109,7 @@ export function AppShell({
     // Role check
     if (item.roles && !item.roles.includes(role)) {
       // Always show admin to real admins even when previewing
-      if (serverRole === "administrator" && item.href === "/admin") return true;
+      if (actualRole === "administrator" && item.href === "/admin") return true;
       return false;
     }
 
@@ -174,7 +184,7 @@ export function AppShell({
       </aside>
 
       <div className="lg:pl-72">
-        {serverRole === "administrator" && <RolePreviewBanner />}
+        {actualRole === "administrator" && <RolePreviewBanner />}
         <nav className="flex gap-2 overflow-x-auto border-b border-black/10 bg-white/95 px-5 py-2 lg:hidden">
           {visibleItems.map((item) => (
             <Link
