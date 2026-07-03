@@ -150,7 +150,7 @@ export async function ExporterDashboard({
   const steps = [
     {
       key: "profile",
-      label: "Complete corporate profile",
+      label: "Complete company overview",
       href: "/corporate",
       done: corpAccepted > 0 || corpSubmitted > 0,
       urgent: false,
@@ -171,7 +171,7 @@ export async function ExporterDashboard({
     },
     {
       key: "evidence",
-      label: "Upload corporate compliance documents",
+      label: "Upload company overview documents",
       href: "/corporate",
       done: corpAccepted >= 3,
       urgent: corpAccepted === 0 && (facilities.length > 0 || products.length > 0),
@@ -265,7 +265,7 @@ export async function ExporterDashboard({
           <Link href="/corporate" className="group flex items-center justify-between rounded-lg border border-line bg-white p-4 shadow-soft hover:border-forest transition">
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-slate-400 group-hover:text-forest" />
-              <p className="text-sm font-semibold text-slate-600 group-hover:text-forest">Corp. Docs Accepted</p>
+              <p className="text-sm font-semibold text-slate-600 group-hover:text-forest">Company Docs Accepted</p>
             </div>
             <p className="text-2xl font-bold text-ink">{corpAccepted}</p>
           </Link>

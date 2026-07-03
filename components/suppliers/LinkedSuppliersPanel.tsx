@@ -118,7 +118,7 @@ export function LinkedSuppliersPanel({
             <p className="mt-2 text-sm text-slate-500">
               If you source from other manufacturers or processors, add them here.
               If you manufacture your own goods, skip this — your facilities and
-              products go directly under your own corporate profile.
+              products go directly under your own company overview.
             </p>
             <div className="mt-6 rounded-lg border border-line bg-slate-50 px-4 py-4 text-left text-xs text-slate-600 space-y-2">
               <p className="font-semibold text-slate-700">How it works:</p>

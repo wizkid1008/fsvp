@@ -194,7 +194,7 @@ function ItemUploadSlot({
         <div className="border-t border-line bg-slate-50 px-5 pb-4 pt-3">
           {!supplierId ? (
             <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Your exporter profile is not set up yet. Complete your corporate profile before uploading evidence.
+              Your exporter profile is not set up yet. Complete your company overview before uploading evidence.
             </p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
