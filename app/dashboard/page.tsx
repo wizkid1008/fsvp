@@ -3,8 +3,9 @@ import { ExporterDashboard } from "@/components/dashboard/ExporterDashboard";
 import { ManufacturerDashboard } from "@/components/dashboard/ManufacturerDashboard";
 import { ReviewerDashboard } from "@/components/dashboard/ReviewerDashboard";
 import { requireUser } from "@/lib/auth/protection";
-import { getSupplierContext, isExporterType } from "@/lib/supplier-context";
-import { getPreviewRole, resolveEffectiveRole } from "@/lib/preview-role";
+import { getSupplierContext, getSupplierContextById, isExporterType } from "@/lib/supplier-context";
+import { getPreviewRole, getPreviewSupplierId, resolveEffectiveRole } from "@/lib/preview-role";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { Profile } from "@/types/database";
 
 export const runtime = "edge";
@@ -125,9 +126,15 @@ export default async function DashboardPage() {
   const isImporter  = role === "us_importer";
   const isReviewer  = role === "reviewer" || role === "administrator";
 
-  // Fetch supplier context for exporter/supplier roles
+  // Fetch supplier context for exporter/supplier roles. When an admin is
+  // previewing a specific real account, resolve that account's own data
+  // (via the admin client, since the admin's own row has no supplier link)
+  // instead of the signed-in admin's own (nonexistent) supplier context.
+  const previewSupplierId = realRole === "administrator" ? getPreviewSupplierId() : null;
   const supplierCtx = (isExporter || isSupplier)
-    ? await getSupplierContext(supabase as any, user.id)
+    ? previewSupplierId
+      ? await getSupplierContextById(createAdminSupabaseClient(), previewSupplierId)
+      : await getSupplierContext(supabase as any, user.id)
     : null;
 
   const supplierId = supplierCtx?.supplierId ?? null;

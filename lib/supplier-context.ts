@@ -84,3 +84,33 @@ export async function getSupplierContext(
     companyName:   supplier?.company_name ?? profile?.organization_name ?? null,
   };
 }
+
+/** Supplier context for a specific supplier row, independent of the logged-in user. */
+export async function getSupplierContextById(
+  supabase: { from: (table: string) => any },
+  supplierId: string
+): Promise<{
+  supplierId:    string | null;
+  supplierType:  string | null;
+  isExporter:    boolean;
+  isManufacturer: boolean;
+  companyName:   string | null;
+}> {
+  const { data: supplier } = await (supabase.from("suppliers") as any)
+    .select("supplier_type, company_name")
+    .eq("id", supplierId)
+    .maybeSingle();
+
+  if (!supplier) {
+    return { supplierId: null, supplierType: null, isExporter: false, isManufacturer: false, companyName: null };
+  }
+
+  const supplierType = supplier.supplier_type ?? "exporter";
+  return {
+    supplierId,
+    supplierType,
+    isExporter:    isExporterType(supplierType),
+    isManufacturer: isManufacturerType(supplierType),
+    companyName:   supplier.company_name ?? null,
+  };
+}
