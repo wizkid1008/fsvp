@@ -2,7 +2,9 @@ import Link from "next/link";
 import { CheckCircle2, AlertCircle, Clock, ArrowRight, Building2, Package, Warehouse, FileText, Users } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ActionItemsSection } from "./ActionItemsSection";
+import { FsvpProcessFlow } from "./FsvpProcessFlow";
 import type { StatusTone } from "@/types/platform";
+import type { FsvpRecordStatus } from "@/types/database";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -37,6 +39,7 @@ export async function ExporterDashboard({
     upstreamRes,
     gapRes,
     pubVersionRes,
+    fsvpRecordsRes,
   ] = await Promise.all([
     // Corporate documents submitted
     supplierId
@@ -80,12 +83,19 @@ export async function ExporterDashboard({
       .order("version_number", { ascending: false })
       .limit(1)
       .maybeSingle(),
+
+    supplierId
+      ? (supabase.from("fsvp_records") as any)
+          .select("id, status")
+          .eq("supplier_id", supplierId)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const corpDocs   = (corporateDocsRes.data ?? []) as Array<{ evidence_status: string }>;
   const facilities = (facilitiesRes.data ?? []) as Array<{ id: string; facility_name: string }>;
   const products   = (productsRes.data ?? []) as Array<{ id: string; product_name: string }>;
   const upstream   = (upstreamRes.data ?? []) as Array<{ id: string; supplier: { company_name: string; supplier_type: string } | null }>;
+  const fsvpRecords = (fsvpRecordsRes.data ?? []) as Array<{ id: string; status: FsvpRecordStatus }>;
 
   const corpAccepted  = corpDocs.filter((d) => d.evidence_status === "accepted").length;
   const corpSubmitted = corpDocs.filter((d) => d.evidence_status === "submitted" || d.evidence_status === "under_review").length;
@@ -196,6 +206,8 @@ export async function ExporterDashboard({
           </StatusBadge>
         </Link>
       </div>
+
+      <FsvpProcessFlow records={fsvpRecords} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Next steps */}

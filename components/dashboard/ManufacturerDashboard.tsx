@@ -3,7 +3,9 @@ import { CheckCircle2, AlertCircle, Clock, ArrowRight, Warehouse, Package, FileT
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ActionItemsSection } from "./ActionItemsSection";
 import { OpenTasksSection } from "./OpenTasksSection";
+import { FsvpProcessFlow } from "./FsvpProcessFlow";
 import type { StatusTone } from "@/types/platform";
+import type { FsvpRecordStatus } from "@/types/database";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -18,7 +20,7 @@ export async function ManufacturerDashboard({
   displayName: string;
   supabase: SupabaseLike;
 }) {
-  const [facilitiesRes, productsRes, documentsRes, exporterLinksRes] = await Promise.all([
+  const [facilitiesRes, productsRes, documentsRes, exporterLinksRes, fsvpRecordsRes] = await Promise.all([
     supplierId
       ? (supabase.from("facilities_verify") as any)
           .select("id, facility_name")
@@ -48,12 +50,19 @@ export async function ManufacturerDashboard({
           .eq("supplier_id", supplierId)
           .eq("status", "active")
       : Promise.resolve({ data: [] }),
+
+    supplierId
+      ? (supabase.from("fsvp_records") as any)
+          .select("id, status")
+          .eq("supplier_id", supplierId)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const facilities = (facilitiesRes.data ?? []) as Array<{ id: string; facility_name: string }>;
   const products   = (productsRes.data ?? []) as Array<{ id: string; product_name: string }>;
   const docs       = (documentsRes.data ?? []) as Array<{ id: string; evidence_status: string; title: string; uploaded_at: string }>;
   const exporters  = (exporterLinksRes.data ?? []) as Array<{ id: string; exporter: { id: string; company_name: string; country: string } | null }>;
+  const fsvpRecords = (fsvpRecordsRes.data ?? []) as Array<{ id: string; status: FsvpRecordStatus }>;
 
   const accepted = docs.filter((d) => d.evidence_status === "accepted").length;
   const pending  = docs.filter((d) => ["submitted", "under_review"].includes(d.evidence_status)).length;
@@ -105,6 +114,8 @@ export async function ManufacturerDashboard({
           <p className="mt-2 text-sm text-amber-700">Not yet linked to any exporter. Accept an invite to get started.</p>
         )}
       </section>
+
+      <FsvpProcessFlow records={fsvpRecords} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
         {/* Setup checklist */}
