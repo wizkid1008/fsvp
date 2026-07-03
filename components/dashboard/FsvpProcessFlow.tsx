@@ -1,5 +1,14 @@
-import { AlertTriangle, CheckCircle2, Circle } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, Plus } from "lucide-react";
 import type { FsvpRecordStatus } from "@/types/database";
+
+export type FsvpProcessRecord = {
+  id: string;
+  status: FsvpRecordStatus;
+  reassessment_due_at: string | null;
+  facility_name: string | null;
+  product_name: string | null;
+};
 
 const STAGES = [
   { key: "evidence", label: "Evidence Collection", statuses: ["draft", "awaiting_supplier_evidence"] },
@@ -13,17 +22,45 @@ function stageIndexFor(status: FsvpRecordStatus): number {
   return idx === -1 ? 0 : idx;
 }
 
-type StepTone = "done" | "current-ok" | "current-blocked" | "current-success" | "upcoming";
+type CardTone = "neutral" | "info" | "warning" | "success" | "danger";
 
-const nodeClasses: Record<StepTone, string> = {
-  done: "border-emerald-500 bg-emerald-500 text-white",
-  "current-ok": "border-forest bg-forest text-white",
-  "current-blocked": "border-red-400 bg-red-50 text-red-600",
-  "current-success": "border-emerald-500 bg-emerald-500 text-white",
-  upcoming: "border-line bg-white text-slate-300",
+const cardClasses: Record<CardTone, string> = {
+  neutral: "bg-slate-50 text-ink",
+  info: "bg-sky-50 text-sky-800",
+  warning: "bg-amber-50 text-amber-800",
+  success: "bg-emerald-50 text-emerald-800",
+  danger: "bg-red-50 text-red-700",
 };
 
-export function FsvpProcessFlow({ records }: { records: Array<{ status: FsvpRecordStatus }> }) {
+const subtitleClasses: Record<CardTone, string> = {
+  neutral: "text-slate-500",
+  info: "text-sky-600",
+  warning: "text-amber-700",
+  success: "text-emerald-600",
+  danger: "text-red-600",
+};
+
+function cardTone(status: FsvpRecordStatus): CardTone {
+  if (status === "needs_corrective_action" || status === "rejected") return "danger";
+  if (status === "reassessment_due" || status === "expired") return "warning";
+  if (status === "importer_approved" || status === "conditionally_approved") return "success";
+  if (status === "importer_review_pending") return "info";
+  if (status === "supplier_evidence_submitted" || status === "supplier_evidence_accepted") return "warning";
+  return "neutral";
+}
+
+function cardSubtitle(record: FsvpProcessRecord): string {
+  if (record.status === "needs_corrective_action") return "Corrective action needed";
+  if (record.status === "rejected") return "Rejected";
+  if (record.status === "reassessment_due" || record.status === "expired") {
+    return record.reassessment_due_at
+      ? `Reassessment due ${new Date(record.reassessment_due_at).toLocaleDateString(undefined, { month: "short", year: "numeric" })}`
+      : "Reassessment due";
+  }
+  return record.product_name ?? "Product";
+}
+
+export function FsvpProcessFlow({ records }: { records: FsvpProcessRecord[] }) {
   if (records.length === 0) {
     return (
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -35,65 +72,67 @@ export function FsvpProcessFlow({ records }: { records: Array<{ status: FsvpReco
     );
   }
 
-  const stageIndices = records.map((r) => stageIndexFor(r.status));
-  const currentStage = Math.min(...stageIndices);
+  const byStage = STAGES.map((stage, i) => records.filter((r) => stageIndexFor(r.status) === i));
   const blockedCount = records.filter((r) => r.status === "needs_corrective_action" || r.status === "rejected").length;
-  const approvedCount = records.filter((r) => r.status === "importer_approved" || r.status === "conditionally_approved").length;
-  const monitoringCount = records.filter((r) => r.status === "reassessment_due" || r.status === "expired").length;
-
-  function toneFor(i: number): StepTone {
-    if (i < currentStage) return "done";
-    if (i > currentStage) return "upcoming";
-    if (blockedCount > 0) return "current-blocked";
-    if (i === STAGES.length - 1 && approvedCount > 0) return "current-success";
-    return "current-ok";
-  }
 
   return (
     <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-ink">FSVP Process</h2>
-        {blockedCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {blockedCount} record{blockedCount > 1 ? "s" : ""} need{blockedCount === 1 ? "s" : ""} attention
+        <div className="flex items-center gap-3">
+          {blockedCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {blockedCount} need{blockedCount === 1 ? "s" : ""} attention
+            </span>
+          )}
+          <span className="text-xs text-slate-400">
+            {records.length} facility &amp; product record{records.length > 1 ? "s" : ""}
           </span>
-        )}
+        </div>
       </div>
 
-      <div className="flex items-start">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {STAGES.map((stage, i) => {
-          const tone = toneFor(i);
-          const isFinal = i === STAGES.length - 1;
+          const items = byStage[i];
           return (
-            <div key={stage.key} className="flex flex-1 items-start last:flex-none">
-              <div className="flex flex-col items-center gap-1.5">
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 ${nodeClasses[tone]}`}>
-                  {tone === "done" || tone === "current-success" ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : (
-                    <Circle className="h-3 w-3 fill-current" />
-                  )}
-                </div>
-                <span
-                  className={`w-[92px] text-center text-xs font-medium ${tone === "upcoming" ? "text-slate-400" : "text-ink"}`}
-                >
-                  {stage.label}
-                </span>
+            <div key={stage.key}>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">{stage.label}</span>
+                <span className="text-xs text-slate-400">{items.length}</span>
               </div>
-              {!isFinal && (
-                <div className={`mx-2 mt-4 h-0.5 flex-1 ${i < currentStage ? "bg-emerald-500" : "bg-line"}`} />
-              )}
+              <div className="flex flex-col gap-1.5">
+                {items.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-line px-2.5 py-3 text-center text-xs text-slate-300">
+                    None
+                  </div>
+                ) : (
+                  items.map((r) => {
+                    const tone = cardTone(r.status);
+                    return (
+                      <div key={r.id} className={`rounded-md px-2.5 py-2 ${cardClasses[tone]}`}>
+                        <p className="truncate text-xs font-semibold">{r.facility_name ?? "Facility"}</p>
+                        <p className={`truncate text-[11px] ${subtitleClasses[tone]}`}>{cardSubtitle(r)}</p>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {monitoringCount > 0 && (
-        <p className="mt-4 text-xs text-amber-700">
-          {monitoringCount} approved record{monitoringCount > 1 ? "s" : ""} due for reassessment.
-        </p>
-      )}
+      <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
+        <span className="text-xs text-slate-400">New facilities and products enter at Evidence Collection.</span>
+        <Link
+          href="/facilities"
+          className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink hover:border-forest hover:text-forest transition"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add facility or product
+        </Link>
+      </div>
     </section>
   );
 }

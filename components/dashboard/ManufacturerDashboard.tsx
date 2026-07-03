@@ -3,9 +3,8 @@ import { CheckCircle2, AlertCircle, Clock, ArrowRight, Warehouse, Package, FileT
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ActionItemsSection } from "./ActionItemsSection";
 import { OpenTasksSection } from "./OpenTasksSection";
-import { FsvpProcessFlow } from "./FsvpProcessFlow";
+import { FsvpProcessFlow, type FsvpProcessRecord } from "./FsvpProcessFlow";
 import type { StatusTone } from "@/types/platform";
-import type { FsvpRecordStatus } from "@/types/database";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -53,7 +52,7 @@ export async function ManufacturerDashboard({
 
     supplierId
       ? (supabase.from("fsvp_records") as any)
-          .select("id, status")
+          .select("id, status, reassessment_due_at, facilities_verify(facility_name), products_verify(product_name)")
           .eq("supplier_id", supplierId)
       : Promise.resolve({ data: [] }),
   ]);
@@ -62,7 +61,19 @@ export async function ManufacturerDashboard({
   const products   = (productsRes.data ?? []) as Array<{ id: string; product_name: string }>;
   const docs       = (documentsRes.data ?? []) as Array<{ id: string; evidence_status: string; title: string; uploaded_at: string }>;
   const exporters  = (exporterLinksRes.data ?? []) as Array<{ id: string; exporter: { id: string; company_name: string; country: string } | null }>;
-  const fsvpRecords = (fsvpRecordsRes.data ?? []) as Array<{ id: string; status: FsvpRecordStatus }>;
+  const fsvpRecords = ((fsvpRecordsRes.data ?? []) as Array<{
+    id: string;
+    status: FsvpProcessRecord["status"];
+    reassessment_due_at: string | null;
+    facilities_verify: { facility_name: string } | null;
+    products_verify: { product_name: string } | null;
+  }>).map((r) => ({
+    id: r.id,
+    status: r.status,
+    reassessment_due_at: r.reassessment_due_at,
+    facility_name: r.facilities_verify?.facility_name ?? null,
+    product_name: r.products_verify?.product_name ?? null,
+  }));
 
   const accepted = docs.filter((d) => d.evidence_status === "accepted").length;
   const pending  = docs.filter((d) => ["submitted", "under_review"].includes(d.evidence_status)).length;
@@ -123,7 +134,7 @@ export async function ManufacturerDashboard({
           <ActionItemsSection supplierId={supplierId} supabase={supabase} />
           <OpenTasksSection supplierId={supplierId} supabase={supabase} />
 
-          {incomplete.length > 0 && (
+          {incomplete.length > 0 ? (
             <section className="rounded-lg border border-line bg-white shadow-soft">
               <div className="border-b border-line px-5 py-4">
                 <h2 className="text-sm font-semibold text-ink">Setup Checklist</h2>
@@ -144,6 +155,12 @@ export async function ManufacturerDashboard({
                 ))}
               </div>
             </section>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-2.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span className="text-sm font-medium text-emerald-700">Initial setup complete</span>
+              <span className="text-xs text-emerald-600">Facility, product, and evidence added</span>
+            </div>
           )}
 
           {/* Recent evidence */}

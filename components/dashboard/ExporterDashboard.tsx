@@ -2,9 +2,8 @@ import Link from "next/link";
 import { CheckCircle2, AlertCircle, Clock, ArrowRight, Building2, Package, Warehouse, FileText, Users } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ActionItemsSection } from "./ActionItemsSection";
-import { FsvpProcessFlow } from "./FsvpProcessFlow";
+import { FsvpProcessFlow, type FsvpProcessRecord } from "./FsvpProcessFlow";
 import type { StatusTone } from "@/types/platform";
-import type { FsvpRecordStatus } from "@/types/database";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -86,7 +85,7 @@ export async function ExporterDashboard({
 
     supplierId
       ? (supabase.from("fsvp_records") as any)
-          .select("id, status")
+          .select("id, status, reassessment_due_at, facilities_verify(facility_name), products_verify(product_name)")
           .eq("supplier_id", supplierId)
       : Promise.resolve({ data: [] }),
   ]);
@@ -95,7 +94,19 @@ export async function ExporterDashboard({
   const facilities = (facilitiesRes.data ?? []) as Array<{ id: string; facility_name: string }>;
   const products   = (productsRes.data ?? []) as Array<{ id: string; product_name: string }>;
   const upstream   = (upstreamRes.data ?? []) as Array<{ id: string; supplier: { company_name: string; supplier_type: string } | null }>;
-  const fsvpRecords = (fsvpRecordsRes.data ?? []) as Array<{ id: string; status: FsvpRecordStatus }>;
+  const fsvpRecords = ((fsvpRecordsRes.data ?? []) as Array<{
+    id: string;
+    status: FsvpProcessRecord["status"];
+    reassessment_due_at: string | null;
+    facilities_verify: { facility_name: string } | null;
+    products_verify: { product_name: string } | null;
+  }>).map((r) => ({
+    id: r.id,
+    status: r.status,
+    reassessment_due_at: r.reassessment_due_at,
+    facility_name: r.facilities_verify?.facility_name ?? null,
+    product_name: r.products_verify?.product_name ?? null,
+  }));
 
   const corpAccepted  = corpDocs.filter((d) => d.evidence_status === "accepted").length;
   const corpSubmitted = corpDocs.filter((d) => d.evidence_status === "submitted" || d.evidence_status === "under_review").length;
@@ -214,29 +225,37 @@ export async function ExporterDashboard({
         <div className="space-y-4">
         <ActionItemsSection supplierId={supplierId} supabase={supabase} />
 
-        <section className="rounded-lg border border-line bg-white shadow-soft">
-          <div className="border-b border-line px-5 py-4">
-            <h2 className="text-sm font-semibold text-ink">Setup Checklist</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Complete these steps before requesting importer verification.</p>
+        {incomplete.length > 0 ? (
+          <section className="rounded-lg border border-line bg-white shadow-soft">
+            <div className="border-b border-line px-5 py-4">
+              <h2 className="text-sm font-semibold text-ink">Setup Checklist</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Complete these steps before requesting importer verification.</p>
+            </div>
+            <div className="divide-y divide-line">
+              {steps.map((step) => (
+                <Link key={step.key} href={step.href}
+                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 transition">
+                  {step.done
+                    ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                    : step.urgent
+                      ? <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+                      : <Clock className="h-4 w-4 shrink-0 text-slate-300" />
+                  }
+                  <span className={`flex-1 text-sm ${step.done ? "text-slate-400 line-through" : "font-medium text-ink"}`}>
+                    {step.label}
+                  </span>
+                  {!step.done && <ArrowRight className="h-3.5 w-3.5 text-slate-300" />}
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-2.5">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+            <span className="text-sm font-medium text-emerald-700">Initial setup complete</span>
+            <span className="text-xs text-emerald-600">Company overview, facility, and product added</span>
           </div>
-          <div className="divide-y divide-line">
-            {steps.map((step) => (
-              <Link key={step.key} href={step.href}
-                className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 transition">
-                {step.done
-                  ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-                  : step.urgent
-                    ? <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
-                    : <Clock className="h-4 w-4 shrink-0 text-slate-300" />
-                }
-                <span className={`flex-1 text-sm ${step.done ? "text-slate-400 line-through" : "font-medium text-ink"}`}>
-                  {step.label}
-                </span>
-                {!step.done && <ArrowRight className="h-3.5 w-3.5 text-slate-300" />}
-              </Link>
-            ))}
-          </div>
-        </section>
+        )}
         </div>
 
         {/* Quick stats */}
