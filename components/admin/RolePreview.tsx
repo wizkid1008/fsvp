@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Eye, X, ArrowLeft } from "lucide-react";
 import type { AppRole } from "@/types/platform";
-import { PREVIEW_ROLE_COOKIE, PREVIEW_SUPPLIER_ID_COOKIE, PREVIEW_SUPPLIER_NAME_COOKIE } from "@/lib/preview-role";
+import { PREVIEW_ROLE_COOKIE, PREVIEW_SUPPLIER_ID_COOKIE, PREVIEW_SUPPLIER_NAME_COOKIE } from "@/lib/preview-role-constants";
 
 function readCookie(name: string): string | null {
   const match = document.cookie.split("; ").find((c) => c.startsWith(`${name}=`));

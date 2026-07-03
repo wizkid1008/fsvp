@@ -1,9 +1,8 @@
 import { cookies } from "next/headers";
 import type { AppRole } from "@/types/platform";
+import { PREVIEW_ROLE_COOKIE, PREVIEW_SUPPLIER_ID_COOKIE } from "@/lib/preview-role-constants";
 
-export const PREVIEW_ROLE_COOKIE = "fsvp_preview_role";
-export const PREVIEW_SUPPLIER_ID_COOKIE = "fsvp_preview_supplier_id";
-export const PREVIEW_SUPPLIER_NAME_COOKIE = "fsvp_preview_supplier_name";
+export { PREVIEW_ROLE_COOKIE, PREVIEW_SUPPLIER_ID_COOKIE, PREVIEW_SUPPLIER_NAME_COOKIE } from "@/lib/preview-role-constants";
 
 const VALID_ROLES: AppRole[] = ["supplier", "exporter", "us_importer", "reviewer", "administrator"];
 

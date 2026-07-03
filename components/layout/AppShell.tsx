@@ -11,7 +11,7 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { isExporterType, supplierRoleLabel } from "@/lib/supplier-context";
-import { PREVIEW_ROLE_COOKIE } from "@/lib/preview-role";
+import { PREVIEW_ROLE_COOKIE } from "@/lib/preview-role-constants";
 import type { AppRole } from "@/types/platform";
 
 function readCookie(name: string): string | null {
