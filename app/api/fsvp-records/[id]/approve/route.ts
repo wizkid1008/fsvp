@@ -4,10 +4,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { isValidDecision, isValidReassessmentMonths, statusForDecision, type ApprovalDecision } from "@/lib/fsvp/status-transitions";
 
 export const runtime = "edge";
 
-type Decision = "approved" | "conditionally_approved" | "rejected" | "revision_requested";
+type Decision = ApprovalDecision;
 
 export async function POST(
   req: NextRequest,
@@ -47,12 +48,11 @@ export async function POST(
     reassessment_months?: number;
   };
 
-  const validDecisions: Decision[] = ["approved", "conditionally_approved", "rejected", "revision_requested"];
-  if (!decision || !validDecisions.includes(decision)) {
+  if (!isValidDecision(decision)) {
     return NextResponse.json({ error: "Invalid decision" }, { status: 400 });
   }
 
-  if (reassessment_months !== undefined && (reassessment_months < 1 || reassessment_months > 120)) {
+  if (!isValidReassessmentMonths(reassessment_months)) {
     return NextResponse.json({ error: "reassessment_months must be between 1 and 120." }, { status: 400 });
   }
 
@@ -79,13 +79,7 @@ export async function POST(
   const reassessmentDue = new Date(now);
   reassessmentDue.setMonth(reassessmentDue.getMonth() + months);
 
-  // Map decision to record status
-  const statusMap: Record<Decision, string> = {
-    approved: "importer_approved",
-    conditionally_approved: "conditionally_approved",
-    rejected: "rejected",
-    revision_requested: "needs_corrective_action",
-  };
+  const newStatus = statusForDecision(decision);
 
   await (admin.from("fsvp_records") as any)
     .update({
@@ -93,7 +87,7 @@ export async function POST(
       approved_by_profile_id: user.id,
       approved_at: decision !== "revision_requested" ? now.toISOString() : null,
       reassessment_due_at: reassessmentDue.toISOString(),
-      status: statusMap[decision],
+      status: newStatus,
     })
     .eq("id", id);
 
@@ -146,5 +140,5 @@ export async function POST(
     new_value: { decision, decision_notes, conditions_text },
   });
 
-  return NextResponse.json({ success: true, status: statusMap[decision] });
+  return NextResponse.json({ success: true, status: newStatus });
 }

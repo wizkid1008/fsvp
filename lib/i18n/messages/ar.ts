@@ -14,6 +14,8 @@ const ar: Messages = {
     myReadiness: "استعداديتي",
     actionItems: "بنود العمل",
     suppliers: "الموردون",
+    companyOverview: "نظرة عامة على الشركة",
+    exporters: "المصدرون",
     products: "المنتجات",
     facilities: "المرافق",
     evidence: "الأدلة",

@@ -14,6 +14,8 @@ const es: Messages = {
     myReadiness: "Mi preparación",
     actionItems: "Elementos de acción",
     suppliers: "Proveedores",
+    companyOverview: "Resumen de la empresa",
+    exporters: "Exportadores",
     products: "Productos",
     facilities: "Instalaciones",
     evidence: "Evidencias",

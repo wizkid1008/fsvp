@@ -15,6 +15,8 @@ const en = {
     myReadiness: "My Readiness",
     actionItems: "Action Items",
     suppliers: "Suppliers",
+    companyOverview: "Company Overview",
+    exporters: "Exporters",
     products: "Products",
     facilities: "Facilities",
     evidence: "Evidence",

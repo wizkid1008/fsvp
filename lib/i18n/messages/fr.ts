@@ -14,6 +14,8 @@ const fr: Messages = {
     myReadiness: "Ma préparation",
     actionItems: "Éléments d'action",
     suppliers: "Fournisseurs",
+    companyOverview: "Aperçu de l'entreprise",
+    exporters: "Exportateurs",
     products: "Produits",
     facilities: "Installations",
     evidence: "Preuves",

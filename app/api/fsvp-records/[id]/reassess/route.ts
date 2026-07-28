@@ -4,16 +4,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { addMonths } from "@/lib/fsvp/status-transitions";
 
 export const runtime = "edge";
 
 const ALLOWED_ROLES = new Set(["us_importer", "reviewer", "administrator"]);
-
-function addMonths(dateStr: string, n: number): string {
-  const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + n);
-  return d.toISOString();
-}
 
 export async function POST(
   req: NextRequest,

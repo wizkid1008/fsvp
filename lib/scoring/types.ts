@@ -9,12 +9,23 @@ export type EvidenceStatus =
   | "rejected"
   | "expired";
 
+// Two vocabularies land here: calculateScore() returns whatever string is
+// configured in approval_thresholds.resulting_status (seeded as
+// importer_approved / conditionally_approved / needs_corrective_action /
+// rejected, or "not_approved" if no threshold matches), while
+// scoreFsvpRecord() in ./index.ts derives its own approved/not_approved/
+// improvement_required labels from the combined facility+product score.
+// This type is a superset of both so it accurately reflects what can
+// actually come back — it does not imply the two vocabularies agree.
 export type ApprovalStatus =
   | "pending"
   | "approved"
+  | "importer_approved"
   | "conditionally_approved"
   | "improvement_required"
+  | "needs_corrective_action"
   | "not_approved"
+  | "rejected"
   | "suspended";
 
 export interface SectionWeight {

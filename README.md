@@ -77,6 +77,14 @@ CLOUDFLARE_API_TOKEN=
 
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code.
 
+## Tests
+
+Unit tests cover the scoring engine (`lib/scoring/`) and the FSVP approval/reassessment status transitions (`lib/fsvp/status-transitions.ts`) — the two places a silent bug would be most costly.
+
+```bash
+npm test
+```
+
 ## Supabase Setup
 
 1. Create a Supabase project.
