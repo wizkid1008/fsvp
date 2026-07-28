@@ -170,11 +170,17 @@ export function AppShell({
                 </p>
               </div>
             </Link>
-            <div className="absolute bottom-full left-0 z-10 hidden w-full pb-2 group-hover:block bg-white">
+            <div className="absolute bottom-full left-0 z-10 hidden w-full flex-col pb-2 group-hover:flex bg-white shadow-lg">
+              <Link
+                href="/settings"
+                className="w-full border border-b-0 border-black/10 bg-white px-3 py-2 text-left text-xs font-bold text-black hover:bg-black/5"
+              >
+                Settings
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full border border-black/10 bg-white px-3 py-2 text-left text-xs font-bold text-black shadow-lg hover:bg-black/5"
+                className="w-full border border-black/10 bg-white px-3 py-2 text-left text-xs font-bold text-black hover:bg-black/5"
               >
                 Log out
               </button>

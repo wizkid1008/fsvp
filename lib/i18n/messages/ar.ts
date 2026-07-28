@@ -22,6 +22,7 @@ const ar: Messages = {
     gapsActions: "الثغرات والإجراءات",
     readiness: "الاستعداد",
     reports: "التقارير",
+    notifications: "الإشعارات",
     reviewQueue: "قائمة المراجعة",
     importerReview: "قائمة المراجعة",
     auditLog: "سجل التدقيق",

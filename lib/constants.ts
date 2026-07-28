@@ -31,6 +31,8 @@ export const protectedRoutes = [
   "/admin",
   "/reports",
   "/audit-log",
+  "/notifications",
+  "/settings",
 ];
 
 export const roleProtectedRoutes: Record<string, string[]> = {
@@ -50,4 +52,5 @@ export const roleProtectedRoutes: Record<string, string[]> = {
   "/reports":      ["us_importer", "administrator"],
   "/my-evidence":  ["supplier", "exporter"],
   "/my-readiness": ["supplier", "exporter"],
+  "/notifications": ["us_importer", "administrator"],
 };

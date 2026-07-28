@@ -22,6 +22,7 @@ const es: Messages = {
     gapsActions: "Brechas y acciones",
     readiness: "Preparación",
     reports: "Informes",
+    notifications: "Notificaciones",
     reviewQueue: "Cola de revisión",
     importerReview: "Cola de revisión",
     auditLog: "Registro de auditoría",

@@ -13,6 +13,7 @@ export const runtime = "edge";
 // ── Importer dashboard (kept inline — minimal changes needed) ──
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import type { StatusTone } from "@/types/platform";
 
 async function ImporterDashboard({
@@ -58,6 +59,8 @@ async function ImporterDashboard({
 
   return (
     <div className="space-y-6">
+      {(supplierCount ?? 0) === 0 && <OnboardingModal role="us_importer" />}
+
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

@@ -23,6 +23,7 @@ const en = {
     gapsActions: "Gaps & Actions",
     readiness: "Readiness",
     reports: "Reports",
+    notifications: "Notifications",
     reviewQueue: "Review Queue",
     importerReview: "Review Queue",
     auditLog: "Audit Log",

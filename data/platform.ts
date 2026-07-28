@@ -61,6 +61,7 @@ export const navItems: NavItem[] = [
   { href: "/gaps-actions",     label: "Gaps & Actions",  icon: "AlertTriangle",  roles: ["us_importer"], matches: ["/gaps-actions"], tKey: "nav.gapsActions" },
   { href: "/readiness",        label: "Readiness",       icon: "Gauge",          roles: ["us_importer"], matches: ["/readiness"], tKey: "nav.readiness" },
   { href: "/reports",          label: "Reports",         icon: "FileCheck2",     roles: ["us_importer"], matches: ["/reports"], tKey: "nav.reports" },
+  { href: "/notifications",    label: "Notifications",   icon: "Bell",           roles: ["us_importer"], tKey: "nav.notifications" },
 
   // ── Reviewer + Admin nav ─────────────────────────────────────
   { href: "/reviewer",     label: "Review Queue",  icon: "ClipboardCheck", roles: ["reviewer", "administrator"], tKey: "nav.reviewQueue" },
