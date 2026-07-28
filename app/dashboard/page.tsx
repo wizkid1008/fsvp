@@ -53,6 +53,8 @@ async function ImporterDashboard({
 
   const metrics = [
     { label: "Suppliers",    value: supplierCount ?? 0,  href: "/suppliers",    tone: "info"    as StatusTone },
+    { label: "Products",     value: productCount ?? 0,   href: "/products",     tone: "info"    as StatusTone },
+    { label: "Facilities",   value: facilityCount ?? 0,  href: "/facilities",   tone: "info"    as StatusTone },
     { label: "Evidence",     value: documentCount ?? 0,  href: "/evidence",     tone: "info"    as StatusTone },
     { label: "Open Actions", value: actionCount ?? 0,    href: "/gaps-actions", tone: (actionCount ?? 0) > 0 ? "danger" as StatusTone : "success" as StatusTone },
   ];
@@ -75,7 +77,7 @@ async function ImporterDashboard({
         </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {metrics.map((m) => (
           <Link key={m.label} href={m.href}
             className="group flex items-center justify-between rounded-lg border border-line bg-white p-4 shadow-soft hover:border-forest transition">

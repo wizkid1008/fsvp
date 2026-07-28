@@ -9,6 +9,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getSupplierType } from "@/lib/supplier-context";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { fetchApprovalStatusMap } from "@/lib/scoring";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -131,7 +132,7 @@ export default async function FacilitiesPage({
     accessByFacility.set(access.facility_id, existing);
   }
 
-  const facilities = ((rawFacilities ?? []) as unknown as FacilityRow[])
+  const facilitiesBeforeStatus = ((rawFacilities ?? []) as unknown as FacilityRow[])
     .map((facility) => {
       const supplierIds = accessByFacility.get(facility.id) ?? (facility.supplier_id ? [facility.supplier_id] : []);
       return {
@@ -145,10 +146,24 @@ export default async function FacilitiesPage({
 
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 
+  // facilities_verify.approval_status is never written by the app — the real
+  // readiness state lives in scoring_results (populated whenever the scoring
+  // engine runs for a facility), resolved against approval_thresholds. Override
+  // the stale DB column with the live resolved status before it reaches the table.
+  const approvalStatusByFacility = await fetchApprovalStatusMap(
+    supabase,
+    "facility",
+    facilitiesBeforeStatus.map((f) => f.id)
+  );
+  const facilities = facilitiesBeforeStatus.map((f) => ({
+    ...f,
+    approval_status: approvalStatusByFacility.get(f.id) ?? f.approval_status,
+  }));
+
   const facilitiesAdded = facilities.length;
-  const facilitiesApproved = facilities.filter((f) => f.approval_status === "approved").length;
+  const facilitiesApproved = facilities.filter((f) => f.approval_status === "importer_approved").length;
   const facilitiesNeedingUpdates = facilities.filter((f) =>
-    ["improvement_required", "not_approved", "suspended", "conditionally_approved"].includes(f.approval_status ?? "")
+    ["conditionally_approved", "needs_corrective_action", "rejected", "not_approved"].includes(f.approval_status ?? "")
   ).length;
 
   const metricTone = (v: number, warnAbove = 0): StatusTone =>

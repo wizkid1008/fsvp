@@ -5,6 +5,7 @@ import { useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { Country, Profile } from "@/types/database";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
+import { LOCALES, LOCALE_LABELS, LOCALE_COOKIE, isValidLocale } from "@/lib/i18n/locales";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 type ProfileUpdate = Pick<
@@ -75,6 +76,9 @@ export function ProfileForm({
           return;
         }
 
+        const languageValue = cleanFormValue(formData, "preferred_language");
+        const preferredLanguage = languageValue && isValidLocale(languageValue) ? languageValue : "en";
+
         const profileValues: ProfileUpdate = {
           email: authEmail,
           full_name: cleanFormValue(formData, "full_name"),
@@ -84,7 +88,7 @@ export function ProfileForm({
           position: cleanFormValue(formData, "position"),
           phone_number: cleanFormValue(formData, "phone_number"),
           country,
-          preferred_language: cleanFormValue(formData, "preferred_language") ?? "en",
+          preferred_language: preferredLanguage,
           supplier_type: cleanFormValue(formData, "supplier_type"),
           importer_type: cleanFormValue(formData, "importer_type")
         };
@@ -166,6 +170,17 @@ export function ProfileForm({
           }
         }
 
+        const currentLocaleCookie = document.cookie
+          .split("; ")
+          .find((c) => c.startsWith(`${LOCALE_COOKIE}=`))
+          ?.split("=")[1];
+
+        if (currentLocaleCookie !== preferredLanguage) {
+          document.cookie = `${LOCALE_COOKIE}=${preferredLanguage};path=/;max-age=31536000;samesite=lax`;
+          window.location.reload();
+          return;
+        }
+
         setMessage("Profile saved.");
         router.refresh();
       } catch (saveError) {
@@ -221,7 +236,11 @@ export function ProfileForm({
 
         <label className="text-sm font-medium text-slate-700">
           Preferred Language
-          <input name="preferred_language" defaultValue={profile?.preferred_language ?? "en"} className={fieldClassName()} placeholder="en" />
+          <select name="preferred_language" defaultValue={profile?.preferred_language ?? "en"} className={fieldClassName()}>
+            {LOCALES.map((locale) => (
+              <option key={locale} value={locale}>{LOCALE_LABELS[locale]}</option>
+            ))}
+          </select>
         </label>
 
         {role === "supplier" && (

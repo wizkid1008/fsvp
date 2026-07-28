@@ -6,12 +6,14 @@ import {
   fetchRuleVersionWeights,
   fetchRequirementItemsForSections,
   fetchEvidenceForEntity,
+  fetchApprovalStatusMap,
   upsertScoringResult,
 } from "./queries";
 import type { ScoreResult } from "./types";
 
 export type { ScoreResult, SectionScore, ApprovalStatus } from "./types";
 export { sectionCompletionPercent } from "./engine";
+export { fetchApprovalStatusMap } from "./queries";
 
 async function scoreEntity(
   entityType: "facility" | "product",
@@ -67,8 +69,6 @@ export async function scoreFsvpRecord(
     scoreEntity("product", productId, ruleVersionId),
   ]);
 
-  const { thresholds } = await fetchRuleVersionWeights(ruleVersionId, "facility");
-
   const combined = (facilityResult.overall_score + productResult.overall_score) / 2;
   const criticalPresent =
     facilityResult.critical_blockers_present || productResult.critical_blockers_present;
@@ -78,21 +78,20 @@ export async function scoreFsvpRecord(
     ...productResult.section_scores,
   };
 
-  const fakeWeights = Object.values(mergedSections).map((s) => ({
-    section_id: "",
-    section_key: s.section_key,
-    section_name: s.section_name,
-    applies_to: "facility" as const,
-    weight_percent: s.weight_percent,
-  }));
-
-  // Re-use calculateScore only for threshold resolution, not re-calculation
-  const { approval_status } = calculateScore(fakeWeights, [], [], thresholds);
-  void approval_status; // resolved below
+  // facilityResult/productResult.approval_status come straight from the configured
+  // approval_thresholds.resulting_status (seeded as importer_approved /
+  // conditionally_approved / needs_corrective_action / rejected — see
+  // supabase/migrations/021_rules_engine_schema_extensions.sql), with "not_approved"
+  // only ever appearing as calculateScore()'s own fallback when no threshold row
+  // covers the score. A rejected facility or product must not let the combined
+  // FSVP record read as anything better than conditionally_approved.
+  const eitherRejected =
+    ["rejected", "not_approved"].includes(facilityResult.approval_status) ||
+    ["rejected", "not_approved"].includes(productResult.approval_status);
 
   const result: ScoreResult = {
     overall_score: Math.round(combined * 100) / 100,
-    approval_status: facilityResult.approval_status === "not_approved" || productResult.approval_status === "not_approved"
+    approval_status: eitherRejected
       ? "not_approved"
       : criticalPresent
         ? "conditionally_approved"

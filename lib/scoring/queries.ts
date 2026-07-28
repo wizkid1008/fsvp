@@ -104,6 +104,63 @@ export async function fetchEvidenceForEntity(
   }));
 }
 
+// Batch-resolves the current approval status for a list of already-scored
+// entities (facilities or products), for use on list pages that need an
+// aggregate count without re-running the full scoring engine per row.
+// Entities with no scoring_results row yet (never scored) are simply absent
+// from the returned map — callers should treat that as "not yet assessed",
+// not as any particular status.
+export async function fetchApprovalStatusMap(
+  supabase: { from: (table: string) => any },
+  entityType: "facility" | "product",
+  entityIds: string[]
+): Promise<Map<string, string>> {
+  const statusByEntity = new Map<string, string>();
+  if (entityIds.length === 0) return statusByEntity;
+
+  const { data: rawResults } = await supabase
+    .from("scoring_results")
+    .select("entity_id, rule_version_id, overall_score, calculated_at")
+    .eq("entity_type", entityType)
+    .in("entity_id", entityIds)
+    .order("calculated_at", { ascending: false });
+
+  type ResultRow = { entity_id: string; rule_version_id: string; overall_score: number; calculated_at: string };
+  const results = (rawResults ?? []) as ResultRow[];
+
+  // Keep only the most recent scoring_results row per entity (results are
+  // already ordered newest-first, so the first occurrence wins).
+  const latestByEntity = new Map<string, ResultRow>();
+  for (const r of results) {
+    if (!latestByEntity.has(r.entity_id)) latestByEntity.set(r.entity_id, r);
+  }
+  if (latestByEntity.size === 0) return statusByEntity;
+
+  const ruleVersionIds = [...new Set([...latestByEntity.values()].map((r) => r.rule_version_id))];
+  const { data: rawThresholds } = await supabase
+    .from("approval_thresholds")
+    .select("rule_version_id, min_score, max_score, resulting_status")
+    .in("rule_version_id", ruleVersionIds);
+
+  type ThresholdRow = { rule_version_id: string; min_score: number; max_score: number; resulting_status: string };
+  const thresholdsByVersion = new Map<string, ThresholdRow[]>();
+  for (const t of (rawThresholds ?? []) as ThresholdRow[]) {
+    const list = thresholdsByVersion.get(t.rule_version_id) ?? [];
+    list.push(t);
+    thresholdsByVersion.set(t.rule_version_id, list);
+  }
+
+  for (const [entityId, result] of latestByEntity) {
+    const thresholds = (thresholdsByVersion.get(result.rule_version_id) ?? [])
+      .slice()
+      .sort((a, b) => b.min_score - a.min_score);
+    const matched = thresholds.find((t) => result.overall_score >= t.min_score && result.overall_score <= t.max_score);
+    statusByEntity.set(entityId, matched?.resulting_status ?? "not_approved");
+  }
+
+  return statusByEntity;
+}
+
 export async function upsertScoringResult(
   entityType: "facility" | "product" | "fsvp_record",
   entityId: string,

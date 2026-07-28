@@ -39,9 +39,9 @@ export type ProductRow = {
 };
 
 function approvalTone(status?: string): "success" | "warning" | "danger" | "neutral" {
-  if (status === "approved") return "success";
+  if (status === "importer_approved") return "success";
   if (status === "conditionally_approved") return "warning";
-  if (status === "improvement_required" || status === "not_approved") return "danger";
+  if (status === "needs_corrective_action" || status === "rejected" || status === "not_approved") return "danger";
   return "neutral";
 }
 

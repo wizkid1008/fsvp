@@ -9,6 +9,7 @@ import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { fetchApprovalStatusMap } from "@/lib/scoring";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -123,9 +124,21 @@ export default async function ProductsPage({
     }
   }
 
-  const products = ((rawProducts ?? []) as unknown as ProductRow[]).map((product) => ({
+  const productsBeforeStatus = ((rawProducts ?? []) as unknown as ProductRow[]).map((product) => ({
     ...product,
     evidence_count: evidenceCountByProduct.get(product.id) ?? 0,
+  }));
+
+  // products_verify.approval_status is never written by the app — the real
+  // readiness state lives in scoring_results, resolved against approval_thresholds.
+  const approvalStatusByProduct = await fetchApprovalStatusMap(
+    supabase,
+    "product",
+    productsBeforeStatus.map((p) => p.id)
+  );
+  const products = productsBeforeStatus.map((p) => ({
+    ...p,
+    approval_status: approvalStatusByProduct.get(p.id) ?? p.approval_status,
   }));
 
   let supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
@@ -163,9 +176,9 @@ export default async function ProductsPage({
     .filter((facility) => !isSupplier || Boolean(activeSupplierId && facility.supplier_ids.includes(activeSupplierId)));
 
   const productsAdded = products.length;
-  const productsApproved = products.filter((p) => p.approval_status === "approved").length;
+  const productsApproved = products.filter((p) => p.approval_status === "importer_approved").length;
   const productsNeedingUpdates = products.filter((p) =>
-    ["improvement_required", "not_approved", "conditionally_approved"].includes(p.approval_status ?? "")
+    ["conditionally_approved", "needs_corrective_action", "rejected", "not_approved"].includes(p.approval_status ?? "")
   ).length;
 
   const metricTone = (v: number, warnAbove = 0): StatusTone =>
