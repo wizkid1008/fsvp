@@ -1,4 +1,4 @@
-import { Activity, Bell, BookOpenCheck, Download, LockKeyhole, RefreshCw, Settings2 } from "lucide-react";
+import { Activity, BookOpenCheck, LockKeyhole, Settings2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -164,9 +164,7 @@ export default async function AdminPage() {
         <UserManagement users={(allUsers ?? []) as any} />
       </section>
 
-      <section className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-        <div className="hidden" />
-
+      <section className="mt-6">
         <aside className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -235,10 +233,6 @@ export default async function AdminPage() {
               ))}
             </div>
           )}
-          <button className="mt-4 inline-flex h-10 items-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-            <RefreshCw className="h-4 w-4" />
-            Sync Library
-          </button>
         </div>
 
         <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
@@ -246,14 +240,6 @@ export default async function AdminPage() {
             <div>
               <h2 className="text-base font-semibold text-ink">Audit & Notification Feed</h2>
               <p className="mt-1 text-sm text-slate-500">Audit events will populate from Supabase as users take actions.</p>
-            </div>
-            <div className="flex gap-2">
-              <button className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-line text-slate-600 hover:bg-slate-50" aria-label="Notification settings">
-                <Bell className="h-4 w-4" />
-              </button>
-              <button className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-line text-slate-600 hover:bg-slate-50" aria-label="Export audit feed">
-                <Download className="h-4 w-4" />
-              </button>
             </div>
           </div>
           {feedItems.length === 0 ? (

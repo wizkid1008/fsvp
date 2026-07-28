@@ -3,6 +3,8 @@ export const PARENT_BRAND = "ThrushCross Trading & Commodities";
 export const APP_SUBTITLE = "FSVP Compliance & Supplier Verification Platform";
 export const BRAND_TAGLINE = "Verify • Trade • Grow";
 
+export const SUPPORT_EMAIL = "support@thrushcrosstrading.com";
+
 export const LEGAL_DISCLAIMER =
   "This platform does not provide legal or regulatory advice. FSVP determinations should be reviewed by qualified regulatory professionals and/or a qualified FSVP Individual.";
 

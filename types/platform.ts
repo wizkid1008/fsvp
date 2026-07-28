@@ -15,33 +15,6 @@ export type NavItem = {
   supplierTypes?: ("exporter" | "manufacturer")[];
 };
 
-export type ModuleRecord = {
-  label: string;
-  value: string;
-  detail: string;
-  status: string;
-  tone: StatusTone;
-};
-
-export type ModuleConfig = {
-  title: string;
-  description: string;
-  primaryAction: string;
-  records: ModuleRecord[];
-  checklist: string[];
-};
-
-export type RiskLevel = "low" | "medium" | "high" | "critical";
-
-export type RiskSignal = {
-  supplier: string;
-  commodity: string;
-  country: string;
-  riskLevel: RiskLevel;
-  readinessStatus: string;
-  score: number;
-  blockers: string[];
-};
 
 export type CommodityWorkflow = {
   commodity: string;

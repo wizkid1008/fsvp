@@ -18,21 +18,37 @@ const menuItems: Array<{ href: string; activeHref: string; label: string; key: M
   { href: "/login?next=%2Fdashboard", activeHref: "/dashboard", label: "Importers", key: "importers" }
 ];
 
-const megaMenus: Record<MenuKey, Array<{ heading: string; links: string[] }>> = {
+const megaMenus: Record<MenuKey, Array<{ heading: string; links: Array<{ label: string; href?: string }> }>> = {
   platform: [
-    { heading: "OVERVIEW", links: ["Risk dashboard", "Workflow navigation", "Role-based access", "Audit-ready records"] },
-    { heading: "TEAMS", links: ["Foreign suppliers", "U.S. importers", "Reviewers", "Administrators"] },
-    { heading: "SYSTEM", links: ["Supabase Auth", "Private document storage", "RLS policies", "Cloudflare Pages"] }
+    { heading: "OVERVIEW", links: [{ label: "Risk dashboard" }, { label: "Workflow navigation" }, { label: "Role-based access" }, { label: "Audit-ready records" }] },
+    { heading: "TEAMS", links: [{ label: "Foreign suppliers" }, { label: "U.S. importers" }, { label: "Reviewers" }, { label: "Administrators" }] },
+    { heading: "SYSTEM", links: [{ label: "Supabase Auth" }, { label: "Private document storage" }, { label: "RLS policies" }, { label: "Cloudflare Pages" }] }
   ],
   suppliers: [
-    { heading: "SUPPLIER PROFILE", links: ["Legal entity", "Contacts", "Export markets", "FDA registration"] },
-    { heading: "COMPLIANCE STATUS", links: ["Certifications", "Supplier questionnaire", "Importer relationship", "Ownership attestation"] },
-    { heading: "NEXT STEPS", links: ["Create supplier", "Attach evidence", "Review readiness", "Resolve gaps"] }
+    { heading: "SUPPLIER PROFILE", links: [{ label: "Legal entity" }, { label: "Contacts" }, { label: "Export markets" }, { label: "FDA registration" }] },
+    { heading: "COMPLIANCE STATUS", links: [{ label: "Certifications" }, { label: "Supplier questionnaire" }, { label: "Importer relationship" }, { label: "Ownership attestation" }] },
+    {
+      heading: "NEXT STEPS",
+      links: [
+        { label: "Create supplier", href: "/signup" },
+        { label: "Attach evidence", href: "/signup" },
+        { label: "Review readiness", href: "/signup" },
+        { label: "Resolve gaps", href: "/signup" }
+      ]
+    }
   ],
   importers: [
-    { heading: "IMPORTER PROFILE", links: ["Organization details", "Contacts", "Assigned suppliers", "Role management"] },
-    { heading: "FSVP OVERSIGHT", links: ["Supplier approvals", "Verification activities", "Evidence requests", "Corrective actions"] },
-    { heading: "NEXT STEPS", links: ["Invite supplier", "Review submissions", "Track readiness", "Export audit packet"] }
+    { heading: "IMPORTER PROFILE", links: [{ label: "Organization details" }, { label: "Contacts" }, { label: "Assigned suppliers" }, { label: "Role management" }] },
+    { heading: "FSVP OVERSIGHT", links: [{ label: "Supplier approvals" }, { label: "Verification activities" }, { label: "Evidence requests" }, { label: "Corrective actions" }] },
+    {
+      heading: "NEXT STEPS",
+      links: [
+        { label: "Invite supplier", href: "/signup" },
+        { label: "Review submissions", href: "/signup" },
+        { label: "Track readiness", href: "/signup" },
+        { label: "Export audit packet", href: "/signup" }
+      ]
+    }
   ]
 };
 
@@ -102,9 +118,15 @@ export function SiteMenu() {
                 <div key={column.heading}>
                   <p className="mb-5 text-[11px] font-black uppercase tracking-[0.08em] text-white/40">{column.heading}</p>
                   <div className="space-y-3">
-                    {column.links.map((link) => (
-                      <p key={link} className="text-sm font-bold text-white/90">{link}</p>
-                    ))}
+                    {column.links.map((link) =>
+                      link.href ? (
+                        <Link key={link.label} href={link.href} className="block text-sm font-bold text-white/90 hover:text-white hover:underline">
+                          {link.label}
+                        </Link>
+                      ) : (
+                        <p key={link.label} className="text-sm font-bold text-white/60">{link.label}</p>
+                      )
+                    )}
                   </div>
                 </div>
               ))}

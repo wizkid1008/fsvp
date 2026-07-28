@@ -119,18 +119,6 @@ Set the same environment variables in Cloudflare Pages project settings. Keep se
 
 `@cloudflare/next-on-pages` is pinned to `1.13.15` because `1.13.16` requires a newer Next.js peer range than this project currently uses.
 
-## GitHub Pages Landing Page
-
-This repo includes a static ThrushCross Trading & Commodities landing page in `github-pages/` and a workflow at `.github/workflows/github-pages.yml`. It deploys the brand landing page on each push to `main`.
-
-Build locally:
-
-```bash
-npm run github-pages:build
-```
-
-GitHub Pages is static hosting, so the full Supabase-backed app still belongs on Cloudflare Pages.
-
 ## Design and Architecture Docs
 
 - `docs/thrushcross-verify-redesign.md`

@@ -31,6 +31,8 @@ export default async function CorporatePage() {
   // 3. Write the resolved id back to profiles         ← needs admin client (FK may point to wrong table)
   // Skip entirely for administrators (previewing or not) — this bootstrap ties a
   // brand-new supplier row to the *signed-in* profile, which must never be an admin's.
+  let provisioningFailed = false;
+
   if (!supplierId && realRole !== "administrator") {
     const orgName = profile?.organization_name ?? profile?.full_name ?? null;
 
@@ -72,7 +74,9 @@ export default async function CorporatePage() {
           .eq("id", user.id);
       }
     } catch {
-      // Non-fatal — admin client not configured (local dev without service key)
+      // Admin client not configured, or the insert/match failed — the user is left
+      // without a supplier record, so surface it instead of failing silently.
+      provisioningFailed = true;
     }
   }
 
@@ -142,6 +146,15 @@ export default async function CorporatePage() {
         title="Company Overview"
         description="Manage exporter-level records, policies, contacts, attestations, and supplier-wide readiness requirements."
       />
+
+      {provisioningFailed && (
+        <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+          <p className="font-semibold">We couldn&apos;t set up your company record automatically.</p>
+          <p className="mt-1 text-amber-800">
+            Some data below may be missing until this is resolved. Please contact support so we can create it manually.
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[340px_1fr]">
         {/* ── Left column ─────────────────────────────────────── */}

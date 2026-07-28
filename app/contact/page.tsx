@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SUPPORT_EMAIL } from "@/lib/constants";
 
 export const runtime = "edge";
 
@@ -11,12 +12,26 @@ export default function ContactPage() {
           Connect supplier onboarding and review support.
         </h1>
         <p className="mt-8 max-w-3xl text-lg leading-8 text-black/60">
-          Configure this page with your support mailbox, reviewer intake address, and supplier onboarding contact once the
-          deployment organization is finalized.
+          For supplier onboarding, evidence review, or general support, reach us at{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="font-bold text-black underline">
+            {SUPPORT_EMAIL}
+          </a>
+          . We typically respond within one business day.
         </p>
-        <Link href="/" className="mt-8 inline-flex h-14 items-center bg-black px-7 text-sm font-black uppercase tracking-[0.04em] text-white hover:bg-neutral-800">
-          Back home
-        </Link>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <a
+            href={`mailto:${SUPPORT_EMAIL}`}
+            className="inline-flex h-14 items-center bg-black px-7 text-sm font-black uppercase tracking-[0.04em] text-white hover:bg-neutral-800"
+          >
+            Email support
+          </a>
+          <Link
+            href="/"
+            className="inline-flex h-14 items-center border border-black px-7 text-sm font-black uppercase tracking-[0.04em] text-black hover:bg-black/5"
+          >
+            Back home
+          </Link>
+        </div>
       </section>
     </main>
   );
