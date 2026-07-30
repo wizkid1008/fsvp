@@ -55,7 +55,18 @@ export default async function ReadinessPage({
     .select("id, overall_score, status, gap_summary, recommended_actions, submitted_at, created_at, supplier_id")
     .order("created_at", { ascending: false });
 
-  const assessments = ((rawAssessments ?? []) as Array<{ supplier_id: string }>).map((a) => ({
+  type RawAssessment = {
+    id: string;
+    overall_score: number;
+    status: string;
+    gap_summary: string | null;
+    recommended_actions: string | null;
+    submitted_at: string | null;
+    created_at: string;
+    supplier_id: string;
+  };
+
+  const assessments = ((rawAssessments ?? []) as RawAssessment[]).map((a) => ({
     ...a,
     supplier_name: supplierName.get(a.supplier_id) ?? "Unknown supplier",
   }));
@@ -84,21 +95,18 @@ export default async function ReadinessPage({
 
       {selectedSupplierId && (
         <div className="mt-6 space-y-6">
-          {/* @ts-expect-error async server component */}
           <SectionReadinessList
             appliesTo="supplier"
             supplierId={selectedSupplierId}
             supabase={admin}
             title="Supplier-level requirements"
           />
-          {/* @ts-expect-error async server component */}
           <SectionReadinessList
             appliesTo="facility"
             supplierId={selectedSupplierId}
             supabase={admin}
             title="Facility-level requirements"
           />
-          {/* @ts-expect-error async server component */}
           <SectionReadinessList
             appliesTo="product"
             supplierId={selectedSupplierId}

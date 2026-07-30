@@ -105,7 +105,6 @@ async function ImporterDashboard({
       </div>
 
       {importerId && (
-        /* @ts-expect-error async server component */
         <ImporterActionsSection
           importerId={importerId}
           supplierIds={supplierIds}
