@@ -88,8 +88,17 @@ npm test
 ## Supabase Setup
 
 1. Create a Supabase project.
-2. Apply migrations from `supabase/migrations` in lexical order.
-3. Apply optional sample data from `supabase/seed/sample_data.sql`.
+2. Apply migrations from `supabase/migrations` in lexical order:
+   - `000_baseline.sql` — tables, functions, triggers
+   - `001_baseline_rls.sql` — row-level security
+   - `002_reference_data.sql` — countries, rule set v1, requirement items, settings
+     (**required** — the app cannot create an FSVP record without a published rule version)
+
+   Migrations `001`–`044` were collapsed into this baseline on 2026-07-30 and are kept
+   under `supabase/migrations/archive/` for reference. Do not run them; see
+   `supabase/migrations/archive/README.md` for what changed and why.
+3. Apply optional sample data from `supabase/seed/sample_data.sql`. It seeds two
+   independent importer tenants so you can verify that data isolation holds.
 4. Confirm storage buckets exist:
    - `supplier-documents`
    - `background-documents`

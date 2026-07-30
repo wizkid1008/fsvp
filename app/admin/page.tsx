@@ -50,7 +50,7 @@ export default async function AdminPage() {
 
   const { data: allUsers } = await supabase
     .from("profiles")
-    .select("id, email, full_name, organization_name, role, user_status, last_login_at")
+    .select("id, email, full_name, organization_name, role, user_status, last_login_at, importer_id")
     .order("created_at", { ascending: false })
     .limit(50);
 

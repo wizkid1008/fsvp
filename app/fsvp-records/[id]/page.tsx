@@ -8,6 +8,7 @@ import { EvidencePackagePanel } from "@/components/fsvp/EvidencePackagePanel";
 import { HazardAnalysisPanel } from "@/components/fsvp/HazardAnalysisPanel";
 import { VerificationRecordsPanel } from "@/components/fsvp/VerificationRecordsPanel";
 import { PrintButton } from "@/components/fsvp/PrintButton";
+import { InspectionPackageButton } from "@/components/fsvp/InspectionPackageButton";
 import { ReassessmentSection } from "@/components/fsvp/ReassessmentSection";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -286,6 +287,7 @@ export default async function FsvpRecordPage({
               Open Print View
             </Link>
             <PrintButton />
+            {isImporter && <InspectionPackageButton recordId={id} />}
           </div>
         </div>
       </div>

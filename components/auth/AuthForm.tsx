@@ -35,6 +35,7 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [accountType, setAccountType] = useState<"supplier" | "us_importer">("supplier");
+  const [organizationName, setOrganizationName] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -62,7 +63,12 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
             password: passwordValue,
             options: {
               emailRedirectTo: `${window.location.origin}/auth/callback?next=/verified`,
-              data: { role: accountType }
+              // handle_new_user() reads organization_name off this metadata.
+              // For suppliers/exporters it also names the company record the
+              // profile trigger creates; without it they land as
+              // "Unnamed Exporter". For importers it pre-fills the organization
+              // an administrator creates at approval.
+              data: { role: accountType, organization_name: organizationName.trim() }
             }
           });
           const accountAlreadyExists = data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0;
@@ -169,8 +175,26 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
           </div>
         </fieldset>
       ) : null}
-      {mode !== "reset" ? (
+      {mode === "signup" ? (
         <label className="mt-6 block text-sm font-bold text-black">
+          Company name
+          <input
+            value={organizationName}
+            onChange={(event) => setOrganizationName(event.target.value)}
+            type="text"
+            required
+            className="mt-2 h-12 w-full border border-black/15 px-3 outline-none focus:border-black"
+            placeholder={accountType === "us_importer" ? "GreenPath Foods LLC" : "Pacific Valley Foods Ltd."}
+          />
+          <span className="mt-1 block text-xs font-normal text-black/50">
+            {accountType === "us_importer"
+              ? "Your U.S. importing entity. An administrator confirms this when approving your account."
+              : "The company you export from. This becomes your company profile."}
+          </span>
+        </label>
+      ) : null}
+      {mode !== "reset" ? (
+        <label className="mt-4 block text-sm font-bold text-black">
           Email
           <input
             value={email}

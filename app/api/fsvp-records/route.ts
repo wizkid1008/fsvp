@@ -46,6 +46,63 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "rule_version_id must reference a published rule version." }, { status: 400 });
   }
 
+  // Validate the supplier/facility/product graph. Previously none of this was
+  // checked server-side — the /new form filtered the dropdowns in browser
+  // memory only, so a hand-crafted request could open an FSVP record against an
+  // exporter the importer has no relationship with, or pair a facility and
+  // product belonging to different suppliers.
+  const { data: link } = await (admin.from("supplier_relationships") as any)
+    .select("id")
+    .eq("relationship_type", "importer_supplier")
+    .eq("importer_id", profile.importer_id)
+    .eq("supplier_id", supplier_id)
+    .in("status", ["active", "pending_invite"])
+    .maybeSingle();
+
+  if (!link) {
+    return NextResponse.json(
+      { error: "That exporter is not linked to your organization. Link or add them first." },
+      { status: 403 }
+    );
+  }
+
+  const [{ data: facility }, { data: product }, { data: sharedAccess }] = await Promise.all([
+    (admin.from("facilities_verify") as any)
+      .select("id, supplier_id")
+      .eq("id", facility_id)
+      .maybeSingle(),
+    (admin.from("products_verify") as any)
+      .select("id, supplier_id, facility_id")
+      .eq("id", product_id)
+      .maybeSingle(),
+    (admin.from("facility_supplier_access") as any)
+      .select("facility_id")
+      .eq("facility_id", facility_id)
+      .eq("supplier_id", supplier_id)
+      .maybeSingle(),
+  ]);
+
+  if (!facility || (facility.supplier_id !== supplier_id && !sharedAccess)) {
+    return NextResponse.json(
+      { error: "That facility does not belong to the selected exporter." },
+      { status: 400 }
+    );
+  }
+
+  if (!product || product.supplier_id !== supplier_id) {
+    return NextResponse.json(
+      { error: "That product does not belong to the selected exporter." },
+      { status: 400 }
+    );
+  }
+
+  if (product.facility_id && product.facility_id !== facility_id) {
+    return NextResponse.json(
+      { error: "That product is produced at a different facility than the one selected." },
+      { status: 400 }
+    );
+  }
+
   const { data: record, error } = await (admin.from("fsvp_records") as any)
     .insert({
       importer_id: profile.importer_id,

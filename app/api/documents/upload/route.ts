@@ -47,6 +47,10 @@ export async function POST(request: Request) {
   const requirementItemId = String(formData.get("requirement_item_id") ?? "");
   const expirationDate = String(formData.get("expiration_date") ?? "");
   const importerId = String(formData.get("importer_id") ?? "");
+  // Who at the supplier actually provided this document, when the importer is
+  // uploading on their behalf.
+  const attestedByName = String(formData.get("attested_by_name") ?? "").trim();
+  const attestedAt = String(formData.get("attested_at") ?? "").trim();
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "A file upload is required." }, { status: 400 });
@@ -62,8 +66,29 @@ export async function POST(request: Request) {
     .eq("id", user.id)
     .maybeSingle();
 
-  const resolvedImporterId = importerId || uploaderProfile?.importer_id || null;
+  let resolvedImporterId: string | null = importerId || uploaderProfile?.importer_id || null;
   const resolvedSupplierId = supplierId || uploaderProfile?.supplier_id || "";
+
+  // A supplier/exporter profile has no importer_id of its own, so their uploads
+  // used to land with importer_id = null and never reach any importer. Derive it
+  // from the active importer relationship instead. When an exporter serves
+  // several importers there is no single right answer, so leave it null — the
+  // review queue scopes by relationship and will still find it.
+  if (!resolvedImporterId && resolvedSupplierId) {
+    const { data: importerLinks } = await (createAdminSupabaseClient().from("supplier_relationships") as any)
+      .select("importer_id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("supplier_id", resolvedSupplierId)
+      .in("status", ["active", "pending_invite"]);
+
+    const ids = [...new Set(
+      ((importerLinks ?? []) as Array<{ importer_id: string | null }>)
+        .map((l) => l.importer_id)
+        .filter(Boolean)
+    )] as string[];
+
+    if (ids.length === 1) resolvedImporterId = ids[0];
+  }
 
   if (!resolvedSupplierId) {
     return NextResponse.json({ error: "Supplier is required for evidence uploads." }, { status: 400 });
@@ -156,9 +181,26 @@ export async function POST(request: Request) {
   // upload is fully valid. This is fixed permanently by migration 028.
   const adminDb = createAdminSupabaseClient();
 
+  // Evidence provenance. A document the importer keyed in themselves is not the
+  // same evidentiary artifact as one the supplier attested to, and an FDA
+  // investigator will read the two differently — so keep them distinguishable.
+  // The export package prints this column.
+  const uploaderIsSupplierSide =
+    uploaderProfile?.supplier_id && uploaderProfile.supplier_id === resolvedSupplierId;
+  const evidenceSource = uploaderIsSupplierSide ? "supplier_attested" : "importer_uploaded";
+
+  // Importer-uploaded evidence does not enter the review queue as "submitted".
+  // The review queue is the importer reviewing their supplier; asking them to
+  // review their own upload would be theatre, and would inflate the pending
+  // count with work that does not exist.
+  const evidenceStatus = evidenceSource === "importer_uploaded" ? "accepted" : "submitted";
+
   const documentRecord: Record<string, unknown> = {
     importer_id: resolvedImporterId,
     supplier_id: resolvedSupplierId || null,
+    evidence_source: evidenceSource,
+    attested_by_name: attestedByName || null,
+    attested_at: attestedAt || (evidenceSource === "importer_uploaded" ? new Date().toISOString() : null),
     document_kind: documentKind,
     title: title || file.name,
     storage_path: storagePath,
@@ -173,7 +215,8 @@ export async function POST(request: Request) {
     facility_id: linkType === "facility" ? facilityId || null : linkedProductFacilityId,
     expiration_date: expirationDate || null,
     uploaded_by_profile_id: user.id,
-    evidence_status: "submitted",
+    evidence_status: evidenceStatus,
+    reviewer_profile_id: evidenceSource === "importer_uploaded" ? user.id : null,
     uploaded_via: "app"
   };
 
