@@ -11,12 +11,19 @@ export type OnboardingStep = {
   cta: { label: string; href: string };
 };
 
+// Order follows the actual data dependencies: an FSVP record needs a supplier,
+// a facility and a product to exist first, and a readiness assessment scores
+// FSVP records. The previous sequence ended at "run an assessment" without ever
+// mentioning FSVP records or the review queue, so a new importer's first
+// assessment necessarily returned "No FSVP records found for this supplier."
 const IMPORTER_STEPS: OnboardingStep[] = [
-  { title: "Complete your profile", description: "Add your name, organization, and contact details.", cta: { label: "Go to Account", href: "/account" } },
-  { title: "Add your first supplier", description: "Create a supplier record with company name, country, and contact information.", cta: { label: "Add Supplier", href: "/suppliers" } },
-  { title: "Add products & facilities", description: "Link the food products your supplier exports and the facilities where they're produced.", cta: { label: "Add Products", href: "/products" } },
-  { title: "Upload FSVP evidence", description: "Upload COAs, audit reports, hazard analyses, and other required documents.", cta: { label: "Upload Evidence", href: "/evidence" } },
-  { title: "Run a readiness assessment", description: "Calculate your readiness score, identify gaps, and generate audit-ready reports.", cta: { label: "Start Assessment", href: "/readiness" } },
+  { title: "Complete your profile", description: "Add your name and contact details. Your importing organization is set up by an administrator when your account is approved.", cta: { label: "Go to Account", href: "/account" } },
+  { title: "Link or add an exporter", description: "Link an exporter who already has an account, or create the record yourself if they will not register — you can maintain it on their behalf.", cta: { label: "Go to Exporters", href: "/suppliers" } },
+  { title: "Add their facility and product", description: "Record the facility where the food is produced and the product you import. An FSVP record is opened against one supplier, facility and product together.", cta: { label: "Add a Facility", href: "/facilities" } },
+  { title: "Collect the evidence", description: "Upload COAs, audit reports, food safety plans and certifications — or ask the exporter to submit them directly if they have an account.", cta: { label: "Go to Evidence", href: "/evidence" } },
+  { title: "Review what they submit", description: "Accept, request revisions on, or reject each document. Only accepted evidence counts toward a record.", cta: { label: "Open Review Queue", href: "/importer-review" } },
+  { title: "Open an FSVP record", description: "Document your hazard analysis, supplier and facility evaluation, and verification determination for that supplier, facility and product.", cta: { label: "Create FSVP Record", href: "/fsvp-records/new" } },
+  { title: "Approve and monitor", description: "Record your approval decision, then track reassessment dates, expiring certificates and corrective actions.", cta: { label: "View FSVP Records", href: "/fsvp-records" } },
 ];
 
 const SUPPLIER_STEPS = [

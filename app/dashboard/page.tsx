@@ -14,6 +14,8 @@ export const runtime = "edge";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
+import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
+import { FsvpProcessFlow } from "@/components/dashboard/FsvpProcessFlow";
 import type { StatusTone } from "@/types/platform";
 
 async function ImporterDashboard({
@@ -38,8 +40,23 @@ async function ImporterDashboard({
     supabase.from("facilities_verify").select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>,
     supabase.from("documents").select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>,
     (supabase.from("corrective_actions") as any).select("id", { count: "exact", head: true }).eq("status", "open") as Promise<{ count: number | null }>,
-    (supabase.from("fsvp_records") as any).select("status, reassessment_due_at"),
+    (supabase.from("fsvp_records") as any)
+      .select("id, status, reassessment_due_at, facilities_verify(facility_name), products_verify(product_name)"),
   ]);
+
+  const importerId: string | null = profile?.importer_id ?? null;
+
+  const { data: rels } = importerId
+    ? await (supabase.from("supplier_relationships") as any)
+        .select("supplier_id")
+        .eq("relationship_type", "importer_supplier")
+        .eq("importer_id", importerId)
+        .in("status", ["active", "pending_invite"])
+    : { data: [] };
+
+  const supplierIds = ((rels ?? []) as Array<{ supplier_id: string }>)
+    .map((r) => r.supplier_id)
+    .filter(Boolean);
 
   const fsvpRows = (rawFsvp ?? []) as Array<{ status: string; reassessment_due_at: string | null }>;
   const now = new Date();
@@ -52,7 +69,7 @@ async function ImporterDashboard({
   };
 
   const metrics = [
-    { label: "Suppliers",    value: supplierCount ?? 0,  href: "/suppliers",    tone: "info"    as StatusTone },
+    { label: "Exporters",    value: supplierCount ?? 0,  href: "/suppliers",    tone: "info"    as StatusTone },
     { label: "Products",     value: productCount ?? 0,   href: "/products",     tone: "info"    as StatusTone },
     { label: "Facilities",   value: facilityCount ?? 0,  href: "/facilities",   tone: "info"    as StatusTone },
     { label: "Evidence",     value: documentCount ?? 0,  href: "/evidence",     tone: "info"    as StatusTone },
@@ -86,6 +103,27 @@ async function ImporterDashboard({
           </Link>
         ))}
       </div>
+
+      {importerId && (
+        /* @ts-expect-error async server component */
+        <ImporterActionsSection
+          importerId={importerId}
+          supplierIds={supplierIds}
+          supabase={supabase}
+        />
+      )}
+
+      {fsvpRows.length > 0 && (
+        <FsvpProcessFlow
+          records={(rawFsvp ?? []).map((r: any) => ({
+            id: r.id,
+            status: r.status,
+            reassessment_due_at: r.reassessment_due_at,
+            facility_name: r.facilities_verify?.facility_name ?? null,
+            product_name: r.products_verify?.product_name ?? null,
+          }))}
+        />
+      )}
 
       {fsvp.total > 0 && (
         <section className="rounded-lg border border-line bg-white shadow-soft">

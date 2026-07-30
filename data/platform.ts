@@ -50,13 +50,18 @@ export const navItems: NavItem[] = [
   { href: "/my-suppliers", label: "Suppliers",    icon: "UsersRound",    roles: ["exporter"],              matches: ["/my-suppliers"], tKey: "nav.suppliers" },
 
   // ── Both exporter and supplier ───────────────────────────────
-  { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier", "administrator"], tKey: "nav.facilities" },
-  { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier", "administrator"], tKey: "nav.products" },
+  // Importers need these too: a managed exporter has no account of its own, so
+  // someone has to create its facilities and products, and that someone is the
+  // importer. They were previously linked from the dashboard tiles and the
+  // onboarding modal but absent from the importer's nav.
+  { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier", "us_importer", "administrator"], tKey: "nav.facilities" },
+  { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier", "us_importer", "administrator"], tKey: "nav.products" },
   { href: "/my-evidence",  label: "My Evidence",  icon: "FileArchive",   roles: ["exporter", "supplier"], tKey: "nav.myEvidence" },
 
   // ── Importer nav ─────────────────────────────────────────────
   { href: "/suppliers",        label: "Exporters",       icon: "Building2",      roles: ["us_importer"], tKey: "nav.exporters" },
   { href: "/fsvp-records",     label: "FSVP Records",    icon: "FolderCheck",    roles: ["us_importer"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
+  { href: "/evidence",         label: "Evidence",        icon: "FileArchive",    roles: ["us_importer"], tKey: "nav.evidence" },
   { href: "/importer-review",  label: "Review Queue",    icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview" },
   { href: "/gaps-actions",     label: "Gaps & Actions",  icon: "AlertTriangle",  roles: ["us_importer"], matches: ["/gaps-actions"], tKey: "nav.gapsActions" },
   { href: "/readiness",        label: "Readiness",       icon: "Gauge",          roles: ["us_importer"], matches: ["/readiness"], tKey: "nav.readiness" },

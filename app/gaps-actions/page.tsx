@@ -11,7 +11,8 @@ export default async function GapsActionsPage() {
   const supabase = createServerSupabaseClient();
 
   const { data: rawActions } = await (supabase.from("corrective_actions") as any)
-    .select("id, issue_description, triggered_by, status, triggered_at, closed_at, supplier_id, food_id, investigation_summary, action_taken, decision")
+    // food_id was dropped with the legacy `foods` table; product_id replaces it.
+    .select("id, issue_description, triggered_by, status, triggered_at, closed_at, supplier_id, product_id, investigation_summary, action_taken, decision")
     .order("triggered_at", { ascending: false });
 
   const actions = rawActions ?? [];
