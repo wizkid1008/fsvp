@@ -1,28 +1,31 @@
 -- ============================================================================
 -- 045_importer_rebuild_in_place.sql
 --
--- Converges an EXISTING database (migrations 001-043 applied, 044 never run)
--- onto the same end state as the 000/001/002 baseline, without dropping the
--- schema. Use this instead of the baseline when you want to keep the current
--- database, its data, and its auth accounts.
+-- Converges an EXISTING database onto the same end state as the 000/001/002
+-- baseline, without dropping the schema. Use this when you want to keep the
+-- current database, its data, and its auth accounts.
 --
---   * Fresh environments:  000_baseline.sql -> 001_baseline_rls.sql -> 002_reference_data.sql
---   * This database:       045 (this file)  -> 001_baseline_rls.sql -> 002_reference_data.sql
+--   * Fresh environments:  migrations/000_baseline.sql -> 001_baseline_rls.sql -> 002_reference_data.sql
+--   * This database:       upgrade/045 (this file)     -> 001_baseline_rls.sql -> 002_reference_data.sql
 --
--- Both paths must end at the same schema. Section 9 asserts that; if it raises,
--- the two have drifted and the assertion tells you where.
+-- EXISTENCE-TOLERANT BY DESIGN. This database's migration history is partial —
+-- migration 037 exists solely because 019 "never actually ran against this
+-- database", and import_entries turned out to be absent despite migration 008
+-- creating it. So every statement here tolerates its target being missing:
+-- tables are created if absent, altered with ALTER TABLE IF EXISTS, and all DML
+-- and index creation is guarded with to_regclass().
 --
--- AFTER running this file you MUST run 001_baseline_rls.sql — section 8 drops
--- every existing policy, so the database is left with RLS enabled and no
--- policies until you do. That is deliberate: it fails closed, not open.
--- 002_reference_data.sql is then safe but optional (every statement is
--- ON CONFLICT DO NOTHING/UPDATE against data you already have).
+-- Section 12 reports (as warnings, not errors) any baseline table this database
+-- still lacks, so you know what to backfill from 000_baseline.sql.
+--
+-- AFTER running this file you MUST run migrations/001_baseline_rls.sql —
+-- section 11 drops every policy, leaving RLS enabled with none defined. That is
+-- deliberate: it fails closed, not open.
 -- ============================================================================
 
 begin;
 
 -- ── 0. Preflight ───────────────────────────────────────────────────────────
--- Refuse to run against a database that was already built from the baseline.
 do $$
 begin
   if exists (
@@ -30,37 +33,31 @@ begin
     where table_schema = 'public' and table_name = 'suppliers' and column_name = 'record_mode'
   ) then
     raise exception
-      'suppliers.record_mode already exists — this database was built from 000_baseline.sql. '
-      'Migration 045 is only for converging a pre-baseline database.';
+      'suppliers.record_mode already exists — this database was already converged, '
+      'or was built from 000_baseline.sql. Nothing to do.';
   end if;
 
-  if not exists (
-    select 1 from information_schema.tables
-    where table_schema = 'public' and table_name = 'supplier_relationships'
-  ) then
-    raise exception
-      'supplier_relationships is missing — expected migrations 001-043 to be applied first.';
+  if to_regclass('public.suppliers') is null then
+    raise exception 'suppliers table is missing — this does not look like a ThrushCross database.';
   end if;
 end $$;
 
 -- ── 1. Retire the shared-tenant trigger ────────────────────────────────────
 -- auto_link_importer assigned every us_importer / reviewer / administrator the
--- first importers row on the platform, ordered by created_at. The two seeded
+-- first importers row on the platform, ordered by created_at. The seeded
 -- importers were inserted in one statement and share a created_at, so the
 -- ordering was not even deterministic.
 drop trigger  if exists trg_profiles_auto_link_importer on profiles;
 drop function if exists public.auto_link_importer();
 
 -- ── 2. importers ───────────────────────────────────────────────────────────
-alter table importers
+alter table if exists importers
   add column if not exists duns_number           text,
   add column if not exists primary_contact_email text;
 
-alter table importers drop constraint if exists fk_importers_primary_contact;
-alter table importers drop column if exists primary_contact_user_id;
-alter table importers drop column if exists status_history;
-
-alter table importers alter column food_scope set default 'human';
+alter table if exists importers drop constraint if exists fk_importers_primary_contact;
+alter table if exists importers drop column if exists primary_contact_user_id;
+alter table if exists importers drop column if exists status_history;
 
 comment on column importers.duns_number is
   'D-U-N-S number transmitted as the FSVP importer UFI at entry (21 CFR 1.509). '
@@ -69,9 +66,8 @@ comment on column importers.duns_number is
 -- ── 3. Split the shared tenant ─────────────────────────────────────────────
 -- The oldest importer profile keeps the existing organization, so all existing
 -- FSVP records, documents and audit history stay attached to a real account.
--- Every other importer profile gets its own organization. Reviewers and
--- administrators are not tenants at all — their access comes from role checks
--- in the policies, so their importer_id is cleared.
+-- Every other importer profile gets its own. Reviewers and administrators are
+-- not tenants — their access comes from role checks in the policies.
 do $$
 declare
   v_shared_importer uuid;
@@ -79,11 +75,16 @@ declare
   p                 record;
   v_new_importer    uuid;
   v_split_count     int := 0;
+  v_has_guard       boolean;
 begin
   -- prevent_profile_role_escalation() blocks importer_id changes for anyone who
   -- is not an authenticated platform admin. In a SQL session auth.uid() is null,
   -- so it would silently revert every update below.
-  alter table profiles disable trigger trg_profiles_prevent_role_escalation;
+  select exists (select 1 from pg_trigger where tgname = 'trg_profiles_prevent_role_escalation')
+    into v_has_guard;
+  if v_has_guard then
+    alter table profiles disable trigger trg_profiles_prevent_role_escalation;
+  end if;
 
   select id into v_shared_importer from importers order by created_at, id limit 1;
 
@@ -95,13 +96,11 @@ begin
     limit 1;
   end if;
 
-  -- Reviewers and administrators are not tenants.
   update profiles
   set importer_id = null
   where role::text in ('reviewer', 'administrator')
     and importer_id is not null;
 
-  -- Give every importer profile other than the keeper its own organization.
   for p in
     select id, email, full_name, organization_name, country
     from profiles
@@ -125,29 +124,44 @@ begin
     v_split_count := v_split_count + 1;
   end loop;
 
-  alter table profiles enable trigger trg_profiles_prevent_role_escalation;
+  if v_has_guard then
+    alter table profiles enable trigger trg_profiles_prevent_role_escalation;
+  end if;
 
-  raise notice 'Tenancy split: % importer profile(s) moved to their own organization; keeper profile % retained organization %',
+  raise notice 'Tenancy split: % importer profile(s) moved to their own organization; keeper % retained organization %',
     v_split_count, coalesce(v_keeper::text, '(none)'), coalesce(v_shared_importer::text, '(none)');
 end $$;
 
 -- ── 4. suppliers: record ownership + entry identity ────────────────────────
-alter table suppliers
+alter table if exists suppliers
   add column if not exists record_mode            text not null default 'self_managed',
   add column if not exists managed_by_importer_id uuid references importers(id) on delete set null,
   add column if not exists claim_invite_token     text,
   add column if not exists claim_invite_sent_at   timestamptz,
   add column if not exists claimed_at             timestamptz,
   add column if not exists claim_declined_at      timestamptz,
-  add column if not exists created_by_profile_id  uuid references profiles(id) on delete set null;
+  add column if not exists created_by_profile_id  uuid references profiles(id) on delete set null,
+  -- Added by migrations 027/030/043; absent if those never ran here.
+  add column if not exists supplier_type          text not null default 'manufacturer',
+  add column if not exists portal_status          text not null default 'active',
+  add column if not exists readiness_score        numeric(5,2),
+  add column if not exists last_reviewed_at       timestamptz,
+  add column if not exists duns_number            text,
+  add column if not exists ufi_number             text,
+  add column if not exists fsvp_identifier        text;
 
-alter table suppliers drop constraint if exists suppliers_record_mode_check;
-alter table suppliers
+alter table if exists suppliers drop constraint if exists suppliers_supplier_type_check;
+alter table if exists suppliers
+  add constraint suppliers_supplier_type_check
+  check (supplier_type in ('exporter', 'exporter_manufacturer', 'manufacturer', 'trader', 'broker'));
+
+alter table if exists suppliers drop constraint if exists suppliers_record_mode_check;
+alter table if exists suppliers
   add constraint suppliers_record_mode_check
   check (record_mode in ('self_managed', 'importer_managed', 'claim_pending'));
 
-alter table suppliers drop constraint if exists suppliers_managed_by_check;
-alter table suppliers
+alter table if exists suppliers drop constraint if exists suppliers_managed_by_check;
+alter table if exists suppliers
   add constraint suppliers_managed_by_check check (
     (record_mode = 'self_managed' and managed_by_importer_id is null)
     or (record_mode in ('importer_managed', 'claim_pending') and managed_by_importer_id is not null)
@@ -155,43 +169,69 @@ alter table suppliers
 
 do $$
 begin
-  if not exists (
-    select 1 from pg_constraint where conname = 'suppliers_claim_invite_token_key'
-  ) then
+  if not exists (select 1 from pg_constraint where conname = 'suppliers_claim_invite_token_key') then
     alter table suppliers add constraint suppliers_claim_invite_token_key unique (claim_invite_token);
+  end if;
+  -- Suppliers are shared entities, not importer-owned.
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'suppliers' and column_name = 'importer_id' and is_nullable = 'NO'
+  ) then
+    alter table suppliers alter column importer_id drop not null;
   end if;
 end $$;
 
--- Dead columns pointing at tables dropped in section 7.
-alter table suppliers drop column if exists organization_id;
-alter table suppliers drop column if exists foreign_supplier_id;
+alter table if exists suppliers drop column if exists organization_id;
+alter table if exists suppliers drop column if exists foreign_supplier_id;
 
 comment on column suppliers.record_mode is
   'Who owns this record. importer_managed means no exporter account exists and '
   'the managing importer uploads evidence on their behalf — see documents.evidence_source.';
 
 -- ── 5. documents: evidence provenance ──────────────────────────────────────
-alter table documents
-  add column if not exists evidence_source   text not null default 'supplier_attested',
-  add column if not exists attested_by_name  text,
-  add column if not exists attested_at       timestamptz,
-  add column if not exists updated_at        timestamptz not null default now();
+alter table if exists documents
+  add column if not exists evidence_source        text not null default 'supplier_attested',
+  add column if not exists attested_by_name       text,
+  add column if not exists attested_at            timestamptz,
+  add column if not exists updated_at             timestamptz not null default now(),
+  add column if not exists supplier_id            uuid references suppliers(id) on delete set null,
+  add column if not exists expiration_date        date,
+  add column if not exists uploaded_by_profile_id uuid references profiles(id) on delete set null,
+  add column if not exists evidence_status        text not null default 'not_submitted';
 
-alter table documents drop constraint if exists documents_evidence_source_check;
-alter table documents
+alter table if exists documents drop constraint if exists documents_evidence_source_check;
+alter table if exists documents
   add constraint documents_evidence_source_check
   check (evidence_source in ('supplier_attested', 'importer_uploaded', 'third_party'));
 
-alter table documents drop column if exists translated_by_qi_id;
-alter table documents drop column if exists uploaded_by_user_id;
+alter table if exists documents drop column if exists translated_by_qi_id;
+alter table if exists documents drop column if exists uploaded_by_user_id;
+
+do $$
+begin
+  if to_regclass('public.facilities_verify') is not null then
+    alter table documents add column if not exists facility_id uuid references facilities_verify(id) on delete set null;
+  end if;
+  if to_regclass('public.requirement_items') is not null then
+    alter table documents add column if not exists requirement_item_id uuid references requirement_items(id) on delete set null;
+  end if;
+  if to_regclass('public.rule_versions') is not null then
+    alter table documents add column if not exists rule_version_id uuid references rule_versions(id) on delete set null;
+  end if;
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'documents' and column_name = 'importer_id' and is_nullable = 'NO'
+  ) then
+    alter table documents alter column importer_id drop not null;
+  end if;
+end $$;
 
 comment on column documents.evidence_source is
   'supplier_attested = uploaded by the supplier themselves; importer_uploaded = '
   'uploaded by the importer on their behalf (see suppliers.record_mode); '
   'third_party = direct from a certification body, lab, or auditor.';
 
--- Existing rows uploaded by a profile belonging to an importer, against a
--- supplier that is not that profile's own, were in practice importer uploads.
+-- Rows uploaded by an importer-side profile were in practice importer uploads.
 update documents d
 set evidence_source = 'importer_uploaded'
 where evidence_source = 'supplier_attested'
@@ -204,136 +244,198 @@ where evidence_source = 'supplier_attested'
 -- ── 6. Repoint tables that referenced the dropped foreign_suppliers/foods ──
 -- Migration 034 dropped foreign_suppliers CASCADE, which removed these FK
 -- constraints but left the columns behind as unconstrained uuids.
+do $$
+begin
 
-alter table corrective_actions
-  add column if not exists product_id     uuid references products_verify(id) on delete set null,
-  add column if not exists fsvp_record_id uuid references fsvp_records(id) on delete set null,
-  add column if not exists document_id    uuid references documents(id) on delete set null;
+  -- corrective_actions -----------------------------------------------------
+  if to_regclass('public.corrective_actions') is not null then
+    if to_regclass('public.products_verify') is not null then
+      alter table corrective_actions add column if not exists product_id uuid references products_verify(id) on delete set null;
+    end if;
+    if to_regclass('public.fsvp_records') is not null then
+      alter table corrective_actions add column if not exists fsvp_record_id uuid references fsvp_records(id) on delete set null;
+    end if;
+    alter table corrective_actions add column if not exists document_id uuid references documents(id) on delete set null;
 
-alter table corrective_actions drop column if exists food_id;
-alter table corrective_actions drop column if exists documented_by_qi_id;
-alter table corrective_actions drop column if exists triggered_by_recall_id;
-alter table corrective_actions drop column if exists triggered_by_inspection_obs_id;
-alter table corrective_actions drop column if exists status_history;
+    alter table corrective_actions drop column if exists food_id;
+    alter table corrective_actions drop column if exists documented_by_qi_id;
+    alter table corrective_actions drop column if exists triggered_by_recall_id;
+    alter table corrective_actions drop column if exists triggered_by_inspection_obs_id;
+    alter table corrective_actions drop column if exists status_history;
 
--- supplier_id is NOT NULL on this table, so orphans have to be deleted rather
--- than nulled. These are rows pointing at foreign_suppliers ids that ceased to
--- resolve when migration 034 dropped that table.
-delete from corrective_actions
-where not exists (select 1 from suppliers s where s.id = corrective_actions.supplier_id);
+    -- supplier_id is NOT NULL here, so orphans must be deleted rather than nulled.
+    delete from corrective_actions
+    where not exists (select 1 from suppliers s where s.id = corrective_actions.supplier_id);
 
-alter table corrective_actions drop constraint if exists corrective_actions_supplier_id_fkey;
-alter table corrective_actions
-  add constraint corrective_actions_supplier_id_fkey
-  foreign key (supplier_id) references suppliers(id) on delete restrict;
+    alter table corrective_actions drop constraint if exists corrective_actions_supplier_id_fkey;
+    alter table corrective_actions
+      add constraint corrective_actions_supplier_id_fkey
+      foreign key (supplier_id) references suppliers(id) on delete restrict;
+  end if;
 
--- Also NOT NULL; same reasoning as corrective_actions above.
-delete from readiness_assessments
-where not exists (select 1 from suppliers s where s.id = readiness_assessments.supplier_id);
+  -- readiness_assessments --------------------------------------------------
+  if to_regclass('public.readiness_assessments') is not null then
+    delete from readiness_assessments
+    where not exists (select 1 from suppliers s where s.id = readiness_assessments.supplier_id);
 
-alter table readiness_assessments drop constraint if exists readiness_assessments_supplier_id_fkey;
-alter table readiness_assessments
-  add constraint readiness_assessments_supplier_id_fkey
-  foreign key (supplier_id) references suppliers(id) on delete cascade;
+    alter table readiness_assessments drop constraint if exists readiness_assessments_supplier_id_fkey;
+    alter table readiness_assessments
+      add constraint readiness_assessments_supplier_id_fkey
+      foreign key (supplier_id) references suppliers(id) on delete cascade;
+  end if;
 
-update generated_reports
-set supplier_id = null
-where supplier_id is not null
-  and not exists (select 1 from suppliers s where s.id = generated_reports.supplier_id);
+  -- generated_reports ------------------------------------------------------
+  if to_regclass('public.generated_reports') is not null then
+    update generated_reports
+    set supplier_id = null
+    where supplier_id is not null
+      and not exists (select 1 from suppliers s where s.id = generated_reports.supplier_id);
 
-alter table generated_reports drop constraint if exists generated_reports_supplier_id_fkey;
-alter table generated_reports
-  add constraint generated_reports_supplier_id_fkey
-  foreign key (supplier_id) references suppliers(id) on delete set null;
+    alter table generated_reports drop constraint if exists generated_reports_supplier_id_fkey;
+    alter table generated_reports
+      add constraint generated_reports_supplier_id_fkey
+      foreign key (supplier_id) references suppliers(id) on delete set null;
 
-alter table generated_reports
-  add column if not exists fsvp_record_id uuid references fsvp_records(id) on delete set null;
+    if to_regclass('public.fsvp_records') is not null then
+      alter table generated_reports add column if not exists fsvp_record_id uuid references fsvp_records(id) on delete set null;
+    end if;
 
--- /api/reports/generate writes export_format 'csv' or 'html', but the original
--- check only allowed 'pdf' and 'excel' — every report insert violated it.
-alter table generated_reports drop constraint if exists generated_reports_export_format_check;
-alter table generated_reports
-  add constraint generated_reports_export_format_check
-  check (export_format in ('csv', 'html', 'pdf', 'excel'));
+    -- /api/reports/generate writes 'csv' or 'html', but the original check only
+    -- allowed 'pdf' and 'excel' — every report insert violated it.
+    alter table generated_reports drop constraint if exists generated_reports_export_format_check;
+    alter table generated_reports
+      add constraint generated_reports_export_format_check
+      check (export_format in ('csv', 'html', 'pdf', 'excel'));
 
-alter table generated_reports drop constraint if exists generated_reports_report_type_check;
-alter table generated_reports
-  add constraint generated_reports_report_type_check
-  check (report_type in ('supplier_readiness', 'compliance_gap', 'document_status',
-                         'fsvp_record_package', 'audit', 'executive_summary'));
+    alter table generated_reports drop constraint if exists generated_reports_report_type_check;
+    alter table generated_reports
+      add constraint generated_reports_report_type_check
+      check (report_type in ('supplier_readiness', 'compliance_gap', 'document_status',
+                             'fsvp_record_package', 'audit', 'executive_summary'));
+  end if;
 
--- fsvp_reassessments
-alter table fsvp_reassessments
-  add column if not exists target_product_id uuid references products_verify(id) on delete set null,
-  add column if not exists performed_by_name text;
+  -- fsvp_reassessments -----------------------------------------------------
+  if to_regclass('public.fsvp_reassessments') is not null then
+    if to_regclass('public.products_verify') is not null then
+      alter table fsvp_reassessments add column if not exists target_product_id uuid references products_verify(id) on delete set null;
+    end if;
+    alter table fsvp_reassessments add column if not exists performed_by_name text;
 
-alter table fsvp_reassessments drop column if exists target_food_id;
-alter table fsvp_reassessments drop column if exists performed_by_qi_id;
-alter table fsvp_reassessments drop column if exists status_history;
+    alter table fsvp_reassessments drop column if exists target_food_id;
+    alter table fsvp_reassessments drop column if exists performed_by_qi_id;
+    alter table fsvp_reassessments drop column if exists status_history;
 
-update fsvp_reassessments
-set target_supplier_id = null
-where target_supplier_id is not null
-  and not exists (select 1 from suppliers s where s.id = fsvp_reassessments.target_supplier_id);
+    update fsvp_reassessments
+    set target_supplier_id = null
+    where target_supplier_id is not null
+      and not exists (select 1 from suppliers s where s.id = fsvp_reassessments.target_supplier_id);
 
-alter table fsvp_reassessments drop constraint if exists fsvp_reassessments_target_supplier_id_fkey;
-alter table fsvp_reassessments
-  add constraint fsvp_reassessments_target_supplier_id_fkey
-  foreign key (target_supplier_id) references suppliers(id) on delete set null;
+    alter table fsvp_reassessments drop constraint if exists fsvp_reassessments_target_supplier_id_fkey;
+    alter table fsvp_reassessments
+      add constraint fsvp_reassessments_target_supplier_id_fkey
+      foreign key (target_supplier_id) references suppliers(id) on delete set null;
 
-alter table fsvp_reassessments drop constraint if exists fsvp_reassessments_scope_check;
-alter table fsvp_reassessments
-  add constraint fsvp_reassessments_scope_check
-  check (scope in ('full_program', 'supplier', 'product'));
+    alter table fsvp_reassessments drop constraint if exists fsvp_reassessments_scope_check;
+    alter table fsvp_reassessments
+      add constraint fsvp_reassessments_scope_check
+      check (scope in ('full_program', 'supplier', 'product'));
+  end if;
 
--- import_entries (§ 1.509) — retained, repointed off foreign_suppliers/foods.
-alter table import_entries
-  add column if not exists product_id            uuid references products_verify(id) on delete set null,
-  add column if not exists fsvp_record_id        uuid references fsvp_records(id) on delete set null,
-  add column if not exists fsvp_affirmation_code text;
+  -- app_notifications ------------------------------------------------------
+  if to_regclass('public.app_notifications') is not null then
+    alter table app_notifications
+      add column if not exists supplier_id uuid references suppliers(id) on delete cascade,
+      add column if not exists severity    text not null default 'info';
 
-alter table import_entries drop column if exists food_id;
+    alter table app_notifications drop constraint if exists app_notifications_severity_check;
+    alter table app_notifications
+      add constraint app_notifications_severity_check
+      check (severity in ('info', 'warning', 'critical'));
+  end if;
 
-alter table import_entries drop constraint if exists import_entries_fsvp_affirmation_code_check;
-alter table import_entries
-  add constraint import_entries_fsvp_affirmation_code_check
-  check (fsvp_affirmation_code is null or fsvp_affirmation_code in ('FSV', 'FSX', 'RNE'));
+  if to_regclass('public.notification_deliveries') is not null then
+    alter table notification_deliveries drop column if exists reminder_id;
+  end if;
 
-delete from import_entries
-where supplier_id is not null
-  and not exists (select 1 from suppliers s where s.id = import_entries.supplier_id);
+  if to_regclass('public.requirement_evidence') is not null then
+    alter table requirement_evidence drop column if exists document_version_id;
+    alter table requirement_evidence drop column if exists corrective_action_id;
+  end if;
 
-alter table import_entries drop constraint if exists import_entries_supplier_id_fkey;
-alter table import_entries
-  add constraint import_entries_supplier_id_fkey
-  foreign key (supplier_id) references suppliers(id) on delete restrict;
+  if to_regclass('public.products_verify') is not null then
+    alter table products_verify drop column if exists commodity_id;
+    if to_regclass('public.facilities_verify') is not null then
+      alter table products_verify add column if not exists facility_id uuid references facilities_verify(id) on delete set null;
+    end if;
+  end if;
 
-alter table import_entries alter column identity_used_id drop not null;
-alter table import_entries alter column created_via set default 'manual';
+end $$;
 
--- app_notifications
-alter table app_notifications
-  add column if not exists supplier_id uuid references suppliers(id) on delete cascade,
-  add column if not exists severity    text not null default 'info';
+-- ── 7. § 1.509 entry tables — create if this database never got them ───────
+-- Retained deliberately even though no UI touches them yet; see
+-- docs/importer-workflow-analysis.md §2.
+create table if not exists importer_entry_identities (
+  id              uuid primary key default gen_random_uuid(),
+  importer_id     uuid not null references importers(id) on delete cascade,
+  duns_number     text not null,
+  contact_email   text not null,
+  contact_name    text not null,
+  effective_from  timestamptz not null default now(),
+  effective_to    timestamptz,
+  created_at      timestamptz not null default now()
+);
 
-alter table app_notifications drop constraint if exists app_notifications_severity_check;
-alter table app_notifications
-  add constraint app_notifications_severity_check
-  check (severity in ('info', 'warning', 'critical'));
+create table if not exists import_entries (
+  id                       uuid primary key default gen_random_uuid(),
+  importer_id              uuid not null references importers(id) on delete cascade,
+  supplier_id              uuid not null references suppliers(id) on delete restrict,
+  identity_used_id         uuid references importer_entry_identities(id) on delete set null,
+  entry_number             text,
+  entry_date               date,
+  port_of_entry            text,
+  quantity_text            text,
+  declared_value_cents     bigint,
+  customs_broker_name      text,
+  fsvp_affirmation_code    text check (fsvp_affirmation_code in ('FSV', 'FSX', 'RNE')),
+  pre_entry_check_passed   boolean,
+  pre_entry_check_blockers jsonb,
+  created_via              text not null default 'manual'
+                             check (created_via in ('manual', 'broker_import', 'ace_integration')),
+  created_at               timestamptz not null default now()
+);
 
--- notification_deliveries loses its FK target in section 7.
-alter table notification_deliveries drop column if exists reminder_id;
+do $$
+begin
+  if to_regclass('public.products_verify') is not null then
+    alter table import_entries add column if not exists product_id uuid references products_verify(id) on delete set null;
+  end if;
+  if to_regclass('public.fsvp_records') is not null then
+    alter table import_entries add column if not exists fsvp_record_id uuid references fsvp_records(id) on delete set null;
+  end if;
 
--- requirement_evidence
-alter table requirement_evidence drop column if exists document_version_id;
-alter table requirement_evidence drop column if exists corrective_action_id;
+  -- If an older import_entries survived from migration 008, bring it forward.
+  if exists (select 1 from information_schema.columns
+             where table_name = 'import_entries' and column_name = 'food_id') then
+    alter table import_entries add column if not exists fsvp_affirmation_code text;
+    alter table import_entries drop column if exists food_id;
+    alter table import_entries alter column identity_used_id drop not null;
 
--- products_verify
-alter table products_verify drop column if exists commodity_id;
+    delete from import_entries
+    where not exists (select 1 from suppliers s where s.id = import_entries.supplier_id);
 
--- ── 7. Drop the legacy tables (the never-applied migration 044) ────────────
--- importer_entry_identities and import_entries are deliberately NOT dropped:
--- they are the 21 CFR 1.509 backbone. See docs/importer-workflow-analysis.md.
+    alter table import_entries drop constraint if exists import_entries_supplier_id_fkey;
+    alter table import_entries
+      add constraint import_entries_supplier_id_fkey
+      foreign key (supplier_id) references suppliers(id) on delete restrict;
+
+    alter table import_entries drop constraint if exists import_entries_fsvp_affirmation_code_check;
+    alter table import_entries
+      add constraint import_entries_fsvp_affirmation_code_check
+      check (fsvp_affirmation_code is null or fsvp_affirmation_code in ('FSV', 'FSX', 'RNE'));
+  end if;
+end $$;
+
+-- ── 8. Drop the legacy tables (the never-applied migration 044) ────────────
 drop table if exists
   api_credentials, audit_details, audit_substitution_assurances, commodities,
   commodity_risks, country_equivalence_recognitions, customer_disclosure_assurances,
@@ -347,33 +449,44 @@ drop table if exists
   sampling_test_results, scheduled_job_runs, subscription_entitlements,
   supplier_evaluations, supplier_facilities, supplier_portal_tokens,
   supplier_portal_uploads, supplier_products, supplier_written_assurances,
-  user_roles, verification_activities, verification_nonconformities, vsi_thresholds
+  user_roles, verification_activities, verification_nonconformities, vsi_thresholds,
+  importer_supplier_links, exporter_supplier_links
 cascade;
 
 drop type if exists verify_role;
 drop type if exists readiness_status;
 drop type if exists risk_level;
 
--- ── 8. Replace functions to match the baseline ─────────────────────────────
+-- ── 9. Replace functions to match the baseline ─────────────────────────────
+
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at = now(); return new; end;
+$$;
 
 -- importer_users is gone; a profile's own importer_id is the single source.
 create or replace function public.current_importer_ids()
 returns setof uuid
-language sql
-security definer
-set search_path = public
+language sql security definer set search_path = public
 as $$
-  select importer_id from profiles
-  where id = auth.uid() and importer_id is not null;
+  select importer_id from profiles where id = auth.uid() and importer_id is not null;
+$$;
+
+create or replace function public.is_platform_admin()
+returns boolean
+language sql security definer set search_path = public
+as $$
+  select exists (
+    select 1 from profiles
+    where id = auth.uid() and role = 'administrator' and user_status = 'active'
+  );
 $$;
 
 -- Importer accounts no longer receive an importer_id at signup — an
 -- administrator creates the organization at approval time.
 create or replace function public.handle_new_user()
 returns trigger
-language plpgsql
-security definer
-set search_path = public
+language plpgsql security definer set search_path = public
 as $$
 declare
   requested_role text := new.raw_user_meta_data->>'role';
@@ -395,7 +508,22 @@ begin
     'pending'
   )
   on conflict (id) do nothing;
+  return new;
+end;
+$$;
 
+create or replace function public.prevent_profile_role_escalation()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if public.is_platform_admin() then return new; end if;
+  new.role        := old.role;
+  new.user_status := old.user_status;
+  new.importer_id := old.importer_id;
+  if old.supplier_id is not null then
+    new.supplier_id := old.supplier_id;
+  end if;
   return new;
 end;
 $$;
@@ -405,35 +533,26 @@ $$;
 -- Claiming an existing record now requires an invite token.
 create or replace function public.ensure_supplier_record_for_profile(p_profile_id uuid)
 returns uuid
-language plpgsql
-security definer
-set search_path = public
+language plpgsql security definer set search_path = public
 as $$
 declare
-  v_supplier_id uuid;
-  v_org_name    text;
-  v_full_name   text;
-  v_email       text;
-  v_country     text;
+  v_supplier_id uuid; v_org_name text; v_full_name text; v_email text; v_country text;
 begin
   select supplier_id into v_supplier_id from profiles where id = p_profile_id;
-  if v_supplier_id is not null then
-    return v_supplier_id;
-  end if;
+  if v_supplier_id is not null then return v_supplier_id; end if;
 
   select organization_name, full_name, email, country
     into v_org_name, v_full_name, v_email, v_country
   from profiles where id = p_profile_id;
 
-  insert into suppliers (
-    company_name, legal_entity_name, country, contact_json, supplier_type, record_mode
-  ) values (
+  insert into suppliers (company_name, legal_entity_name, country, contact_json,
+                         supplier_type, record_mode)
+  values (
     coalesce(nullif(v_org_name, ''), nullif(v_full_name, ''), 'Unnamed Exporter'),
     nullif(v_org_name, ''),
     coalesce(nullif(v_country, ''), 'US'),
     jsonb_build_object('name', coalesce(v_full_name, ''), 'email', coalesce(v_email, '')),
-    'exporter',
-    'self_managed'
+    'exporter', 'self_managed'
   )
   returning id into v_supplier_id;
 
@@ -444,12 +563,9 @@ $$;
 
 create or replace function public.trg_auto_link_supplier_profile()
 returns trigger
-language plpgsql
-security definer
-set search_path = public
+language plpgsql security definer set search_path = public
 as $$
-declare
-  v_supplier_id uuid;
+declare v_supplier_id uuid;
 begin
   if new.role not in ('supplier', 'exporter') or new.supplier_id is not null then
     return new;
@@ -462,8 +578,7 @@ begin
     nullif(new.organization_name, ''),
     coalesce(nullif(new.country, ''), 'US'),
     jsonb_build_object('name', coalesce(new.full_name, ''), 'email', coalesce(new.email, '')),
-    'exporter',
-    'self_managed'
+    'exporter', 'self_managed'
   )
   returning id into v_supplier_id;
 
@@ -478,11 +593,21 @@ create trigger trg_auto_link_supplier_profile
   before insert on profiles
   for each row execute function public.trg_auto_link_supplier_profile();
 
+create or replace function public.is_export_eligible(p_supplier_id uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (
+    select 1 from suppliers
+    where id = p_supplier_id
+      and supplier_type in ('exporter', 'exporter_manufacturer', 'trader')
+  );
+$$;
+
 -- Also mark FSVP records stale when an attached document changes status.
 create or replace function public.mark_scores_stale_on_evidence_change()
 returns trigger
-language plpgsql
-set search_path = public
+language plpgsql set search_path = public
 as $$
 begin
   if new.facility_id is not null then
@@ -497,44 +622,54 @@ begin
 
   update scoring_results set is_stale = true
   where entity_type = 'fsvp_record'
-    and entity_id in (
-      select fsvp_record_id from fsvp_record_evidence where document_id = new.id
-    );
+    and entity_id in (select fsvp_record_id from fsvp_record_evidence where document_id = new.id);
 
   return new;
 end;
 $$;
 
--- ── 9. Indexes present in the baseline ─────────────────────────────────────
-create index if not exists ix_profiles_importer      on profiles (importer_id) where importer_id is not null;
-create index if not exists ix_profiles_supplier      on profiles (supplier_id) where supplier_id is not null;
-create index if not exists ix_suppliers_type         on suppliers (supplier_type);
-create index if not exists ix_suppliers_managed      on suppliers (managed_by_importer_id) where managed_by_importer_id is not null;
-create index if not exists ix_suppliers_claim_token  on suppliers (claim_invite_token) where claim_invite_token is not null;
-create index if not exists ix_suppliers_name_country on suppliers (lower(company_name), country);
-create index if not exists ix_documents_status       on documents (evidence_status) where soft_deleted_at is null;
-create index if not exists ix_documents_expiry       on documents (expiration_date) where expiration_date is not null and soft_deleted_at is null;
-create index if not exists ix_fsvp_records_importer  on fsvp_records (importer_id);
-create index if not exists ix_fsvp_records_supplier  on fsvp_records (supplier_id);
-create index if not exists ix_fsvp_records_reassess  on fsvp_records (reassessment_due_at) where reassessment_due_at is not null;
-create index if not exists ix_ca_importer            on corrective_actions (importer_id, status);
-create index if not exists ix_ca_supplier            on corrective_actions (supplier_id);
-create index if not exists ix_notifications_recipient on app_notifications (recipient_profile_id, read_at);
-create index if not exists ix_audit_logs_importer    on audit_logs (importer_id, created_at desc);
+-- ── 10. Indexes ────────────────────────────────────────────────────────────
+do $$
+declare
+  stmt  text;
+  stmts text[] := array[
+    'create index if not exists ix_profiles_importer on profiles (importer_id) where importer_id is not null',
+    'create index if not exists ix_profiles_supplier on profiles (supplier_id) where supplier_id is not null',
+    'create index if not exists ix_suppliers_type on suppliers (supplier_type)',
+    'create index if not exists ix_suppliers_managed on suppliers (managed_by_importer_id) where managed_by_importer_id is not null',
+    'create index if not exists ix_suppliers_claim_token on suppliers (claim_invite_token) where claim_invite_token is not null',
+    'create index if not exists ix_suppliers_name_country on suppliers (lower(company_name), country)',
+    'create index if not exists ix_documents_status on documents (evidence_status) where soft_deleted_at is null',
+    'create index if not exists ix_documents_expiry on documents (expiration_date) where expiration_date is not null and soft_deleted_at is null',
+    'create index if not exists ix_documents_supplier on documents (supplier_id) where supplier_id is not null and soft_deleted_at is null',
+    'create index if not exists ix_fsvp_records_importer on fsvp_records (importer_id)',
+    'create index if not exists ix_fsvp_records_supplier on fsvp_records (supplier_id)',
+    'create index if not exists ix_fsvp_records_reassess on fsvp_records (reassessment_due_at) where reassessment_due_at is not null',
+    'create index if not exists ix_ca_importer on corrective_actions (importer_id, status)',
+    'create index if not exists ix_ca_supplier on corrective_actions (supplier_id)',
+    'create index if not exists ix_notifications_recipient on app_notifications (recipient_profile_id, read_at)',
+    'create index if not exists ix_audit_logs_importer on audit_logs (importer_id, created_at desc)',
+    'create index if not exists ix_entries_importer_date on import_entries (importer_id, entry_date desc)',
+    'create unique index if not exists ux_importer_current_identity on importer_entry_identities (importer_id) where effective_to is null'
+  ];
+begin
+  foreach stmt in array stmts loop
+    begin
+      execute stmt;
+    exception when undefined_table or undefined_column then
+      raise notice 'Skipped index (target missing): %', stmt;
+    end;
+  end loop;
+end $$;
 
--- ── 10. Drop every policy, so 001_baseline_rls.sql can be applied verbatim ──
+-- ── 11. Drop every policy, so 001_baseline_rls.sql is the single definition ─
 -- Fifteen migrations defined and redefined policies on these tables. Rather
--- than reconcile them one by one, clear them all and let the baseline RLS file
--- be the single definition. RLS stays ENABLED, so the database fails closed
--- until 001_baseline_rls.sql runs.
+-- than reconcile them one by one, clear them all. RLS stays ENABLED, so the
+-- database fails closed until 001_baseline_rls.sql runs.
 do $$
 declare r record;
 begin
-  for r in
-    select schemaname, tablename, policyname
-    from pg_policies
-    where schemaname = 'public'
-  loop
+  for r in select schemaname, tablename, policyname from pg_policies where schemaname = 'public' loop
     execute format('drop policy if exists %I on %I.%I', r.policyname, r.schemaname, r.tablename);
   end loop;
 
@@ -551,7 +686,6 @@ begin
   end loop;
 end $$;
 
--- Enable RLS on anything the baseline expects it on but that predates it.
 do $$
 declare t text;
 begin
@@ -569,50 +703,49 @@ begin
     'app_notifications', 'notification_deliveries', 'compliance_alerts',
     'background_reference_documents', 'audit_logs', 'app_settings', 'import_entries'
   ] loop
-    if exists (select 1 from information_schema.tables
-               where table_schema = 'public' and table_name = t) then
+    if to_regclass('public.' || t) is not null then
       execute format('alter table %I enable row level security', t);
     end if;
   end loop;
 end $$;
 
--- ── 11. Convergence assertions ─────────────────────────────────────────────
--- If this database and a baseline-built one have drifted, fail here rather than
--- discovering it later.
+-- ── 12. Report what is still missing versus the baseline ───────────────────
+-- Informational, not fatal: this database's migration history is partial, so
+-- some baseline tables may never have been created here. Anything listed below
+-- must be created from 000_baseline.sql before the related feature will work,
+-- and 001_baseline_rls.sql will fail on a missing table until you do.
 do $$
 declare
+  t text;
   v_missing text := '';
 begin
-  if not exists (select 1 from information_schema.columns
-                 where table_name = 'suppliers' and column_name = 'record_mode') then
-    v_missing := v_missing || ' suppliers.record_mode';
-  end if;
-  if not exists (select 1 from information_schema.columns
-                 where table_name = 'documents' and column_name = 'evidence_source') then
-    v_missing := v_missing || ' documents.evidence_source';
-  end if;
-  if not exists (select 1 from information_schema.columns
-                 where table_name = 'importers' and column_name = 'duns_number') then
-    v_missing := v_missing || ' importers.duns_number';
-  end if;
-  if exists (select 1 from information_schema.tables
-             where table_schema = 'public' and table_name = 'foods') then
-    v_missing := v_missing || ' foods(should-be-dropped)';
-  end if;
-  if exists (select 1 from pg_trigger where tgname = 'trg_profiles_auto_link_importer') then
-    v_missing := v_missing || ' auto_link_importer(should-be-dropped)';
-  end if;
-  if not exists (select 1 from information_schema.tables
-                 where table_schema = 'public' and table_name = 'import_entries') then
-    v_missing := v_missing || ' import_entries(should-be-kept)';
-  end if;
+  foreach t in array array[
+    'importers', 'importer_entry_identities', 'profiles', 'countries',
+    'suppliers', 'supplier_relationships', 'facilities_verify',
+    'facility_supplier_access', 'products_verify', 'rule_sets', 'rule_versions',
+    'approval_thresholds', 'requirement_sections', 'scoring_category_weights',
+    'requirement_items', 'fsvp_requirements', 'documents', 'document_categories',
+    'requirement_evidence', 'scoring_results', 'fsvp_records',
+    'fsvp_record_evidence', 'approval_decisions', 'reassessment_schedules',
+    'fsvp_plan_hazard_analyses', 'fsvp_plan_hazard_items',
+    'fsvp_verification_records', 'corrective_actions', 'fsvp_reassessments',
+    'readiness_assessments', 'readiness_scores', 'generated_reports',
+    'app_notifications', 'notification_deliveries', 'compliance_alerts',
+    'background_reference_documents', 'audit_logs', 'app_settings', 'import_entries'
+  ] loop
+    if to_regclass('public.' || t) is null then
+      v_missing := v_missing || ' ' || t;
+    end if;
+  end loop;
 
   if v_missing <> '' then
-    raise exception 'Convergence check failed. Divergent:%', v_missing;
+    raise warning 'MISSING TABLES — this database never created:%', v_missing;
+    raise warning 'Create them from migrations/000_baseline.sql before running 001_baseline_rls.sql.';
+  else
+    raise notice 'All baseline tables present.';
   end if;
 
-  raise notice 'Schema converged with the 000/001/002 baseline.';
-  raise notice 'NEXT: run 001_baseline_rls.sql — RLS is enabled with no policies until you do.';
+  raise notice 'NEXT: run migrations/001_baseline_rls.sql — RLS is enabled with no policies until you do.';
 end $$;
 
 notify pgrst, 'reload schema';

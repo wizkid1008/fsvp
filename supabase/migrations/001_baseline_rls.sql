@@ -32,7 +32,15 @@ begin
     'background_reference_documents', 'audit_logs', 'app_settings',
     'import_entries'
   ] loop
-    execute format('alter table %I enable row level security', t);
+    -- Guarded so this file can also be applied on the upgrade path, where the
+    -- database's migration history is partial and a table may never have been
+    -- created. Policy statements further down are NOT guarded — a missing table
+    -- there is a real problem and should fail loudly.
+    if to_regclass('public.' || t) is not null then
+      execute format('alter table %I enable row level security', t);
+    else
+      raise warning 'Skipping RLS enable — table does not exist: %', t;
+    end if;
   end loop;
 end $$;
 
