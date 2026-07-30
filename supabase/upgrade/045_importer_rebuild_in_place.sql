@@ -132,6 +132,31 @@ begin
     v_split_count, coalesce(v_keeper::text, '(none)'), coalesce(v_shared_importer::text, '(none)');
 end $$;
 
+-- ── 3b. Report organizations that own data but have no users ───────────────
+-- The seeded GreenPath / Pacific Coast organizations were never attached to any
+-- profile — everyone signed up onto the single shared organization instead. Any
+-- FSVP records or documents sitting under an unattached organization become
+-- reachable only by administrators after the split. This is informational; the
+-- fix is a deliberate reassignment, not something to guess at.
+do $$
+declare r record;
+begin
+  for r in
+    select i.id, i.display_name,
+           (select count(*) from fsvp_records f where f.importer_id = i.id) as records,
+           (select count(*) from documents d where d.importer_id = i.id)    as docs
+    from importers i
+    where not exists (select 1 from profiles p where p.importer_id = i.id)
+  loop
+    if r.records > 0 or r.docs > 0 then
+      raise warning 'Organization "%" (%) has % FSVP record(s) and % document(s) but NO user accounts. Reassign or ignore.',
+        r.display_name, r.id, r.records, r.docs;
+    else
+      raise notice 'Organization "%" (%) is empty and unused.', r.display_name, r.id;
+    end if;
+  end loop;
+end $$;
+
 -- ── 4. suppliers: record ownership + entry identity ────────────────────────
 alter table if exists suppliers
   add column if not exists record_mode            text not null default 'self_managed',
@@ -371,9 +396,75 @@ begin
 
 end $$;
 
--- ── 7. § 1.509 entry tables — create if this database never got them ───────
--- Retained deliberately even though no UI touches them yet; see
--- docs/importer-workflow-analysis.md §2.
+-- ── 7. Tables this database never got ──────────────────────────────────────
+-- Confirmed absent by 000_diagnose.sql: app_settings, document_categories and
+-- compliance_alerts (migrations 018 and 043 landed only partially), plus
+-- import_entries and importer_entry_identities.
+--
+-- app_settings and document_categories are not cosmetic — /api/documents/upload
+-- reads app_settings.auto_generate_audit_events on every upload, and
+-- app/evidence/page.tsx reads document_categories to populate its category
+-- picker. Both have been failing silently.
+
+create table if not exists app_settings (
+  setting_key           text primary key,
+  label                 text not null,
+  detail                text,
+  setting_type          text not null default 'boolean'
+                          check (setting_type in ('boolean', 'text', 'number', 'json')),
+  boolean_value         boolean,
+  text_value            text,
+  number_value          numeric,
+  json_value            jsonb,
+  category              text not null default 'workflow',
+  sort_order            int not null default 0,
+  updated_by_profile_id uuid references profiles(id) on delete set null,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+
+create table if not exists document_categories (
+  id           uuid primary key default gen_random_uuid(),
+  category_key text not null unique,
+  label        text not null,
+  description  text,
+  active       boolean not null default true,
+  sort_order   int not null default 0,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create table if not exists compliance_alerts (
+  id                     uuid primary key default gen_random_uuid(),
+  importer_id            uuid not null references importers(id) on delete cascade,
+  fsvp_record_id         uuid references fsvp_records(id) on delete cascade,
+  verification_record_id uuid references fsvp_verification_records(id) on delete cascade,
+  document_id            uuid references documents(id) on delete cascade,
+  alert_type             text not null check (alert_type in (
+                           'reassessment_due', 'verification_due', 'document_expiring',
+                           'corrective_action_open', 'supplier_approval_due', 'entry_filing_pending'
+                         )),
+  title                  text not null,
+  description            text,
+  due_date               date not null,
+  severity               text not null default 'medium'
+                           check (severity in ('low', 'medium', 'high', 'critical')),
+  status                 text not null default 'open'
+                           check (status in ('open', 'acknowledged', 'resolved', 'snoozed')),
+  snoozed_until          date,
+  resolved_at            timestamptz,
+  resolved_by_profile_id uuid references profiles(id) on delete set null,
+  auto_generated         boolean not null default true,
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now()
+);
+
+create index if not exists ix_compliance_alerts_importer_due
+  on compliance_alerts (importer_id, due_date)
+  where status in ('open', 'acknowledged');
+
+-- § 1.509 entry tables. Retained deliberately even though no UI touches them
+-- yet; see docs/importer-workflow-analysis.md §2.
 create table if not exists importer_entry_identities (
   id              uuid primary key default gen_random_uuid(),
   importer_id     uuid not null references importers(id) on delete cascade,
@@ -627,6 +718,33 @@ begin
   return new;
 end;
 $$;
+
+-- ── 9b. updated_at triggers, including on the tables created above ─────────
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'importers', 'profiles', 'suppliers', 'supplier_relationships',
+    'facilities_verify', 'products_verify', 'documents', 'document_categories',
+    'requirement_evidence', 'rule_sets', 'rule_versions', 'fsvp_records',
+    'reassessment_schedules', 'fsvp_plan_hazard_analyses', 'fsvp_verification_records',
+    'corrective_actions', 'fsvp_reassessments', 'readiness_assessments',
+    'compliance_alerts', 'background_reference_documents', 'app_settings', 'countries'
+  ] loop
+    if to_regclass('public.' || t) is not null
+       and exists (
+         select 1 from information_schema.columns
+         where table_schema = 'public' and table_name = t and column_name = 'updated_at'
+       ) then
+      execute format(
+        'drop trigger if exists trg_%I_updated_at on %I;
+         create trigger trg_%I_updated_at before update on %I
+         for each row execute function public.set_updated_at();',
+        t, t, t, t
+      );
+    end if;
+  end loop;
+end $$;
 
 -- ── 10. Indexes ────────────────────────────────────────────────────────────
 do $$
