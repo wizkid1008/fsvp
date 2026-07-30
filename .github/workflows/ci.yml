@@ -1,0 +1,42 @@
+name: CI
+
+# Runs on every push and pull request. This is the only place the project is
+# type-checked and built — there is no Node toolchain on the maintainer's
+# machine, so without this a compile error would only surface at deploy time.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # There is no package-lock.json committed, so `npm ci` is not usable.
+      # Switch this to `npm ci` if a lockfile is ever added — it is faster and
+      # makes builds reproducible.
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # Supabase config falls back to hardcoded public values when the env vars
+      # are absent (lib/supabase/config.ts), and the service-role key is only
+      # read inside a function at request time, so a build needs no secrets.
+      - name: Build
+        run: npm run build
