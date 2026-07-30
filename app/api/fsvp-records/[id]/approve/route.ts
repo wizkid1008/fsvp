@@ -6,6 +6,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isValidDecision, isValidReassessmentMonths, statusForDecision, type ApprovalDecision } from "@/lib/fsvp/status-transitions";
 import { scoreFsvpRecord } from "@/lib/scoring";
+import { notify } from "@/lib/notifications/notify";
 
 export const runtime = "edge";
 
@@ -168,6 +169,44 @@ export async function POST(
     record_id: id,
     new_value: { decision, decision_notes, conditions_text },
   });
+
+  const decisionCopy: Record<Decision, { title: string; body: string; severity: "info" | "warning" | "critical" }> = {
+    approved: {
+      title:    "FSVP record approved",
+      body:     "The importer approved this supplier/product combination. Keep your evidence current — the record is reassessed on schedule.",
+      severity: "info",
+    },
+    conditionally_approved: {
+      title:    "FSVP record conditionally approved",
+      body:     conditions_text
+        ? `Conditions: ${conditions_text}`
+        : "Approved subject to conditions. Review the record for what remains outstanding.",
+      severity: "warning",
+    },
+    rejected: {
+      title:    "FSVP record rejected",
+      body:     decision_notes ? `Reason: ${decision_notes}` : "The importer rejected this supplier/product combination.",
+      severity: "critical",
+    },
+    revision_requested: {
+      title:    "FSVP record sent back for revision",
+      body:     decision_notes ? `Requested: ${decision_notes}` : "The importer has asked for changes before deciding.",
+      severity: "warning",
+    },
+  };
+
+  const c = decisionCopy[decision];
+  if (c) {
+    await notify(admin, {
+      importerId: record.importer_id,
+      supplierId: record.supplier_id,
+      type:       `fsvp_record_${decision}`,
+      title:      c.title,
+      body:       c.body,
+      targetUrl:  `/fsvp-records/${id}`,
+      severity:   c.severity,
+    });
+  }
 
   return NextResponse.json({ success: true, status: newStatus });
 }

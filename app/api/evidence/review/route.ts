@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { notify } from "@/lib/notifications/notify";
 
 export const runtime = "edge";
 
@@ -91,6 +92,42 @@ export async function POST(req: NextRequest) {
     previous_value: { evidence_status: previousStatus },
     new_value: { evidence_status: decision, notes: notes ?? null },
   });
+
+  // In-app notification to the exporter. notification_deliveries below is the
+  // outbound delivery log; this is what actually appears in their Notifications
+  // page and pulls them back into the workflow.
+  if (doc.supplier_id && decision !== "under_review") {
+    const copy: Record<string, { title: string; body: string; severity: "info" | "warning" | "critical" }> = {
+      accepted: {
+        title:    `Evidence accepted: ${doc.title}`,
+        body:     "Your importer accepted this document. No further action is needed.",
+        severity: "info",
+      },
+      needs_revision: {
+        title:    `Revision requested: ${doc.title}`,
+        body:     notes ? `Reviewer notes: ${notes}` : "Your importer has asked for a revised version of this document.",
+        severity: "warning",
+      },
+      rejected: {
+        title:    `Evidence rejected: ${doc.title}`,
+        body:     notes ? `Reviewer notes: ${notes}` : "Your importer rejected this document. A corrective action has been opened.",
+        severity: "critical",
+      },
+    };
+
+    const c = copy[decision];
+    if (c) {
+      await notify(admin, {
+        importerId: doc.importer_id ?? profile.importer_id ?? null,
+        supplierId: doc.supplier_id,
+        type:       `evidence_${decision}`,
+        title:      c.title,
+        body:       c.body,
+        targetUrl:  "/my-evidence",
+        severity:   c.severity,
+      });
+    }
+  }
 
   // Notify uploader when revision is requested
   if (decision === "needs_revision" && doc.uploaded_by_profile_id) {
