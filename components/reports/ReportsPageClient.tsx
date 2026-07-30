@@ -17,6 +17,7 @@ const TYPE_LABELS: Record<string, string> = {
   supplier_readiness: "Supplier Readiness",
   compliance_gap: "Compliance Gap Register",
   document_status: "Document Status Index",
+  fsvp_record_package: "FSVP Record Package",
 };
 
 interface Props {

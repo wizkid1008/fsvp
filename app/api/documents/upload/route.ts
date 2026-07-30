@@ -66,8 +66,29 @@ export async function POST(request: Request) {
     .eq("id", user.id)
     .maybeSingle();
 
-  const resolvedImporterId = importerId || uploaderProfile?.importer_id || null;
+  let resolvedImporterId: string | null = importerId || uploaderProfile?.importer_id || null;
   const resolvedSupplierId = supplierId || uploaderProfile?.supplier_id || "";
+
+  // A supplier/exporter profile has no importer_id of its own, so their uploads
+  // used to land with importer_id = null and never reach any importer. Derive it
+  // from the active importer relationship instead. When an exporter serves
+  // several importers there is no single right answer, so leave it null — the
+  // review queue scopes by relationship and will still find it.
+  if (!resolvedImporterId && resolvedSupplierId) {
+    const { data: importerLinks } = await (createAdminSupabaseClient().from("supplier_relationships") as any)
+      .select("importer_id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("supplier_id", resolvedSupplierId)
+      .in("status", ["active", "pending_invite"]);
+
+    const ids = [...new Set(
+      ((importerLinks ?? []) as Array<{ importer_id: string | null }>)
+        .map((l) => l.importer_id)
+        .filter(Boolean)
+    )] as string[];
+
+    if (ids.length === 1) resolvedImporterId = ids[0];
+  }
 
   if (!resolvedSupplierId) {
     return NextResponse.json({ error: "Supplier is required for evidence uploads." }, { status: 400 });

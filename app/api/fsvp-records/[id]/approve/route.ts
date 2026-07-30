@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isValidDecision, isValidReassessmentMonths, statusForDecision, type ApprovalDecision } from "@/lib/fsvp/status-transitions";
+import { scoreFsvpRecord } from "@/lib/scoring";
 
 export const runtime = "edge";
 
@@ -56,22 +57,47 @@ export async function POST(
     return NextResponse.json({ error: "reassessment_months must be between 1 and 120." }, { status: 400 });
   }
 
-  // Block approval when critical compliance gaps are still open
+  // Block approval when critical compliance gaps are still open.
+  //
+  // This used to read the most recent scoring_results row, which made the gate
+  // trivially bypassable: nothing scores an fsvp_record automatically (the only
+  // recalc trigger fires for facility/product, and requires a rule_version_id
+  // documents rarely carry), so on an unscored record the query returned null
+  // and approval sailed through. A record with no evidence, no narratives and
+  // no hazard analysis could reach importer_approved and then lock.
+  //
+  // Score synchronously instead, and fail closed if scoring cannot run. An
+  // approval is the importer's regulatory attestation — it must not be granted
+  // on the basis of a missing measurement.
+  let freshScore: number | null = null;
   if (decision === "approved" || decision === "conditionally_approved") {
-    const { data: scoringResult } = await (admin.from("scoring_results") as any)
-      .select("critical_blockers_present")
-      .eq("entity_type", "fsvp_record")
-      .eq("entity_id", id)
-      .order("calculated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    let scoreResult;
+    try {
+      scoreResult = await scoreFsvpRecord(
+        id,
+        record.facility_id,
+        record.product_id,
+        record.rule_version_id
+      );
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error:
+            "Cannot approve: the compliance score could not be calculated, so unresolved critical gaps cannot be ruled out. " +
+            (err instanceof Error ? err.message : "Scoring failed."),
+        },
+        { status: 503 }
+      );
+    }
 
-    if (scoringResult?.critical_blockers_present) {
+    if (scoreResult.critical_blockers_present) {
       return NextResponse.json(
         { error: "Cannot approve: unresolved critical compliance gaps remain. All critical items must be satisfied before approval." },
         { status: 400 }
       );
     }
+
+    freshScore = scoreResult.overall_score;
   }
 
   const now = new Date();
@@ -88,6 +114,9 @@ export async function POST(
       approved_at: decision !== "revision_requested" ? now.toISOString() : null,
       reassessment_due_at: reassessmentDue.toISOString(),
       status: newStatus,
+      // Persist the score the decision was actually made against, so the record
+      // shows what the importer saw rather than whatever was last cached.
+      ...(freshScore !== null ? { overall_score: freshScore } : {}),
     })
     .eq("id", id);
 
