@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { Edit2, Check, X } from "lucide-react";
+import { ApproveImporterModal } from "@/components/admin/ApproveImporterModal";
+import { Edit2, Check, X, Building2 } from "lucide-react";
 import type { StatusTone, AppRole } from "@/types/platform";
 
 type UserRow = {
@@ -14,15 +15,17 @@ type UserRow = {
   role: AppRole;
   user_status: "active" | "pending" | "suspended";
   last_login_at: string | null;
+  importer_id: string | null;
 };
 
-const ROLES: AppRole[] = ["supplier", "us_importer", "reviewer", "administrator"];
+const ROLES: AppRole[] = ["supplier", "exporter", "us_importer", "reviewer", "administrator"];
 const STATUSES = ["active", "pending", "suspended"] as const;
 
 function roleTone(role: AppRole): StatusTone {
   if (role === "administrator") return "danger";
   if (role === "reviewer") return "info";
   if (role === "us_importer") return "success";
+  if (role === "exporter") return "warning";
   return "neutral";
 }
 
@@ -39,6 +42,7 @@ function roleLabel(role: AppRole) {
 
 function EditableRow({ user, onSaved }: { user: UserRow; onSaved: () => void }) {
   const [editing, setEditing] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [role, setRole] = useState<AppRole>(user.role);
   const [status, setStatus] = useState(user.user_status);
   const [fullName, setFullName] = useState(user.full_name ?? "");
@@ -117,22 +121,56 @@ function EditableRow({ user, onSaved }: { user: UserRow; onSaved: () => void }) 
     );
   }
 
+  // An importer with no organization cannot use the app: every FSVP record,
+  // document, and report is scoped by importer_id. Approving them means giving
+  // them one, which is what the modal does.
+  const needsOrg = user.role === "us_importer" && !user.importer_id;
+
   return (
-    <tr className="hover:bg-slate-50 transition-colors">
-      <td className="px-4 py-3 font-medium text-ink">{user.full_name || <span className="text-slate-400 italic">No name</span>}</td>
-      <td className="px-4 py-3 text-xs text-slate-500">{user.email}</td>
-      <td className="px-4 py-3 text-sm text-slate-600">{user.organization_name || <span className="text-slate-400">—</span>}</td>
-      <td className="px-4 py-3"><StatusBadge tone={roleTone(user.role)}>{roleLabel(user.role)}</StatusBadge></td>
-      <td className="px-4 py-3"><StatusBadge tone={statusTone(user.user_status)}>{user.user_status}</StatusBadge></td>
-      <td className="px-4 py-3 text-xs text-slate-400">
-        {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : "Never"}
-      </td>
-      <td className="px-4 py-3">
-        <button onClick={() => setEditing(true)} className="flex h-7 w-7 items-center justify-center rounded border border-line bg-white text-slate-500 hover:border-forest hover:text-forest transition">
-          <Edit2 className="h-3.5 w-3.5" />
-        </button>
-      </td>
-    </tr>
+    <>
+      {approving && (
+        <ApproveImporterModal
+          profileId={user.id}
+          email={user.email}
+          suggestedName={user.organization_name}
+          onClose={() => { setApproving(false); onSaved(); }}
+        />
+      )}
+      <tr className="hover:bg-slate-50 transition-colors">
+        <td className="px-4 py-3 font-medium text-ink">{user.full_name || <span className="text-slate-400 italic">No name</span>}</td>
+        <td className="px-4 py-3 text-xs text-slate-500">{user.email}</td>
+        <td className="px-4 py-3 text-sm text-slate-600">
+          {user.organization_name || <span className="text-slate-400">—</span>}
+          {needsOrg && (
+            <span className="mt-0.5 block text-[11px] font-semibold text-amber-600">
+              No organization
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-3"><StatusBadge tone={roleTone(user.role)}>{roleLabel(user.role)}</StatusBadge></td>
+        <td className="px-4 py-3"><StatusBadge tone={statusTone(user.user_status)}>{user.user_status}</StatusBadge></td>
+        <td className="px-4 py-3 text-xs text-slate-400">
+          {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : "Never"}
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1">
+            {needsOrg && (
+              <button
+                onClick={() => setApproving(true)}
+                title="Create or assign an importer organization"
+                className="inline-flex h-7 items-center gap-1.5 rounded bg-forest px-2.5 text-xs font-semibold text-white transition hover:bg-[#195f4d]"
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                Approve
+              </button>
+            )}
+            <button onClick={() => setEditing(true)} className="flex h-7 w-7 items-center justify-center rounded border border-line bg-white text-slate-500 hover:border-forest hover:text-forest transition">
+              <Edit2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    </>
   );
 }
 
@@ -143,7 +181,7 @@ export function UserManagement({ users: initial }: { users: UserRow[] }) {
   async function reload() {
     const supabase = createBrowserSupabaseClient();
     const { data } = await (supabase.from("profiles") as any)
-      .select("id, email, full_name, organization_name, role, user_status, last_login_at")
+      .select("id, email, full_name, organization_name, role, user_status, last_login_at, importer_id")
       .order("created_at", { ascending: false });
     if (data) setUsers(data as UserRow[]);
   }

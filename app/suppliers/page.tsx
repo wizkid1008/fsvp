@@ -38,7 +38,7 @@ export default async function SuppliersPage() {
 
   // If importer has no linked suppliers yet, show empty state rather than all suppliers
   let suppliersQuery = (admin.from("suppliers") as any)
-    .select("id, company_name, legal_entity_name, country, website, approval_status, certification_status, fda_registration_number, contact_json, supplier_type, updated_at")
+    .select("id, company_name, legal_entity_name, country, website, approval_status, certification_status, fda_registration_number, contact_json, supplier_type, updated_at, record_mode, managed_by_importer_id, duns_number")
     .in("supplier_type", ["exporter", "exporter_manufacturer", "trader"])
     .order("updated_at", { ascending: false });
 
@@ -107,7 +107,7 @@ export default async function SuppliersPage() {
       <SectionHeader
         title={role === "us_importer" ? "My Exporters" : "Suppliers"}
         description={role === "us_importer"
-          ? "Exporters you import from. Link an exporter to begin collecting FSVP evidence."
+          ? "Exporters you import from. Link one who already has an account, or create a record yourself for an exporter who will not register."
           : "All registered foreign suppliers in the platform."}
       />
       <SupplierTable
