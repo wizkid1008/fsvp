@@ -695,6 +695,40 @@ as $$
   );
 $$;
 
+-- Weight validator: exclude by section, not by row id. On INSERT, new.id is a
+-- freshly generated uuid that never matches the existing row, so re-seeding the
+-- weights counted the section's current weight AND the incoming one and raised
+-- "would exceed 100%" against an unchanged configuration. It also blocked any
+-- edit through the admin ScoringWeightsEditor for the same reason.
+create or replace function public.validate_scoring_weights()
+returns trigger
+language plpgsql set search_path = public
+as $$
+declare
+  v_applies_to text;
+  v_total      numeric;
+begin
+  select rs.applies_to into v_applies_to
+  from requirement_sections rs
+  where rs.id = new.section_id;
+
+  select coalesce(sum(w.weight_percent), 0) into v_total
+  from scoring_category_weights w
+  join requirement_sections s on s.id = w.section_id
+  where w.rule_version_id = new.rule_version_id
+    and s.applies_to = v_applies_to
+    and w.section_id is distinct from new.section_id;
+
+  if v_total + new.weight_percent > 100.001 then
+    raise exception
+      'Scoring weights for % sections in this rule version would exceed 100%% (current total: %, adding: %)',
+      v_applies_to, v_total, new.weight_percent;
+  end if;
+
+  return new;
+end;
+$$;
+
 -- Also mark FSVP records stale when an attached document changes status.
 create or replace function public.mark_scores_stale_on_evidence_change()
 returns trigger

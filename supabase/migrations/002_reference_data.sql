@@ -384,6 +384,13 @@ begin
     from requirement_sections s
     where s.rule_version_id = v_version_id and s.applies_to = 'facility'
   loop
+    -- ON CONFLICT cannot be used here: validate_scoring_weights() is a BEFORE
+    -- INSERT trigger, so it fires before conflict resolution and would see
+    -- "existing 100% + adding N%" on any re-run. Check first instead.
+    if not exists (
+      select 1 from scoring_category_weights
+      where rule_version_id = v_version_id and section_id = v_section_id
+    ) then
     insert into scoring_category_weights (rule_version_id, section_id, weight_percent)
     values (
       v_version_id,
@@ -399,8 +406,8 @@ begin
         when 'corrective_action_mgmt' then  5
         else 0
       end
-    )
-    on conflict (rule_version_id, section_id) do nothing;
+    );
+    end if;
   end loop;
 
   -- Product sections
@@ -420,6 +427,13 @@ begin
     from requirement_sections s
     where s.rule_version_id = v_version_id and s.applies_to = 'product'
   loop
+    -- ON CONFLICT cannot be used here: validate_scoring_weights() is a BEFORE
+    -- INSERT trigger, so it fires before conflict resolution and would see
+    -- "existing 100% + adding N%" on any re-run. Check first instead.
+    if not exists (
+      select 1 from scoring_category_weights
+      where rule_version_id = v_version_id and section_id = v_section_id
+    ) then
     insert into scoring_category_weights (rule_version_id, section_id, weight_percent)
     values (
       v_version_id,
@@ -433,8 +447,8 @@ begin
         when 'nonconformances'         then 10
         else 0
       end
-    )
-    on conflict (rule_version_id, section_id) do nothing;
+    );
+    end if;
   end loop;
 
 end $$;
@@ -481,6 +495,13 @@ begin
     where s.rule_version_id = v_version_id
       and s.applies_to      = 'supplier'
   loop
+    -- ON CONFLICT cannot be used here: validate_scoring_weights() is a BEFORE
+    -- INSERT trigger, so it fires before conflict resolution and would see
+    -- "existing 100% + adding N%" on any re-run. Check first instead.
+    if not exists (
+      select 1 from scoring_category_weights
+      where rule_version_id = v_version_id and section_id = v_section_id
+    ) then
     insert into scoring_category_weights (rule_version_id, section_id, weight_percent)
     values (
       v_version_id,
@@ -494,8 +515,8 @@ begin
         when 'supplier_importer_assurances' then 10
         else 0
       end
-    )
-    on conflict (rule_version_id, section_id) do nothing;
+    );
+    end if;
   end loop;
 
   -- --------------------------------------------------------

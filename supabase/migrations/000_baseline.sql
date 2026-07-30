@@ -621,12 +621,17 @@ begin
   from requirement_sections rs
   where rs.id = new.section_id;
 
+  -- Exclude by section, not by row id. On INSERT, new.id is a freshly generated
+  -- uuid that never matches the existing row, so an upsert or a re-run would
+  -- count the section's current weight AND the incoming one, and spuriously
+  -- exceed 100%. The question being asked is "every OTHER section, plus this
+  -- one" — which is section-scoped, not row-scoped.
   select coalesce(sum(w.weight_percent), 0) into v_total
   from scoring_category_weights w
   join requirement_sections s on s.id = w.section_id
   where w.rule_version_id = new.rule_version_id
     and s.applies_to = v_applies_to
-    and w.id is distinct from new.id;
+    and w.section_id is distinct from new.section_id;
 
   if v_total + new.weight_percent > 100.001 then
     raise exception
