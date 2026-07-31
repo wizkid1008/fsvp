@@ -11,3 +11,6 @@ coverage/
 .env.*.local
 types/database.generated.ts
 *.log
+
+# Word lock files, created while a .docx in the repo is open
+~$*
