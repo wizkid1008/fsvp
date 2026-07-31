@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isValidDecision, isValidReassessmentMonths, statusForDecision, type ApprovalDecision } from "@/lib/fsvp/status-transitions";
+import { evaluateAttestations } from "@/lib/fsvp/qi-attestation";
 import { scoreFsvpRecord } from "@/lib/scoring";
 import { notify } from "@/lib/notifications/notify";
 
@@ -33,7 +34,10 @@ export async function POST(
   const { id } = params;
 
   const { data: record } = await (admin.from("fsvp_records") as any)
-    .select("importer_id, rule_version_id, status, supplier_id, facility_id, product_id")
+    .select(
+      "importer_id, rule_version_id, status, supplier_id, facility_id, product_id, " +
+      "hazard_analysis_notes, supplier_evaluation_notes, verification_determination"
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -72,6 +76,38 @@ export async function POST(
   // on the basis of a missing measurement.
   let freshScore: number | null = null;
   if (decision === "approved" || decision === "conditionally_approved") {
+    // § 1.503 gate, checked before scoring: it is the cheaper query and its
+    // failure message tells the importer exactly what to go and do, whereas a
+    // scoring failure does not. A qualified individual must have performed or
+    // overseen the hazard analysis, the supplier evaluation and the
+    // verification activities determination, and their signature must still
+    // match the text it was made against.
+    const { data: attestationRows, error: attestationError } = await (admin.from("qi_attestations") as any)
+      .select("attestation_type, content_hash, revoked_at")
+      .eq("fsvp_record_id", id);
+
+    if (attestationError) {
+      return NextResponse.json(
+        {
+          error:
+            "Cannot approve: the qualified individual attestations could not be read, so § 1.503 coverage cannot be confirmed. " +
+            attestationError.message,
+        },
+        { status: 503 }
+      );
+    }
+
+    const attestations = await evaluateAttestations(record, attestationRows ?? []);
+    if (!attestations.satisfied) {
+      return NextResponse.json(
+        {
+          error: "Cannot approve: this record is not covered by a current qualified individual attestation.",
+          reasons: attestations.reasons,
+        },
+        { status: 400 }
+      );
+    }
+
     let scoreResult;
     try {
       scoreResult = await scoreFsvpRecord(

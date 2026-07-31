@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { notify } from "@/lib/notifications/notify";
+import { deniesTenant } from "@/lib/auth/tenancy";
 
 export const runtime = "edge";
 
@@ -55,8 +56,9 @@ export async function POST(req: NextRequest) {
 
   if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
 
-  // Importers can only review documents belonging to their own organization
-  if (profile.role === "us_importer" && doc.importer_id !== profile.importer_id) {
+  // Anyone holding an importer_id — an importer or a tenant-scoped qualified
+  // individual — may only review documents belonging to their own organization.
+  if (deniesTenant(profile, doc.importer_id)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

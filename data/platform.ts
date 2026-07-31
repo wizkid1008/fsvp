@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  BadgeCheck,
   Bell,
   Building2,
   ClipboardCheck,
@@ -21,6 +22,7 @@ import type { NavItem } from "@/types/platform";
 
 export const iconMap = {
   AlertTriangle,
+  BadgeCheck,
   Bell,
   Building2,
   ClipboardCheck,
@@ -60,7 +62,11 @@ export const navItems: NavItem[] = [
 
   // ── Importer nav ─────────────────────────────────────────────
   { href: "/suppliers",        label: "Exporters",       icon: "Building2",      roles: ["us_importer"], tKey: "nav.exporters" },
-  { href: "/fsvp-records",     label: "FSVP Records",    icon: "FolderCheck",    roles: ["us_importer"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
+  // Reviewers are included on these two because a tenant-scoped reviewer is how
+  // an FSVP qualified individual holds a login (004_reviewer_tenancy.sql). They
+  // have to reach the record to sign it, and the register to see their own scope.
+  { href: "/fsvp-records",     label: "FSVP Records",    icon: "FolderCheck",    roles: ["us_importer", "reviewer"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
+  { href: "/qualified-individuals", label: "Qualified Individuals", icon: "BadgeCheck", roles: ["us_importer", "reviewer"], matches: ["/qualified-individuals"], tKey: "nav.qualifiedIndividuals" },
   { href: "/evidence",         label: "Evidence",        icon: "FileArchive",    roles: ["us_importer"], tKey: "nav.evidence" },
   { href: "/importer-review",  label: "Review Queue",    icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview" },
   { href: "/gaps-actions",     label: "Gaps & Actions",  icon: "AlertTriangle",  roles: ["us_importer"], matches: ["/gaps-actions"], tKey: "nav.gapsActions" },

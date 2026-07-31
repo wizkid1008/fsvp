@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { ATTESTATION_LABEL, hashAttestationContent } from "@/lib/fsvp/qi-attestation";
 
 export const runtime = "edge";
 
@@ -204,7 +205,7 @@ export async function POST(req: NextRequest) {
 
     const { data: record, error } = await (admin.from("fsvp_records") as any)
       .select(`
-        id, status, overall_score, approved_at, reassessment_due_at,
+        id, status, overall_score, approved_at, approved_by_profile_id, reassessment_due_at,
         hazard_analysis_notes, supplier_evaluation_notes,
         facility_evaluation_notes, verification_determination,
         importer_id, supplier_id,
@@ -218,7 +219,13 @@ export async function POST(req: NextRequest) {
 
     if (error)   return NextResponse.json({ error: error.message }, { status: 500 });
     if (!record) return NextResponse.json({ error: "FSVP record not found." }, { status: 404 });
-    if (record.importer_id !== importerId && profile.role === "us_importer") {
+    // Only a platform administrator may pull another tenant's package. This
+    // used to exempt reviewers too, which was safe while `reviewer` meant
+    // platform-wide; 004_reviewer_tenancy.sql made a reviewer with an
+    // importer_id a tenant user (an FSVP qualified individual), and the guard
+    // above already rejects anyone without an importer_id — so the only
+    // reviewers reaching here are tenant-scoped and must be confined.
+    if (record.importer_id !== importerId && profile.role !== "administrator") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -245,6 +252,71 @@ export async function POST(req: NextRequest) {
         .eq("id", record.importer_id)
         .maybeSingle();
       const imp = importerRow.data ?? {};
+
+      // § 1.503 / § 1.510(b): who was qualified, what they attested to, and when.
+      // This is the part of the package an investigator turns to first, so it
+      // prints the signature even when it has gone stale or been withdrawn —
+      // presenting only the clean ones would be the dishonest version.
+      const { data: rawAttestations } = await (admin.from("qi_attestations") as any)
+        .select(`
+          attestation_type, statement, content_hash, signed_at,
+          signed_by_profile_id, revoked_at, revoked_reason,
+          qualified_individuals(qualification_basis, education, training, experience)
+        `)
+        .eq("fsvp_record_id", recordId)
+        .order("signed_at", { ascending: false });
+
+      const attestationRows = (rawAttestations ?? []) as any[];
+
+      const liveHash: Record<string, string> = {
+        hazard_analysis:            await hashAttestationContent(record.hazard_analysis_notes),
+        supplier_evaluation:        await hashAttestationContent(record.supplier_evaluation_notes),
+        verification_determination: await hashAttestationContent(record.verification_determination),
+      };
+
+      const peopleIds = [
+        ...new Set([
+          ...attestationRows.map((a) => a.signed_by_profile_id),
+          record.approved_by_profile_id,
+        ].filter(Boolean)),
+      ] as string[];
+
+      const { data: rawPeople } = peopleIds.length > 0
+        ? await (admin.from("profiles") as any).select("id, full_name, email").in("id", peopleIds)
+        : { data: [] };
+      const personName = new Map(
+        ((rawPeople ?? []) as Array<{ id: string; full_name: string | null; email: string }>)
+          .map((p) => [p.id, p.full_name ?? p.email])
+      );
+
+      const attestationRowsHtml = attestationRows.length
+        ? attestationRows.map((a) => {
+            const stale = a.revoked_at === null && liveHash[a.attestation_type] !== a.content_hash;
+            const status = a.revoked_at
+              ? `Withdrawn ${new Date(a.revoked_at).toLocaleDateString()}${a.revoked_reason ? ` — ${esc(a.revoked_reason)}` : ""}`
+              : stale
+              ? "Superseded — the determination was edited after signing"
+              : "Current";
+            const qi = a.qualified_individuals ?? {};
+            const basisDetail = [qi.education, qi.training, qi.experience]
+              .filter(Boolean)
+              .join("; ");
+            return `<tr>
+              <td>${esc(ATTESTATION_LABEL[a.attestation_type as keyof typeof ATTESTATION_LABEL] ?? a.attestation_type)}</td>
+              <td>${esc(personName.get(a.signed_by_profile_id) ?? "Unknown")}${
+                qi.qualification_basis ? `<br><span style="color:#64748b;">Qualified by ${esc(qi.qualification_basis)}</span>` : ""
+              }${basisDetail ? `<br><span style="color:#64748b;font-size:11px;">${esc(basisDetail)}</span>` : ""}</td>
+              <td>${new Date(a.signed_at).toLocaleDateString()}</td>
+              <td>${status}</td>
+            </tr>`;
+          }).join("")
+        : '<tr><td colspan="4" style="color:#94a3b8;">No qualified individual has signed this record.</td></tr>';
+
+      const attestationStatement = attestationRows.find((a) => !a.revoked_at)?.statement ?? null;
+
+      const approverName = record.approved_by_profile_id
+        ? personName.get(record.approved_by_profile_id) ?? "Unknown"
+        : null;
 
       const section = (heading: string, text: string | null) =>
         `<h2 style="font-size:15px;margin:24px 0 6px;">${esc(heading)}</h2>
@@ -283,6 +355,11 @@ ${section("Foreign Supplier Evaluation (§ 1.505)", record.supplier_evaluation_n
 ${section("Facility Evaluation", record.facility_evaluation_notes)}
 ${section("Verification Determination (§§ 1.506–1.507)", record.verification_determination)}
 
+<h2>Qualified Individual Attestations (§§ 1.503, 1.510(b))</h2>
+<table><thead><tr><th>Determination</th><th>Signed by</th><th>Date</th><th>Status</th></tr></thead>
+<tbody>${attestationRowsHtml}</tbody></table>
+${attestationStatement ? `<p class="meta" style="margin-top:8px;">Statement signed: &ldquo;${esc(attestationStatement)}&rdquo;</p>` : ""}
+
 <h2>Evidence Index</h2>
 <table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
 <tbody>${
@@ -297,9 +374,10 @@ ${importerUploaded > 0 ? `<div class="note"><strong>Provenance note.</strong> ${
 <p class="meta">Status: ${esc(record.status)}${record.overall_score !== null ? ` · Score ${esc(record.overall_score)}/100` : ""}${
         record.approved_at ? ` · Approved ${new Date(record.approved_at).toLocaleDateString()}` : ""
       }${record.reassessment_due_at ? ` · Reassessment due ${new Date(record.reassessment_due_at).toLocaleDateString()}` : ""}</p>
+${approverName ? `<p class="meta">Approval recorded by ${esc(approverName)} for the importer. The food-safety determinations above were attested to separately by the qualified individuals listed.</p>` : ""}
 
 <p class="meta" style="margin-top:32px;border-top:1px solid #e2e8f0;padding-top:12px;">
-This platform does not provide legal or regulatory advice. FSVP determinations should be reviewed by a qualified FSVP Individual.
+This platform does not provide legal or regulatory advice.
 </p>
 </body></html>`;
 

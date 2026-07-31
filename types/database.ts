@@ -593,3 +593,47 @@ export type ReassessmentSchedule = {
   created_at: string;
   updated_at: string;
 };
+
+export type QualificationBasis = "education" | "training" | "experience" | "combination";
+
+export type QualifiedIndividual = {
+  id: string;
+  importer_id: string;
+  /** Not null: a QI must have a login, because only they can sign. */
+  profile_id: string;
+  qualification_basis: QualificationBasis;
+  education: string | null;
+  training: string | null;
+  experience: string | null;
+  languages: string[] | null;
+  scope: string[] | null;
+  credentials_document_id: string | null;
+  active_from: string;
+  active_to: string | null;
+  created_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AttestationType =
+  | "hazard_analysis"
+  | "supplier_evaluation"
+  | "verification_determination"
+  | "reassessment";
+
+export type QiAttestation = {
+  id: string;
+  importer_id: string;
+  qualified_individual_id: string;
+  fsvp_record_id: string;
+  attestation_type: AttestationType;
+  statement: string;
+  /** The narrative exactly as it stood when signed, plus its SHA-256. */
+  content_snapshot: string;
+  content_hash: string;
+  signed_by_profile_id: string;
+  signed_at: string;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  created_at: string;
+};

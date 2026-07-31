@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { DOCUMENT_BUCKET } from "@/lib/constants";
+import { deniesTenant } from "@/lib/auth/tenancy";
 
 export const runtime = "edge";
 
@@ -38,15 +39,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
-  // Scope check: suppliers/exporters can only download their own docs; reviewers/admins can download any
+  // Scope check: suppliers/exporters can only download their own docs; anyone
+  // holding an importer_id is confined to that tenant (which now includes a
+  // tenant-scoped qualified individual); only platform admins and platform
+  // reviewers can download any.
   if (profile.role === "supplier" || profile.role === "exporter") {
     if (doc.supplier_id !== profile.supplier_id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.role === "us_importer") {
-    if (doc.importer_id !== profile.importer_id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  } else if (deniesTenant(profile, doc.importer_id)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { data: signedData, error } = await admin.storage

@@ -48,9 +48,16 @@ const DECISIONS: Array<{
 export function ApprovalDecisionForm({
   recordId,
   currentDecision,
+  blockingReasons = [],
 }: {
   recordId: string;
   currentDecision: string | null;
+  /**
+   * Why approval would be refused, evaluated server-side. Shown up front and
+   * used to disable the approving options — the server still enforces this, but
+   * a block the user only discovers after pressing Approve is a worse block.
+   */
+  blockingReasons?: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -59,6 +66,9 @@ export function ApprovalDecisionForm({
   const [conditions, setConditions] = useState("");
   const [months, setMonths] = useState(12);
   const [error, setError] = useState<string | null>(null);
+
+  const blocked = blockingReasons.length > 0;
+  const isApproving = (d: Decision) => d === "approved" || d === "conditionally_approved";
 
   function handleSubmit() {
     if (!selected) { setError("Select a decision."); return; }
@@ -74,8 +84,11 @@ export function ApprovalDecisionForm({
           reassessment_months: months,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error); return; }
+      const json = await res.json() as { error?: string; reasons?: string[] };
+      if (!res.ok) {
+        setError([json.error, ...(json.reasons ?? [])].filter(Boolean).join(" "));
+        return;
+      }
       router.refresh();
     });
   }
@@ -100,16 +113,40 @@ export function ApprovalDecisionForm({
 
   return (
     <div className="space-y-4">
+      {blocked && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <p className="text-sm font-semibold text-amber-900">
+              This record cannot be approved yet
+            </p>
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-8 text-sm text-amber-900">
+            {blockingReasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+          <p className="mt-2 pl-8 text-xs text-amber-800">
+            Rejecting or requesting a revision is still available.
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
         {DECISIONS.map((d) => {
           const Icon = d.icon;
+          const disabled = blocked && isApproving(d.value);
           return (
             <button
               key={d.value}
               type="button"
+              disabled={disabled}
+              title={disabled ? blockingReasons.join(" ") : undefined}
               onClick={() => setSelected(d.value)}
               className={`rounded-lg border p-4 text-left transition ${
-                selected === d.value
+                disabled
+                  ? "cursor-not-allowed border-line bg-slate-50 opacity-60"
+                  : selected === d.value
                   ? "border-forest bg-emerald-50 ring-1 ring-forest"
                   : "border-line bg-white hover:border-slate-300 hover:bg-slate-50"
               }`}

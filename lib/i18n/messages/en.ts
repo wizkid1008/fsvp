@@ -28,6 +28,7 @@ const en = {
     importerReview: "Review Queue",
     auditLog: "Audit Log",
     fsvpRecords: "FSVP Records",
+    qualifiedIndividuals: "Qualified Individuals",
     admin: "Admin",
     account: "Account",
   },

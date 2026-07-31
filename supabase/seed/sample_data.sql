@@ -6,7 +6,8 @@
 -- fixture exists to prove tenancy isolation. Sign in as an importer attached to
 -- GreenPath and you must see none of Pacific Coast's data, and vice versa.
 --
--- Prerequisites: 000_baseline.sql, 001_baseline_rls.sql, 002_reference_data.sql.
+-- Prerequisites: 000_baseline.sql, 001_baseline_rls.sql, 002_reference_data.sql,
+-- 004_reviewer_tenancy.sql, 005_qualified_individuals.sql.
 --
 -- This file seeds business data only — no profiles, because profiles.id
 -- references auth.users and Supabase Auth owns that table. To attach a real
@@ -19,6 +20,14 @@
 --        set importer_id = '11111111-1111-1111-1111-111111111111',  -- GreenPath
 --            user_status = 'active'
 --        where email = 'you@example.com';
+--
+-- No qualified individuals are seeded, for the same reason: qualified_
+-- individuals.profile_id is NOT NULL, and there are no profiles here. Since
+-- 005, an FSVP record cannot be approved without QI signatures on the hazard
+-- analysis, supplier evaluation and verification determination — so after
+-- attaching an account above, register yourself on /qualified-individuals and
+-- sign the record before expecting approval to succeed. Registering an outside
+-- consultant instead is the "Invite an outside consultant" button on that page.
 --
 -- Safe to re-run: every insert is ON CONFLICT DO NOTHING against fixed UUIDs.
 -- ============================================================================

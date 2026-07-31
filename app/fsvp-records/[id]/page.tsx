@@ -10,6 +10,9 @@ import { VerificationRecordsPanel } from "@/components/fsvp/VerificationRecordsP
 import { PrintButton } from "@/components/fsvp/PrintButton";
 import { InspectionPackageButton } from "@/components/fsvp/InspectionPackageButton";
 import { ReassessmentSection } from "@/components/fsvp/ReassessmentSection";
+import { QiAttestationPanel, type SignedAttestation } from "@/components/fsvp/QiAttestationPanel";
+import { evaluateAttestations, hashAttestationContent } from "@/lib/fsvp/qi-attestation";
+import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -47,14 +50,14 @@ export default async function FsvpRecordPage({
 }: {
   params: { id: string };
 }) {
-  const { supabase, role, realRole } = await requireProfileRole("/fsvp-records", [
+  const { supabase, user, role, realRole } = await requireProfileRole("/fsvp-records", [
     "us_importer", "reviewer", "administrator",
   ]);
   const { id } = params;
 
   const { data: record } = await (supabase.from("fsvp_records") as any)
     .select(`
-      id, status, overall_score, hazard_analysis_notes, supplier_evaluation_notes,
+      id, status, overall_score, importer_id, hazard_analysis_notes, supplier_evaluation_notes,
       facility_evaluation_notes, verification_determination, approval_decision,
       approved_at, reassessment_due_at, created_at,
       suppliers!inner(id, company_name, country, fda_registration_number, contact_json),
@@ -205,6 +208,71 @@ export default async function FsvpRecordPage({
     .select("next_due_at, frequency_months, status, last_assessed_at")
     .eq("fsvp_record_id", id)
     .maybeSingle();
+
+  // ── § 1.503 qualified individual coverage ────────────────────────────────
+  // Read through the admin client because signer names live on profiles, whose
+  // RLS exposes only the caller's own row.
+  const admin = createAdminSupabaseClient();
+
+  type AttestationRow = {
+    id: string;
+    attestation_type: string;
+    statement: string;
+    content_hash: string;
+    signed_at: string;
+    signed_by_profile_id: string;
+    revoked_at: string | null;
+    revoked_reason: string | null;
+    qualified_individuals: { qualification_basis: string } | null;
+  };
+
+  const { data: rawAttestations } = await (admin.from("qi_attestations") as any)
+    .select(`
+      id, attestation_type, statement, content_hash, signed_at,
+      signed_by_profile_id, revoked_at, revoked_reason,
+      qualified_individuals(qualification_basis)
+    `)
+    .eq("fsvp_record_id", id)
+    .order("signed_at", { ascending: false });
+
+  const attestationRows = (rawAttestations ?? []) as AttestationRow[];
+  const attestationEval = await evaluateAttestations(record, attestationRows as any);
+
+  const signerIds = [...new Set(attestationRows.map((a) => a.signed_by_profile_id))];
+  const { data: rawSigners } = signerIds.length > 0
+    ? await (admin.from("profiles") as any).select("id, full_name, email").in("id", signerIds)
+    : { data: [] };
+  const signerName = new Map(
+    ((rawSigners ?? []) as Array<{ id: string; full_name: string | null; email: string }>)
+      .map((p) => [p.id, p.full_name ?? p.email])
+  );
+
+  // Which signature still matches the text it was made against.
+  const liveHash: Record<string, string> = {
+    hazard_analysis:            await hashAttestationContent(record.hazard_analysis_notes),
+    supplier_evaluation:        await hashAttestationContent(record.supplier_evaluation_notes),
+    verification_determination: await hashAttestationContent(record.verification_determination),
+  };
+
+  const attestations: SignedAttestation[] = attestationRows.map((a) => ({
+    id:                  a.id,
+    attestation_type:    a.attestation_type,
+    statement:           a.statement,
+    signed_at:           a.signed_at,
+    signer_name:         signerName.get(a.signed_by_profile_id) ?? "Unknown",
+    qualification_basis: a.qualified_individuals?.qualification_basis ?? "",
+    revoked_at:          a.revoked_at,
+    revoked_reason:      a.revoked_reason,
+    current:             a.revoked_at === null && liveHash[a.attestation_type] === a.content_hash,
+  }));
+
+  const { data: viewerQi } = await (admin.from("qualified_individuals") as any)
+    .select("id, active_from, active_to")
+    .eq("profile_id", user.id)
+    .eq("importer_id", record.importer_id)
+    .maybeSingle();
+
+  const viewerIsActiveQi = Boolean(viewerQi && isActiveOn(viewerQi));
 
   const narrativeSections = [
     {
@@ -417,6 +485,25 @@ export default async function FsvpRecordPage({
           </section>
         )}
 
+        {/* Qualified individual attestations */}
+        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <div className="mb-5 border-b border-line pb-4">
+            <h2 className="text-base font-semibold text-ink">Qualified Individual Attestations</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              § 1.503 requires a qualified individual to perform or oversee each of these
+              determinations, and § 1.510(b) requires the record to be signed and dated. All three
+              must carry a current signature before this record can be approved.
+            </p>
+          </div>
+          <QiAttestationPanel
+            recordId={id}
+            state={attestationEval.state}
+            attestations={attestations}
+            viewerIsActiveQi={viewerIsActiveQi}
+            viewerCanManageRegister={isImporter}
+          />
+        </section>
+
         {/* Reassessment schedule */}
         <ReassessmentSection fsvpRecordId={id} schedule={schedule} />
 
@@ -432,6 +519,7 @@ export default async function FsvpRecordPage({
             <ApprovalDecisionForm
               recordId={id}
               currentDecision={record.status}
+              blockingReasons={attestationEval.reasons}
             />
           </section>
         )}
