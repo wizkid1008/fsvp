@@ -3,10 +3,11 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Upload, FileText, X,
+  Upload, FileText, X, ClipboardList,
   CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { FormFillPanel } from "@/components/forms/FormFillPanel";
 import { DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { StatusTone } from "@/types/platform";
@@ -26,6 +27,13 @@ export interface RequirementItem {
   description:         string | null;
   is_critical_blocker: boolean;
   status:              string; // "not_submitted" | "submitted" | "under_review" | "accepted" | "needs_revision" | "rejected"
+  /**
+   * 'form' means the item is a set of questions answered in the app rather than
+   * a document the supplier already holds. Uploading stays available either
+   * way — a supplier who has the completed questionnaire on letterhead should
+   * still be able to attach it.
+   */
+  evidence_type:       string | null;
 }
 
 export interface SectionProgressProps {
@@ -86,8 +94,10 @@ function ItemUploadSlot({
   const [message, setMessage]         = useState<string | null>(null);
   const [error, setError]             = useState<string | null>(null);
   const [pending, startTransition]    = useTransition();
+  const [filling, setFilling]         = useState(false);
 
   const isComplete = item.status === "accepted";
+  const isForm     = item.evidence_type === "form";
 
   function handleFiles(files: FileList | null) {
     const next = files?.[0];
@@ -172,22 +182,47 @@ function ItemUploadSlot({
           </div>
         </div>
 
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           {isComplete ? (
             <StatusBadge tone="success">Complete</StatusBadge>
           ) : (
-            <button
-              type="button"
-              onClick={() => { setOpen((v) => !v); setMessage(null); setError(null); }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-forest px-3 text-xs font-semibold text-forest transition hover:bg-emerald-50"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              Upload
-              {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </button>
+            <>
+              {isForm && (
+                <button
+                  type="button"
+                  onClick={() => setFilling(true)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-forest px-3 text-xs font-semibold text-white transition hover:bg-[#195f4d]"
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  Fill in
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { setOpen((v) => !v); setMessage(null); setError(null); }}
+                title={isForm ? "Attach a completed copy instead of answering here" : undefined}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition ${
+                  isForm
+                    ? "border-line text-slate-600 hover:border-forest hover:text-forest"
+                    : "border-forest text-forest hover:bg-emerald-50"
+                }`}
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Upload
+                {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {filling && supplierId && (
+        <FormFillPanel
+          requirementItemId={item.id}
+          supplierId={supplierId}
+          onClose={() => setFilling(false)}
+        />
+      )}
 
       {/* Inline upload panel */}
       {open && (

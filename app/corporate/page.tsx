@@ -227,7 +227,7 @@ export default async function CorporatePage() {
             Click any section to upload evidence or view progress.
             Accepted documents count toward your readiness score.
           </p>
-          <CorporateScopeList supplierId={supplierId} supabase={supabase} contactJson={supplier?.contact_json ?? {}} />
+          <CorporateScopeList supplierId={supplierId} supabase={supabase} />
         </section>
       </div>
 

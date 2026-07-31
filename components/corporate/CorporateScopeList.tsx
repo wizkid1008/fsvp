@@ -1,5 +1,4 @@
 import { CorporateScopeUploadTile, type SectionProgressProps, type RequirementItem } from "./CorporateScopeUploadTile";
-import { CorporateContactsSection, type ContactJson } from "./CorporateContactsSection";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -9,8 +8,8 @@ const FALLBACK_SECTIONS = [
     section_name: "Legal Entity and Ownership",
     description:  "Document the legal structure, registration, and ownership of the exporting entity.",
     items: [
-      { id: "fallback-legal-1", item_name: "Legal Entity Documentation", description: "Articles of incorporation, business registration, or equivalent government-issued document proving the entity's legal status.", is_critical_blocker: true,  status: "not_submitted" },
-      { id: "fallback-legal-2", item_name: "Ownership Structure",        description: "Org chart or declaration showing the ownership hierarchy of the exporting company.",                                              is_critical_blocker: false, status: "not_submitted" },
+      { id: "fallback-legal-1", item_name: "Legal Entity Documentation", description: "Articles of incorporation, business registration, or equivalent government-issued document proving the entity's legal status.", is_critical_blocker: true,  status: "not_submitted", evidence_type: null },
+      { id: "fallback-legal-2", item_name: "Ownership Structure",        description: "Org chart or declaration showing the ownership hierarchy of the exporting company.",                                              is_critical_blocker: false, status: "not_submitted", evidence_type: null },
     ],
   },
   {
@@ -18,8 +17,8 @@ const FALLBACK_SECTIONS = [
     section_name: "Primary Contacts",
     description:  "Identify key contacts for food safety, quality, and regulatory correspondence.",
     items: [
-      { id: "fallback-contact-1", item_name: "Primary Contact Information",      description: "Name, title, email, and phone for the main point of contact.",                      is_critical_blocker: false, status: "not_submitted" },
-      { id: "fallback-contact-2", item_name: "Regulatory / Quality Contact",     description: "Dedicated contact for regulatory inquiries and food safety matters.",               is_critical_blocker: false, status: "not_submitted" },
+      { id: "fallback-contact-1", item_name: "Primary Contact Information",      description: "Name, title, email, and phone for the main point of contact.",                      is_critical_blocker: false, status: "not_submitted", evidence_type: null },
+      { id: "fallback-contact-2", item_name: "Regulatory / Quality Contact",     description: "Dedicated contact for regulatory inquiries and food safety matters.",               is_critical_blocker: false, status: "not_submitted", evidence_type: null },
     ],
   },
   {
@@ -27,7 +26,7 @@ const FALLBACK_SECTIONS = [
     section_name: "Supplier Questionnaire",
     description:  "Complete the FSVP supplier self-assessment questionnaire.",
     items: [
-      { id: "fallback-q-1", item_name: "Completed Supplier Questionnaire", description: "Signed and completed FSVP supplier self-assessment form.", is_critical_blocker: true, status: "not_submitted" },
+      { id: "fallback-q-1", item_name: "Completed Supplier Questionnaire", description: "Signed and completed FSVP supplier self-assessment form.", is_critical_blocker: true, status: "not_submitted", evidence_type: null },
     ],
   },
   {
@@ -35,8 +34,8 @@ const FALLBACK_SECTIONS = [
     section_name: "Corporate Food Safety Policy",
     description:  "Provide the signed corporate food safety policy and management commitment.",
     items: [
-      { id: "fallback-fsp-1", item_name: "Corporate Food Safety Policy",    description: "Current signed corporate food safety policy document.",                     is_critical_blocker: true,  status: "not_submitted" },
-      { id: "fallback-fsp-2", item_name: "Management Commitment Statement", description: "Signed letter or statement from senior management committing to food safety.", is_critical_blocker: false, status: "not_submitted" },
+      { id: "fallback-fsp-1", item_name: "Corporate Food Safety Policy",    description: "Current signed corporate food safety policy document.",                     is_critical_blocker: true,  status: "not_submitted", evidence_type: null },
+      { id: "fallback-fsp-2", item_name: "Management Commitment Statement", description: "Signed letter or statement from senior management committing to food safety.", is_critical_blocker: false, status: "not_submitted", evidence_type: null },
     ],
   },
   {
@@ -44,8 +43,8 @@ const FALLBACK_SECTIONS = [
     section_name: "Recall and Traceability Programs",
     description:  "Document recall procedures and lot traceability controls.",
     items: [
-      { id: "fallback-rt-1", item_name: "Recall Plan",            description: "Written recall procedure including notification, retrieval, and disposition steps.", is_critical_blocker: true,  status: "not_submitted" },
-      { id: "fallback-rt-2", item_name: "Traceability Program",   description: "Lot coding, recordkeeping, and one-up/one-down traceability documentation.",         is_critical_blocker: false, status: "not_submitted" },
+      { id: "fallback-rt-1", item_name: "Recall Plan",            description: "Written recall procedure including notification, retrieval, and disposition steps.", is_critical_blocker: true,  status: "not_submitted", evidence_type: null },
+      { id: "fallback-rt-2", item_name: "Traceability Program",   description: "Lot coding, recordkeeping, and one-up/one-down traceability documentation.",         is_critical_blocker: false, status: "not_submitted", evidence_type: null },
     ],
   },
   {
@@ -53,20 +52,25 @@ const FALLBACK_SECTIONS = [
     section_name: "Importer Relationship and Written Assurances",
     description:  "Provide signed written assurances as required under 21 CFR 1.506(e)(2).",
     items: [
-      { id: "fallback-ia-1", item_name: "Written Assurances / Supplier Agreement", description: "Signed written assurance that the supplier will produce food in compliance with applicable FDA requirements.", is_critical_blocker: true,  status: "not_submitted" },
-      { id: "fallback-ia-2", item_name: "Importer Acknowledgement",                description: "Signed acknowledgement from the importer accepting responsibility under 21 CFR Part 1 Subpart L.",            is_critical_blocker: false, status: "not_submitted" },
+      { id: "fallback-ia-1", item_name: "Written Assurances / Supplier Agreement", description: "Signed written assurance that the supplier will produce food in compliance with applicable FDA requirements.", is_critical_blocker: true,  status: "not_submitted", evidence_type: null },
+      { id: "fallback-ia-2", item_name: "Importer Acknowledgement",                description: "Signed acknowledgement from the importer accepting responsibility under 21 CFR Part 1 Subpart L.",            is_critical_blocker: false, status: "not_submitted", evidence_type: null },
     ],
   },
 ];
 
+// Contacts used to be special-cased here: the section rendered a bespoke inline
+// form writing suppliers.contact_json, which satisfied nothing, because
+// isItemSatisfied() in lib/scoring/engine.ts counts only accepted documents. The
+// two contact items therefore read not_submitted however completely they were
+// filled in. They are ordinary form-backed items now (007_seed_evidence_forms),
+// so they go through the same path as everything else and finally count. The
+// submit route keeps contact_json current for the places that still read it.
 export async function CorporateScopeList({
   supplierId,
   supabase,
-  contactJson = {},
 }: {
-  supplierId:   string | null;
-  supabase:     SupabaseLike;
-  contactJson?: ContactJson;
+  supplierId: string | null;
+  supabase:   SupabaseLike;
 }) {
   const { data: pubVersion } = await (supabase.from("rule_versions") as any)
     .select("id")
@@ -79,11 +83,6 @@ export async function CorporateScopeList({
     return (
       <div className="mt-4 overflow-hidden rounded-lg border border-line divide-y divide-line">
         {FALLBACK_SECTIONS.map((sec) => {
-          if (sec.section_key === "supplier_contacts") {
-            return (
-              <CorporateContactsSection key={sec.section_key} contactJson={contactJson} />
-            );
-          }
           const progress: SectionProgressProps = {
             required_count:       sec.items.length,
             accepted_count:       0,
@@ -122,7 +121,7 @@ export async function CorporateScopeList({
       .eq("rule_version_id", pubVersion.id),
 
     (supabase.from("requirement_sections") as any)
-      .select("id, requirement_items(id, item_name, description, is_required, is_critical_blocker, sort_order)")
+      .select("id, requirement_items(id, item_name, description, is_required, is_critical_blocker, sort_order, evidence_type)")
       .eq("rule_version_id", pubVersion.id)
       .eq("applies_to", "supplier"),
 
@@ -154,6 +153,7 @@ export async function CorporateScopeList({
     is_required: boolean;
     is_critical_blocker: boolean;
     sort_order: number;
+    evidence_type: string | null;
   };
   type RawSec = { id: string; requirement_items: RawItem[] };
 
@@ -195,6 +195,7 @@ export async function CorporateScopeList({
       item_name:           i.item_name,
       description:         i.description ?? null,
       is_critical_blocker: i.is_critical_blocker,
+      evidence_type:       i.evidence_type ?? null,
       status:              docStatusByItemId.get(i.id) ?? "not_submitted",
     }));
 
@@ -229,11 +230,6 @@ export async function CorporateScopeList({
   return (
     <div className="mt-4 overflow-hidden rounded-lg border border-line divide-y divide-line">
       {sectionData.map((sec) => {
-        if (sec.section_key === "supplier_contacts") {
-          return (
-            <CorporateContactsSection key={sec.section_key} contactJson={contactJson} />
-          );
-        }
         return (
           <CorporateScopeUploadTile
             key={sec.section_key}
