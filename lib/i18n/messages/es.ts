@@ -27,6 +27,7 @@ const es: Messages = {
     importerReview: "Cola de revisión",
     auditLog: "Registro de auditoría",
     fsvpRecords: "Registros FSVP",
+    qualifiedIndividuals: "Individuos Calificados",
     admin: "Administración",
     account: "Cuenta",
   },

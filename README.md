@@ -93,10 +93,19 @@ npm test
    - `001_baseline_rls.sql` — row-level security
    - `002_reference_data.sql` — countries, rule set v1, requirement items, settings
      (**required** — the app cannot create an FSVP record without a published rule version)
+   - `003_scheduled_alerts.sql` — daily compliance alert job (pg_cron; skipped with a
+     notice if the extension is unavailable)
+   - `004_reviewer_tenancy.sql` — scopes the `reviewer` role by `importer_id`
+   - `005_qualified_individuals.sql` — QI register and attestation ledger
+     (**required** — the record page and the approval gate both read `qi_attestations`,
+     so deploying the app without this migration breaks both)
 
    Migrations `001`–`044` were collapsed into this baseline on 2026-07-30 and are kept
    under `supabase/migrations/archive/` for reference. Do not run them; see
    `supabase/migrations/archive/README.md` for what changed and why.
+
+   **Apply new migrations before deploying the code that needs them.** Cloudflare Pages
+   deploys from git while Supabase does not, so the two are not ordered for you.
 3. Apply optional sample data from `supabase/seed/sample_data.sql`. It seeds two
    independent importer tenants so you can verify that data isolation holds.
 4. Confirm storage buckets exist:

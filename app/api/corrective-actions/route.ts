@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { isTenantConfined } from "@/lib/auth/tenancy";
 
 export const runtime = "edge";
 
@@ -37,12 +38,14 @@ export async function GET(req: NextRequest) {
   }
 
   // List corrective actions
-  const query = (supabase.from("corrective_actions") as any)
+  let query = (supabase.from("corrective_actions") as any)
     .select("id, issue_description, triggered_by, status, triggered_at, closed_at, supplier_id, food_id, investigation_summary, action_taken, decision")
     .order("triggered_at", { ascending: false });
 
-  if (profile.role === "us_importer") {
-    query.eq("importer_id", profile.importer_id);
+  // Anyone holding an importer_id sees only their own tenant. Only a platform
+  // administrator or a platform reviewer (no importer_id) sees across tenants.
+  if (isTenantConfined(profile)) {
+    query = query.eq("importer_id", profile.importer_id);
   }
 
   const { data: actions } = await query;

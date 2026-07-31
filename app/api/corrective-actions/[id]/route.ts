@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { deniesTenant } from "@/lib/auth/tenancy";
 
 export const runtime = "edge";
 
@@ -35,7 +36,7 @@ export async function PATCH(
 
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (profile.role === "us_importer" && existing.importer_id !== profile.importer_id) {
+  if (deniesTenant(profile, existing.importer_id)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

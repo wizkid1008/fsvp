@@ -27,6 +27,7 @@ const ar: Messages = {
     importerReview: "قائمة المراجعة",
     auditLog: "سجل التدقيق",
     fsvpRecords: "سجلات FSVP",
+    qualifiedIndividuals: "الأفراد المؤهلون",
     admin: "الإدارة",
     account: "الحساب",
   },

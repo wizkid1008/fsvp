@@ -16,7 +16,13 @@ export async function POST(req: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile || !["us_importer", "administrator"].includes(profile.role)) {
+  // Reviewers are included because a tenant-scoped reviewer is how an FSVP
+  // qualified individual holds a login (see 004_reviewer_tenancy.sql). The
+  // hazard analysis is the QI's own work product under § 1.503, so they must be
+  // able to author it — the importer_id check below still confines them to
+  // their own tenant, and a platform reviewer (no importer_id) fails it.
+  // Approving the record remains us_importer/administrator only.
+  if (!profile || !["us_importer", "administrator", "reviewer"].includes(profile.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

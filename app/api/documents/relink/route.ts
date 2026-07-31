@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { deniesTenant } from "@/lib/auth/tenancy";
 
 export const runtime = "edge";
 
@@ -41,12 +42,19 @@ export async function POST(req: NextRequest) {
   const admin = createAdminSupabaseClient();
 
   const { data: doc } = await (admin.from("documents") as any)
-    .select("id, supplier_id, linked_entity_type, linked_entity_id, facility_id")
+    .select("id, supplier_id, importer_id, linked_entity_type, linked_entity_id, facility_id")
     .eq("id", document_id)
     .is("soft_deleted_at", null)
     .maybeSingle();
 
   if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
+
+  // This route had no tenancy check at all: any importer could re-tag any
+  // document on the platform by id. Pre-existing, but adding tenant-scoped
+  // qualified individuals to ALLOWED_ROLES widens who can reach it, so guard it.
+  if (deniesTenant(profile, doc.importer_id)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   if (link_type === "facility") {
     const facility = await (admin.from("facilities_verify") as any)

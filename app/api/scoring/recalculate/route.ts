@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { scoreFacility, scoreProduct, scoreFsvpRecord } from "@/lib/scoring";
+import { isTenantConfined } from "@/lib/auth/tenancy";
 
 export const runtime = "edge";
 
@@ -37,8 +38,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Importers can only trigger scoring for entities linked to their own org
-  if (profile.role === "us_importer") {
+  // Anyone holding an importer_id — an importer or a tenant-scoped qualified
+  // individual — can only trigger scoring for entities linked to their own org.
+  if (isTenantConfined(profile)) {
     const admin = createAdminSupabaseClient();
     let ownerQuery;
     if (entity_type === "fsvp_record") {

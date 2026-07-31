@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { addMonths } from "@/lib/fsvp/status-transitions";
+import { deniesTenant } from "@/lib/auth/tenancy";
 
 export const runtime = "edge";
 
@@ -50,7 +51,7 @@ export async function POST(
     .maybeSingle();
 
   if (!record) return NextResponse.json({ error: "Record not found" }, { status: 404 });
-  if (profile.role === "us_importer" && record.importer_id !== profile.importer_id) {
+  if (deniesTenant(profile, record.importer_id)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

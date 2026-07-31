@@ -16,7 +16,9 @@ export async function POST(req: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile || !["us_importer", "administrator"].includes(profile.role)) {
+  // See the note in hazard-items: a tenant-scoped reviewer is an FSVP qualified
+  // individual, and the hazard analysis is their work product under § 1.503.
+  if (!profile || !["us_importer", "administrator", "reviewer"].includes(profile.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

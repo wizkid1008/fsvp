@@ -27,6 +27,7 @@ const fr: Messages = {
     importerReview: "File de révision",
     auditLog: "Journal d'audit",
     fsvpRecords: "Dossiers FSVP",
+    qualifiedIndividuals: "Personnes Qualifiées",
     admin: "Administration",
     account: "Compte",
   },
