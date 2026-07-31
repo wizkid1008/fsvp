@@ -53,6 +53,7 @@ export const ATTESTATION_LABEL: Record<AttestationType, string> = {
   supplier_evaluation: "Foreign supplier evaluation (§ 1.505)",
   verification_determination: "Verification activities determination (§ 1.506)",
   reassessment: "Reassessment (§ 1.508)",
+  applicability_determination: "Applicability determination (§§ 1.501–1.513)",
 };
 
 /** The default wording a QI signs. Stored per row so it survives copy changes. */
@@ -61,10 +62,10 @@ export const DEFAULT_ATTESTATION_STATEMENT =
   "determination, and the record above is accurate and complete to the best of my knowledge.";
 
 export function isAttestationType(value: unknown): value is AttestationType {
-  return (
-    typeof value === "string" &&
-    ["hazard_analysis", "supplier_evaluation", "verification_determination", "reassessment"].includes(value)
-  );
+  // Derived from the label map rather than repeated, so adding a type in one
+  // place cannot leave the guard behind — which is exactly what happened when
+  // applicability_determination was added.
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(ATTESTATION_LABEL, value);
 }
 
 /**

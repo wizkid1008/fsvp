@@ -38,7 +38,7 @@ export async function POST(
   const { id } = params;
 
   const { data: attestation } = await (admin.from("qi_attestations") as any)
-    .select("id, importer_id, fsvp_record_id, attestation_type, signed_by_profile_id, revoked_at")
+    .select("id, importer_id, fsvp_record_id, applicability_determination_id, attestation_type, signed_by_profile_id, revoked_at")
     .eq("id", id)
     .maybeSingle();
 
@@ -86,7 +86,11 @@ export async function POST(
     type:       "qi_attestation_revoked",
     title:      "FSVP determination signature withdrawn",
     body:       `${ATTESTATION_LABEL[attestation.attestation_type as keyof typeof ATTESTATION_LABEL]} is no longer signed. Reason: ${reason}`,
-    targetUrl:  `/fsvp-records/${attestation.fsvp_record_id}`,
+    // An attestation targets either an FSVP record or an applicability
+    // determination — 008 gave the ledger a second kind of target.
+    targetUrl:  attestation.fsvp_record_id
+      ? `/fsvp-records/${attestation.fsvp_record_id}`
+      : "/applicability",
     severity:   "warning",
   });
 
