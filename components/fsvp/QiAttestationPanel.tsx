@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangle, BadgeCheck, CircleDashed, PenLine } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CircleDashed, MinusCircle, PenLine } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
   ATTESTATION_LABEL,
@@ -26,18 +26,20 @@ export type SignedAttestation = {
   current: boolean;
 };
 
-type SectionState = "signed" | "missing" | "stale";
+type SectionState = "signed" | "missing" | "stale" | "not_required";
 
 const STATE_TONE: Record<SectionState, StatusTone> = {
   signed: "success",
   stale: "warning",
   missing: "neutral",
+  not_required: "info",
 };
 
 const STATE_LABEL: Record<SectionState, string> = {
   signed: "Signed",
   stale: "Needs re-signing",
   missing: "Not signed",
+  not_required: "Not required",
 };
 
 function RevokeButton({ attestationId }: { attestationId: string }) {
@@ -132,7 +134,10 @@ export function QiAttestationPanel({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const signable = REQUIRED_ATTESTATION_TYPES.filter((t) => state[t] !== "signed");
+  // Nothing to offer for a section this record does not need signed.
+  const signable = REQUIRED_ATTESTATION_TYPES.filter(
+    (t) => state[t] !== "signed" && state[t] !== "not_required"
+  );
 
   function toggle(type: RequiredAttestationType) {
     setSelected((prev) =>
@@ -179,13 +184,25 @@ export function QiAttestationPanel({
                   <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                 ) : s === "stale" ? (
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                ) : s === "not_required" ? (
+                  <MinusCircle className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
                 ) : (
                   <CircleDashed className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                 )}
-                <p className="text-sm font-semibold text-ink">{ATTESTATION_LABEL[type]}</p>
+                <p className={`text-sm font-semibold ${s === "not_required" ? "text-slate-500" : "text-ink"}`}>
+                  {ATTESTATION_LABEL[type]}
+                </p>
               </div>
               <StatusBadge tone={STATE_TONE[s]}>{STATE_LABEL[s]}</StatusBadge>
             </div>
+
+            {s === "not_required" && (
+              <p className="mt-2 text-xs text-slate-600">
+                Not required for this record. The applicability determination above places this food
+                under modified requirements, which do not call for this determination — so nobody is
+                asked to sign one.
+              </p>
+            )}
 
             {s === "stale" && (
               <p className="mt-2 text-xs text-amber-800">

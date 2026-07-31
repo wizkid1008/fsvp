@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { ATTESTATION_LABEL, hashAttestationContent } from "@/lib/fsvp/qi-attestation";
+import { basisSpec, OUTCOME_LABEL } from "@/lib/fsvp/applicability";
 
 export const runtime = "edge";
 
@@ -208,7 +209,7 @@ export async function POST(req: NextRequest) {
         id, status, overall_score, approved_at, approved_by_profile_id, reassessment_due_at,
         hazard_analysis_notes, supplier_evaluation_notes,
         facility_evaluation_notes, verification_determination,
-        importer_id, supplier_id,
+        importer_id, supplier_id, product_id,
         suppliers!inner(company_name, country, fda_registration_number, duns_number),
         facilities_verify!inner(facility_name, facility_type, fda_registration_number),
         products_verify!inner(product_name, country_of_origin, intended_use),
@@ -253,6 +254,18 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       const imp = importerRow.data ?? {};
 
+      // Whether FSVP applies to this food at all, and on what authority. Comes
+      // first in the package because it governs everything below it — for a
+      // modified determination it is the reason two of the three § 1.503
+      // attestations are absent, and an investigator should not have to infer that.
+      const { data: applicability } = await (admin.from("fsvp_applicability_determinations") as any)
+        .select("outcome, basis, citation, rationale, determined_at, expires_at, qualified_individuals(profile_id)")
+        .eq("importer_id", record.importer_id)
+        .eq("supplier_id", record.supplier_id)
+        .eq("product_id", record.product_id)
+        .is("superseded_at", null)
+        .maybeSingle();
+
       // § 1.503 / § 1.510(b): who was qualified, what they attested to, and when.
       // This is the part of the package an investigator turns to first, so it
       // prints the signature even when it has gone stale or been withdrawn —
@@ -278,6 +291,7 @@ export async function POST(req: NextRequest) {
         ...new Set([
           ...attestationRows.map((a) => a.signed_by_profile_id),
           record.approved_by_profile_id,
+          (applicability as any)?.qualified_individuals?.profile_id,
         ].filter(Boolean)),
       ] as string[];
 
@@ -349,6 +363,26 @@ td{padding:8px 12px;font-size:12px;border-bottom:1px solid #e2e8f0;}
 
 <h2>Facility &amp; Food</h2>
 <p class="meta">${esc(record.facilities_verify.facility_name)} (${esc(record.facilities_verify.facility_type)}) — ${esc(record.products_verify.product_name)}, origin ${esc(record.products_verify.country_of_origin ?? "—")}</p>
+
+<h2>FSVP Applicability</h2>
+${applicability
+  ? (() => {
+      const a = applicability as any;
+      const spec = basisSpec(a.basis);
+      const signer = personName.get(a.qualified_individuals?.profile_id ?? "") ?? "Unknown";
+      return `<p class="meta"><strong>${esc(OUTCOME_LABEL[a.outcome as "in_scope" | "exempt" | "modified"])}</strong>${
+        spec ? ` — ${esc(spec.label)}` : ""
+      } · ${esc(a.citation)}</p>
+      <p style="font-size:13px;white-space:pre-wrap;margin:6px 0 0;">${esc(a.rationale)}</p>
+      <p class="meta" style="margin-top:6px;">Determined ${new Date(a.determined_at).toLocaleDateString()} by ${esc(signer)}${
+        a.expires_at ? ` · review by ${new Date(a.expires_at).toLocaleDateString()}` : ""
+      }</p>${
+        a.outcome === "modified"
+          ? `<div class="note">Under ${esc(a.citation)} this food is subject to modified requirements. A hazard analysis and foreign supplier evaluation are not required, which is why no attestation for either appears below.</div>`
+          : ""
+      }`;
+    })()
+  : '<p class="meta" style="color:#94a3b8;">No applicability determination has been made for this food.</p>'}
 
 ${section("Hazard Analysis (§ 1.504)", record.hazard_analysis_notes)}
 ${section("Foreign Supplier Evaluation (§ 1.505)", record.supplier_evaluation_notes)}

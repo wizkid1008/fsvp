@@ -42,6 +42,12 @@ export type ImporterSignals = {
    * § 1.503 gate will refuse.
    */
   unsignedRecords: number;
+  /**
+   * Supplier/product pairs with no live applicability determination — never
+   * determined, or the determination has lapsed. No FSVP record can be opened
+   * or approved for these.
+   */
+  undeterminedPairs: number;
   /** True when nothing at all needs attention. */
   clear: boolean;
 };
@@ -64,8 +70,10 @@ export async function fetchImporterSignals(
   in60.setDate(in60.getDate() + 60);
   const in60Str = in60.toISOString().split("T")[0];
 
-  const [pendingRes, overdueRes, dueSoonRes, expiringRes, actionsRes, draftRes, signedRes, openRecordsRes] =
-    await Promise.all([
+  const [
+    pendingRes, overdueRes, dueSoonRes, expiringRes, actionsRes, draftRes,
+    signedRes, openRecordsRes, allProductsRes, determinationsRes,
+  ] = await Promise.all([
       // Importer-uploaded documents are accepted at upload, so they are not
       // pending anyone — excluding them keeps this from counting the importer's
       // own work as work.
@@ -129,6 +137,18 @@ export async function fetchImporterSignals(
         .select("id")
         .eq("importer_id", importerId)
         .in("status", PRE_APPROVAL_STATUSES),
+
+      // Every food this importer has, and every live determination, so the
+      // undetermined ones can be counted by subtraction — same shape as the
+      // unsigned-records count above.
+      supplierIds.length
+        ? (supabase.from("products_verify") as any).select("id").in("supplier_id", supplierIds)
+        : Promise.resolve({ data: [] }),
+
+      (supabase.from("fsvp_applicability_determinations") as any)
+        .select("product_id, expires_at")
+        .eq("importer_id", importerId)
+        .is("superseded_at", null),
     ]);
 
   const signedIds = new Set(
@@ -136,6 +156,15 @@ export async function fetchImporterSignals(
   );
   const openRecords = (openRecordsRes.data ?? []) as Array<{ id: string }>;
   const unsignedRecords = openRecords.filter((r) => !signedIds.has(r.id)).length;
+
+  const today = now.toISOString().slice(0, 10);
+  const liveDeterminedProducts = new Set(
+    ((determinationsRes.data ?? []) as Array<{ product_id: string; expires_at: string | null }>)
+      .filter((d) => !d.expires_at || d.expires_at >= today)
+      .map((d) => d.product_id)
+  );
+  const undeterminedPairs = ((allProductsRes.data ?? []) as Array<{ id: string }>)
+    .filter((p) => !liveDeterminedProducts.has(p.id)).length;
 
   const pendingReview = pendingRes.count ?? 0;
   const overdue  = (overdueRes.data ?? []) as SignalRow[];
@@ -152,9 +181,10 @@ export async function fetchImporterSignals(
     actions,
     drafts,
     unsignedRecords,
+    undeterminedPairs,
     clear:
       pendingReview === 0 && overdue.length === 0 && dueSoon.length === 0 &&
       expiring.length === 0 && actions.length === 0 && drafts.length === 0 &&
-      unsignedRecords === 0,
+      unsignedRecords === 0 && undeterminedPairs === 0,
   };
 }

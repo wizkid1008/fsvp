@@ -31,6 +31,7 @@ const fr: Messages = {
     auditLog: "Journal d'audit",
     fsvpRecords: "Dossiers FSVP",
     qualifiedIndividuals: "Personnes Qualifiées",
+    applicability: "Applicabilité FSVP",
     admin: "Administration",
     account: "Compte",
   },

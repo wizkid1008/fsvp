@@ -31,6 +31,7 @@ const ar: Messages = {
     auditLog: "سجل التدقيق",
     fsvpRecords: "سجلات FSVP",
     qualifiedIndividuals: "الأفراد المؤهلون",
+    applicability: "انطباق FSVP",
     admin: "الإدارة",
     account: "الحساب",
   },

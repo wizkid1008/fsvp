@@ -16,6 +16,9 @@ export default function NewFsvpRecordPage() {
   const [facilities, setFacilities] = useState<Array<{ id: string; facility_name: string; supplier_id: string | null }>>([]);
   const [products, setProducts] = useState<Array<{ id: string; product_name: string; facility_id: string | null; supplier_id: string | null }>>([]);
   const [ruleVersions, setRuleVersions] = useState<Array<{ id: string; version_number: number }>>([]);
+  const [determinations, setDeterminations] = useState<Array<{
+    product_id: string; outcome: string; citation: string; expires_at: string | null;
+  }>>([]);
 
   const [supplierId, setSupplierId] = useState("");
   const [facilityId, setFacilityId] = useState("");
@@ -25,15 +28,19 @@ export default function NewFsvpRecordPage() {
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
     async function load() {
-      const [suppliersRes, facilitiesRes, productsRes, versionsRes] = await Promise.all([
+      const [suppliersRes, facilitiesRes, productsRes, versionsRes, determinationsRes] = await Promise.all([
         (supabase.from("suppliers") as any).select("id, company_name, country").order("company_name"),
         (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
         (supabase.from("products_verify") as any).select("id, product_name, facility_id, supplier_id").order("product_name"),
         (supabase.from("rule_versions") as any).select("id, version_number").eq("status", "published").order("version_number", { ascending: false }),
+        (supabase.from("fsvp_applicability_determinations") as any)
+          .select("product_id, outcome, citation, expires_at")
+          .is("superseded_at", null),
       ]);
       setSuppliers(suppliersRes.data ?? []);
       setFacilities(facilitiesRes.data ?? []);
       setProducts(productsRes.data ?? []);
+      setDeterminations(determinationsRes.data ?? []);
       const vers = versionsRes.data ?? [];
       setRuleVersions(vers);
       if (vers.length > 0) setRuleVersionId(vers[0].id);
@@ -51,11 +58,30 @@ export default function NewFsvpRecordPage() {
       ? products.filter((p) => p.supplier_id === supplierId)
       : products;
 
+  // Whether FSVP applies decides whether a record may exist at all. The API
+  // enforces this; surfacing it here means the block is visible before submit
+  // rather than arriving as a 409.
+  const determination = productId ? determinations.find((d) => d.product_id === productId) : undefined;
+  const today = new Date().toISOString().slice(0, 10);
+  const applicabilityBlock = !productId
+    ? null
+    : !determination
+    ? "Nobody has determined whether FSVP applies to this food. A qualified individual must do that before a record can be opened."
+    : determination.outcome === "exempt"
+    ? `This food is exempt from FSVP under ${determination.citation}, so it does not need a record. The determination is the record.`
+    : determination.expires_at && determination.expires_at < today
+    ? `The applicability determination for this food expired on ${determination.expires_at}. A qualified individual must make a current one first.`
+    : null;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!supplierId || !facilityId || !productId || !ruleVersionId) {
       setError("All fields are required.");
+      return;
+    }
+    if (applicabilityBlock) {
+      setError(applicabilityBlock);
       return;
     }
     startTransition(async () => {
@@ -140,6 +166,20 @@ export default function NewFsvpRecordPage() {
           {facilityId && filteredProducts.length === 0 && (
             <p className="mt-1 text-xs text-amber-600">No products found for this facility.</p>
           )}
+          {applicabilityBlock && (
+            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-xs text-amber-900">{applicabilityBlock}</p>
+              <a href="/applicability" className="mt-1 inline-block text-xs font-semibold text-forest hover:underline">
+                Go to FSVP Applicability →
+              </a>
+            </div>
+          )}
+          {productId && !applicabilityBlock && determination && (
+            <p className="mt-2 text-xs text-slate-500">
+              {determination.outcome === "modified" ? "Modified requirements" : "Subject to FSVP"} ·{" "}
+              {determination.citation}
+            </p>
+          )}
         </div>
 
         <div>
@@ -169,7 +209,7 @@ export default function NewFsvpRecordPage() {
         <div className="flex gap-3 pt-2">
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || Boolean(applicabilityBlock)}
             className="inline-flex h-10 items-center rounded-md bg-forest px-6 text-sm font-semibold text-white hover:bg-[#195f4d] disabled:opacity-50"
           >
             {isPending ? "Creating…" : "Create FSVP Record"}

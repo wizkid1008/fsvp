@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { fetchDetermination, recordCreationBlock } from "@/lib/fsvp/applicability";
 
 export const runtime = "edge";
 
@@ -100,6 +101,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "That product is produced at a different facility than the one selected." },
       { status: 400 }
+    );
+  }
+
+  // Does FSVP apply to this food at all? § 1.501 exempts whole categories, and
+  // an exempt pair does not need a record — the determination IS the record.
+  // This also catches a pair nobody has determined yet, and one whose
+  // determination has lapsed, which need different messages.
+  const determination = await fetchDetermination(admin, profile.importer_id, supplier_id, product_id);
+  const block = recordCreationBlock(determination);
+  if (block) {
+    return NextResponse.json(
+      { error: block, outcome: determination?.outcome ?? null },
+      { status: determination?.outcome === "exempt" ? 409 : 400 }
     );
   }
 

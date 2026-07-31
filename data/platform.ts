@@ -12,6 +12,7 @@ import {
   Gauge,
   LayoutDashboard,
   PackageSearch,
+  Scale,
   Settings,
   ShieldCheck,
   UserRound,
@@ -34,6 +35,7 @@ export const iconMap = {
   Gauge,
   LayoutDashboard,
   PackageSearch,
+  Scale,
   Settings,
   ShieldCheck,
   UserRound,
@@ -79,6 +81,9 @@ export const navItems: NavItem[] = [
   // Reviewers are included on the first two because a tenant-scoped reviewer is
   // how an FSVP qualified individual holds a login (004_reviewer_tenancy.sql).
   // They have to reach the record to sign it, and the register to see their scope.
+  // Applicability comes before FSVP Records because it decides whether a record
+  // is needed at all — an exempt food never gets one.
+  { href: "/applicability",         label: "FSVP Applicability",     icon: "Scale",          roles: ["us_importer", "reviewer"], matches: ["/applicability"], tKey: "nav.applicability", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/fsvp-records",          label: "FSVP Records",           icon: "FolderCheck",    roles: ["us_importer", "reviewer"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/qualified-individuals", label: "Qualified Individuals",  icon: "BadgeCheck",     roles: ["us_importer", "reviewer"], matches: ["/qualified-individuals"], tKey: "nav.qualifiedIndividuals", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/importer-review",       label: "Supplier Submissions",   icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview", group: "Compliance", groupTKey: "nav.groupCompliance" },

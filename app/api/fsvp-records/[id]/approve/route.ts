@@ -6,6 +6,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isValidDecision, isValidReassessmentMonths, statusForDecision, type ApprovalDecision } from "@/lib/fsvp/status-transitions";
 import { evaluateAttestations } from "@/lib/fsvp/qi-attestation";
+import { fetchDetermination, isDeterminationLive } from "@/lib/fsvp/applicability";
 import { scoreFsvpRecord } from "@/lib/scoring";
 import { notify } from "@/lib/notifications/notify";
 
@@ -97,7 +98,37 @@ export async function POST(
       );
     }
 
-    const attestations = await evaluateAttestations(record, attestationRows ?? []);
+    // How FSVP applies to this food decides what has to be signed. A very small
+    // importer is not required to conduct a hazard analysis or supplier
+    // evaluation (§ 1.512), so demanding signatures on either would be asking a
+    // qualified individual to attest to work the regulation never called for.
+    const determination = await fetchDetermination(
+      admin, record.importer_id, record.supplier_id, record.product_id
+    );
+
+    if (!determination) {
+      return NextResponse.json(
+        {
+          error:
+            "Cannot approve: nobody has determined whether FSVP applies to this food. " +
+            "A qualified individual must make an applicability determination first.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!isDeterminationLive(determination)) {
+      return NextResponse.json(
+        {
+          error:
+            `Cannot approve: the applicability determination for this food expired on ${determination.expires_at}. ` +
+            "A qualified individual must make a current one.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const attestations = await evaluateAttestations(record, attestationRows ?? [], determination.outcome);
     if (!attestations.satisfied) {
       return NextResponse.json(
         {
