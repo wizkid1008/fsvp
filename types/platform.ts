@@ -9,6 +9,11 @@ export type NavItem = {
   matches?: string[];
   roles?: AppRole[];
   tKey?: string;
+  // Sidebar section heading. AppShell prints it whenever the group changes
+  // between consecutive visible items, so items sharing a group must sit
+  // together in the array. Omit for items that stand alone (Dashboard, Admin).
+  group?: string;
+  groupTKey?: string;
   // "exporter" = export-eligible supplier types (exporter, exporter_manufacturer, trader)
   // "manufacturer" = non-exporting types (manufacturer, broker)
   // If omitted, shown to all supplier types

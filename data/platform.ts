@@ -44,35 +44,54 @@ export const iconMap = {
 // supplierTypes: if set, item only shows when the logged-in supplier's
 // supplier_type is in this list. "exporter" means export-eligible types
 // (exporter, exporter_manufacturer, trader). "manufacturer" means non-exporters.
+//
+// ORDER MATTERS TWICE. Items render in array order, and AppShell prints a group
+// heading whenever `group` changes between consecutive VISIBLE items — so items
+// sharing a group must be adjacent, and a role's items must appear in the order
+// that role actually works in.
+//
+// The importer order follows the data model: an exporter must exist before it
+// can have a facility, and a facility before a product. It previously read
+// Facilities → Products → Exporters, because importers were bolted onto the
+// shared exporter/supplier block, which sits earlier in this array. That sent a
+// new importer into two dead ends before reaching the thing they needed first.
+// Facilities and Products are now split per side so each can sit where it
+// belongs.
 export const navItems: NavItem[] = [
   { href: "/dashboard",    label: "Dashboard",     icon: "LayoutDashboard", tKey: "nav.dashboard" },
 
-  // ── Exporter nav (manages supply chain) ─────────────────────
+  // ── Exporter / supplier nav ──────────────────────────────────
   { href: "/corporate",    label: "Company Overview", icon: "Building2", roles: ["exporter", "supplier"], matches: ["/corporate"], tKey: "nav.companyOverview" },
   { href: "/my-suppliers", label: "Suppliers",    icon: "UsersRound",    roles: ["exporter"],              matches: ["/my-suppliers"], tKey: "nav.suppliers" },
-
-  // ── Both exporter and supplier ───────────────────────────────
-  // Importers need these too: a managed exporter has no account of its own, so
-  // someone has to create its facilities and products, and that someone is the
-  // importer. They were previously linked from the dashboard tiles and the
-  // onboarding modal but absent from the importer's nav.
-  { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier", "us_importer", "administrator"], tKey: "nav.facilities" },
-  { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier", "us_importer", "administrator"], tKey: "nav.products" },
+  { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier"], tKey: "nav.facilities" },
+  { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier"], tKey: "nav.products" },
   { href: "/my-evidence",  label: "My Evidence",  icon: "FileArchive",   roles: ["exporter", "supplier"], tKey: "nav.myEvidence" },
 
-  // ── Importer nav ─────────────────────────────────────────────
-  { href: "/suppliers",        label: "Exporters",       icon: "Building2",      roles: ["us_importer"], tKey: "nav.exporters" },
-  // Reviewers are included on these two because a tenant-scoped reviewer is how
-  // an FSVP qualified individual holds a login (004_reviewer_tenancy.sql). They
-  // have to reach the record to sign it, and the register to see their own scope.
-  { href: "/fsvp-records",     label: "FSVP Records",    icon: "FolderCheck",    roles: ["us_importer", "reviewer"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords" },
-  { href: "/qualified-individuals", label: "Qualified Individuals", icon: "BadgeCheck", roles: ["us_importer", "reviewer"], matches: ["/qualified-individuals"], tKey: "nav.qualifiedIndividuals" },
-  { href: "/evidence",         label: "Evidence",        icon: "FileArchive",    roles: ["us_importer"], tKey: "nav.evidence" },
-  { href: "/importer-review",  label: "Review Queue",    icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview" },
-  { href: "/gaps-actions",     label: "Gaps & Actions",  icon: "AlertTriangle",  roles: ["us_importer"], matches: ["/gaps-actions"], tKey: "nav.gapsActions" },
-  { href: "/readiness",        label: "Readiness",       icon: "Gauge",          roles: ["us_importer"], matches: ["/readiness"], tKey: "nav.readiness" },
-  { href: "/reports",          label: "Reports",         icon: "FileCheck2",     roles: ["us_importer"], matches: ["/reports"], tKey: "nav.reports" },
-  { href: "/notifications",    label: "Notifications",   icon: "Bell",           roles: ["us_importer"], tKey: "nav.notifications" },
+  // ── Importer: supply chain ───────────────────────────────────
+  // The importer owns Facilities and Products too — a managed exporter has no
+  // account of its own, so someone has to create them, and that someone is the
+  // importer.
+  { href: "/suppliers",    label: "Exporters",    icon: "Building2",     roles: ["us_importer"], tKey: "nav.exporters",  group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
+  { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["us_importer", "administrator"], tKey: "nav.facilities", group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
+  { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["us_importer", "administrator"], tKey: "nav.products",   group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
+
+  // ── Importer: compliance ─────────────────────────────────────
+  // Reviewers are included on the first two because a tenant-scoped reviewer is
+  // how an FSVP qualified individual holds a login (004_reviewer_tenancy.sql).
+  // They have to reach the record to sign it, and the register to see their scope.
+  { href: "/fsvp-records",          label: "FSVP Records",           icon: "FolderCheck",    roles: ["us_importer", "reviewer"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords", group: "Compliance", groupTKey: "nav.groupCompliance" },
+  { href: "/qualified-individuals", label: "Qualified Individuals",  icon: "BadgeCheck",     roles: ["us_importer", "reviewer"], matches: ["/qualified-individuals"], tKey: "nav.qualifiedIndividuals", group: "Compliance", groupTKey: "nav.groupCompliance" },
+  { href: "/importer-review",       label: "Supplier Submissions",   icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview", group: "Compliance", groupTKey: "nav.groupCompliance" },
+  { href: "/evidence",              label: "Document Library",       icon: "FileArchive",    roles: ["us_importer"], tKey: "nav.evidence",       group: "Compliance", groupTKey: "nav.groupCompliance" },
+
+  // ── Importer: monitoring ─────────────────────────────────────
+  { href: "/readiness",    label: "Readiness",      icon: "Gauge",         roles: ["us_importer"], matches: ["/readiness"],    tKey: "nav.readiness",   group: "Monitoring", groupTKey: "nav.groupMonitoring" },
+  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer"], matches: ["/gaps-actions"], tKey: "nav.gapsActions", group: "Monitoring", groupTKey: "nav.groupMonitoring" },
+  { href: "/reports",      label: "Reports",        icon: "FileCheck2",    roles: ["us_importer"], matches: ["/reports"],      tKey: "nav.reports",     group: "Monitoring", groupTKey: "nav.groupMonitoring" },
+
+  // Notifications is not a workspace — it lives in the header bell now
+  // (components/layout/NotificationBell.tsx) rather than competing with real
+  // destinations in the sidebar. The /notifications page still exists.
 
   // ── Reviewer + Admin nav ─────────────────────────────────────
   { href: "/reviewer",     label: "Review Queue",  icon: "ClipboardCheck", roles: ["reviewer", "administrator"], tKey: "nav.reviewQueue" },

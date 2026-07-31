@@ -16,6 +16,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
 import { FsvpProcessFlow } from "@/components/dashboard/FsvpProcessFlow";
+import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
 import type { StatusTone } from "@/types/platform";
 
 async function ImporterDashboard({
@@ -29,17 +30,9 @@ async function ImporterDashboard({
 }) {
   const [
     { count: supplierCount },
-    { count: productCount },
-    { count: facilityCount },
-    { count: documentCount },
-    { count: actionCount },
     { data: rawFsvp },
   ] = await Promise.all([
     supabase.from("suppliers").select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>,
-    supabase.from("products_verify").select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>,
-    supabase.from("facilities_verify").select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>,
-    supabase.from("documents").select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>,
-    (supabase.from("corrective_actions") as any).select("id", { count: "exact", head: true }).eq("status", "open") as Promise<{ count: number | null }>,
     (supabase.from("fsvp_records") as any)
       .select("id, status, reassessment_due_at, facilities_verify(facility_name), products_verify(product_name)"),
   ]);
@@ -68,13 +61,24 @@ async function ImporterDashboard({
     reassessmentDue: fsvpRows.filter((r) => r.reassessment_due_at && new Date(r.reassessment_due_at) <= now).length,
   };
 
-  const metrics = [
-    { label: "Exporters",    value: supplierCount ?? 0,  href: "/suppliers",    tone: "info"    as StatusTone },
-    { label: "Products",     value: productCount ?? 0,   href: "/products",     tone: "info"    as StatusTone },
-    { label: "Facilities",   value: facilityCount ?? 0,  href: "/facilities",   tone: "info"    as StatusTone },
-    { label: "Evidence",     value: documentCount ?? 0,  href: "/evidence",     tone: "info"    as StatusTone },
-    { label: "Open Actions", value: actionCount ?? 0,    href: "/gaps-actions", tone: (actionCount ?? 0) > 0 ? "danger" as StatusTone : "success" as StatusTone },
-  ];
+  const signals = importerId
+    ? await fetchImporterSignals(supabase, importerId, supplierIds)
+    : null;
+
+  // These used to be Exporters / Products / Facilities / Evidence / Open Actions
+  // — every one of which is a sidebar item, so the row was a second nav with
+  // counts bolted on. What an importer needs on opening the app is not how many
+  // products exist but what is about to go wrong, so each tile is now a thing
+  // that needs doing and links to the view that shows it.
+  const metrics: Array<{ label: string; value: number; href: string; danger: boolean }> = signals
+    ? [
+        { label: "Awaiting your review",   value: signals.pendingReview,      href: "/importer-review", danger: false },
+        { label: "Expiring in 60 days",    value: signals.expiring.length,    href: "/evidence",        danger: true  },
+        { label: "Reassessments overdue",  value: signals.overdue.length,     href: "/fsvp-records",    danger: true  },
+        { label: "Open corrective actions",value: signals.actions.length,     href: "/gaps-actions",    danger: true  },
+        { label: "Records unsigned",       value: signals.unsignedRecords,    href: "/fsvp-records",    danger: false },
+      ]
+    : [];
 
   return (
     <div className="space-y-6">
@@ -94,23 +98,33 @@ async function ImporterDashboard({
         </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {metrics.map((m) => (
-          <Link key={m.label} href={m.href}
-            className="group flex items-center justify-between rounded-lg border border-line bg-white p-4 shadow-soft hover:border-forest transition">
-            <p className="text-sm font-semibold text-slate-600 group-hover:text-forest">{m.label}</p>
-            <p className="text-3xl font-bold text-ink">{m.value}</p>
-          </Link>
-        ))}
-      </div>
-
-      {importerId && (
-        <ImporterActionsSection
-          importerId={importerId}
-          supplierIds={supplierIds}
-          supabase={supabase}
-        />
+      {signals && !signals.clear && (
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {metrics.map((m) => (
+            <Link key={m.label} href={m.href}
+              className="group flex flex-col justify-between gap-2 rounded-lg border border-line bg-white p-4 shadow-soft transition hover:border-forest">
+              <p className="text-sm font-semibold text-slate-600 group-hover:text-forest">{m.label}</p>
+              <p className={`text-3xl font-bold ${
+                m.value === 0 ? "text-slate-300" : m.danger ? "text-red-600" : "text-ink"
+              }`}>
+                {m.value}
+              </p>
+            </Link>
+          ))}
+        </div>
       )}
+
+      {signals?.clear && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4">
+          <p className="text-sm font-semibold text-emerald-900">Nothing needs your attention</p>
+          <p className="mt-0.5 text-sm text-emerald-800">
+            No evidence waiting on you, nothing expiring in the next 60 days, no overdue
+            reassessments, and every open record carries a qualified individual signature.
+          </p>
+        </div>
+      )}
+
+      {signals && <ImporterActionsSection signals={signals} />}
 
       {fsvpRows.length > 0 && (
         <FsvpProcessFlow

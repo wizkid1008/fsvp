@@ -133,28 +133,42 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-white text-black">
-      <aside className="fixed bottom-0 left-0 top-[72px] hidden w-72 overflow-y-auto border-r border-black/10 bg-white p-5 lg:block">
-        <nav className="space-y-1">
-          {visibleItems.map((item) => {
+      {/* Flex column rather than an absolutely positioned footer: the account
+          block used to be `absolute bottom-0` inside this scrolling aside, so
+          with a dozen items plus group headings it could sit on top of the nav
+          on a short viewport. */}
+      <aside className="fixed bottom-0 left-0 top-[72px] hidden w-72 flex-col border-r border-black/10 bg-white lg:flex">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-5">
+          {visibleItems.map((item, i) => {
             const Icon = iconMap[item.icon as keyof typeof iconMap];
             const active = pathname === item.href || item.matches?.some((r) => pathname.startsWith(r));
+            // Print the heading when the group changes between consecutive
+            // visible items, so a group that is entirely filtered out for this
+            // role leaves no orphaned heading behind.
+            const showGroup = item.group && item.group !== visibleItems[i - 1]?.group;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 text-sm font-bold transition",
-                  active ? "bg-black text-white" : "text-black/60 hover:bg-black/5 hover:text-black"
+              <div key={`${item.href}-${item.group ?? ""}`}>
+                {showGroup && (
+                  <p className="px-3 pb-1.5 pt-5 text-[10px] font-semibold uppercase tracking-widest text-black/40">
+                    {item.groupTKey ? t(item.groupTKey) : item.group}
+                  </p>
                 )}
-              >
-                <Icon className="h-4 w-4" />
-                {item.tKey ? t(item.tKey) : item.label}
-              </Link>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 text-sm font-bold transition",
+                    active ? "bg-black text-white" : "text-black/60 hover:bg-black/5 hover:text-black"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.tKey ? t(item.tKey) : item.label}
+                </Link>
+              </div>
             );
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 border-t border-black/10 p-4 space-y-3">
+        <div className="shrink-0 border-t border-black/10 p-4 space-y-3">
           <LanguageSwitcher currentLocale={locale} />
           <div className="group relative">
             <Link href="/account" className="flex items-center gap-3">
@@ -194,7 +208,7 @@ export function AppShell({
         <nav className="flex gap-2 overflow-x-auto border-b border-black/10 bg-white/95 px-5 py-2 lg:hidden">
           {visibleItems.map((item) => (
             <Link
-              key={item.href}
+              key={`${item.href}-${item.group ?? ""}`}
               href={item.href}
               className={cn(
                 "whitespace-nowrap border px-3 py-2 text-sm font-bold",
