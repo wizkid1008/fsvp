@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { useLocale } from "@/components/i18n/LocaleProvider";
+import { NotificationBell } from "./NotificationBell";
 
 type MenuKey = "platform" | "suppliers" | "importers";
 
@@ -93,6 +94,12 @@ export function SiteMenu() {
             <span className="block truncate text-base font-black uppercase tracking-[0.08em]">{APP_NAME}</span>
           </span>
         </Link>
+        {/* Marketing navigation, signed out only. Once you are in the app this
+            bar is a place for app controls: the mega-menu's dropdowns are mostly
+            non-clickable copy, and its "Suppliers" link points at /suppliers —
+            the page the importer sidebar calls Exporters. Two names for one
+            destination, in two different navs. */}
+        {!loggedIn && (
         <nav className="group hidden items-center gap-8 md:flex" aria-label="Primary navigation">
           {menuItems.map((item) => {
             const active = pathname === item.activeHref;
@@ -133,9 +140,10 @@ export function SiteMenu() {
             </div>
           </div>
         </nav>
+        )}
         <div className="flex shrink-0 items-center gap-3">
           {loggedIn ? (
-            null
+            <NotificationBell />
           ) : (
             <>
               <LanguageSwitcher currentLocale={locale} variant="menu" />
@@ -152,6 +160,9 @@ export function SiteMenu() {
           )}
         </div>
       </div>
+      {/* Signed in, AppShell renders its own mobile nav below this bar; two
+          scrolling strips stacked on a phone is one too many. */}
+      {!loggedIn && (
       <nav className="flex gap-2 overflow-x-auto border-t border-white/15 px-5 py-2 md:hidden" aria-label="Mobile primary navigation">
         {menuItems.map((item) => {
           const href = loggedIn ? item.activeHref : item.href;
@@ -169,6 +180,7 @@ export function SiteMenu() {
           );
         })}
       </nav>
+      )}
     </header>
   );
 }

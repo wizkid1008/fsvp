@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { AlertCircle, ArrowRight, Clock, ClipboardCheck, FileWarning } from "lucide-react";
-
-type SupabaseLike = { from: (table: string) => any };
+import type { ImporterSignals } from "@/lib/dashboard/importer-signals";
 
 /**
  * "What is blocking me?" for an importer.
@@ -11,79 +10,12 @@ type SupabaseLike = { from: (table: string) => any };
  * — so the party who actually owns the FSVP obligation had no task list at all.
  * This is the importer equivalent: everything that needs a decision, ordered by
  * how close it is to becoming a problem.
+ *
+ * The queries moved to lib/dashboard/importer-signals.ts so the tiles above can
+ * read the same numbers rather than running a second, different set.
  */
-export async function ImporterActionsSection({
-  importerId,
-  supplierIds,
-  supabase,
-}: {
-  importerId: string;
-  supplierIds: string[];
-  supabase: SupabaseLike;
-}) {
-  const in60 = new Date();
-  in60.setDate(in60.getDate() + 60);
-  const in60Str = in60.toISOString().split("T")[0];
-
-  const [pendingRes, overdueRes, dueSoonRes, expiringRes, actionsRes, draftRes] = await Promise.all([
-    // Evidence waiting on the importer. Importer-uploaded documents are
-    // accepted at upload, so they are not "pending" anyone.
-    supplierIds.length
-      ? (supabase.from("documents") as any)
-          .select("id", { count: "exact", head: true })
-          .in("supplier_id", supplierIds)
-          .is("soft_deleted_at", null)
-          .in("evidence_status", ["submitted", "under_review"])
-          .neq("evidence_source", "importer_uploaded")
-      : Promise.resolve({ count: 0 }),
-
-    (supabase.from("fsvp_records") as any)
-      .select("id, reassessment_due_at, suppliers(company_name), products_verify(product_name)")
-      .eq("importer_id", importerId)
-      .lt("reassessment_due_at", new Date().toISOString())
-      .in("status", ["importer_approved", "conditionally_approved"])
-      .order("reassessment_due_at"),
-
-    (supabase.from("fsvp_records") as any)
-      .select("id, reassessment_due_at, suppliers(company_name), products_verify(product_name)")
-      .eq("importer_id", importerId)
-      .gte("reassessment_due_at", new Date().toISOString())
-      .lte("reassessment_due_at", in60.toISOString())
-      .in("status", ["importer_approved", "conditionally_approved"])
-      .order("reassessment_due_at"),
-
-    supplierIds.length
-      ? (supabase.from("documents") as any)
-          .select("id, title, expiration_date, supplier_id")
-          .in("supplier_id", supplierIds)
-          .is("soft_deleted_at", null)
-          .eq("evidence_status", "accepted")
-          .not("expiration_date", "is", null)
-          .lte("expiration_date", in60Str)
-          .order("expiration_date")
-          .limit(6)
-      : Promise.resolve({ data: [] }),
-
-    (supabase.from("corrective_actions") as any)
-      .select("id, issue_description, triggered_at, suppliers(company_name)")
-      .eq("importer_id", importerId)
-      .in("status", ["open", "in_progress"])
-      .order("triggered_at")
-      .limit(5),
-
-    (supabase.from("fsvp_records") as any)
-      .select("id, suppliers(company_name), products_verify(product_name)")
-      .eq("importer_id", importerId)
-      .eq("status", "draft")
-      .limit(5),
-  ]);
-
-  const pendingReview = pendingRes.count ?? 0;
-  const overdue   = (overdueRes.data ?? []) as any[];
-  const dueSoon   = (dueSoonRes.data ?? []) as any[];
-  const expiring  = (expiringRes.data ?? []) as any[];
-  const actions   = (actionsRes.data ?? []) as any[];
-  const drafts    = (draftRes.data ?? []) as any[];
+export function ImporterActionsSection({ signals }: { signals: ImporterSignals }) {
+  const { pendingReview, overdue, dueSoon, expiring, actions, drafts } = signals;
 
   const nothingToDo =
     pendingReview === 0 && overdue.length === 0 && dueSoon.length === 0 &&

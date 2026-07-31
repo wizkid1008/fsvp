@@ -34,8 +34,8 @@ export default async function ImporterReviewPage() {
   return (
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
-        title="Supplier Review Queue"
-        description="Review evidence submitted by your suppliers. Accept compliant documents, request revisions, or reject non-compliant submissions."
+        title="Supplier Submissions"
+        description="Evidence your exporters have submitted and are waiting on you. Accept compliant documents, request revisions, or reject non-compliant submissions. Everything you have already accepted lives in the Document Library."
       />
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">

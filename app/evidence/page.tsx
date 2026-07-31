@@ -133,8 +133,8 @@ export default async function EvidencePage({
   return (
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
-        title="Evidence"
-        description="Upload and manage FSVP evidence documents, track review status, and map each document to its regulatory requirement."
+        title="Document Library"
+        description="Every FSVP evidence document across your exporters. Upload here, track review status, and map each document to the requirement it satisfies. Documents your exporters submit for review arrive in Supplier Submissions."
       />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_300px]">
