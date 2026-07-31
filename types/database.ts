@@ -594,6 +594,37 @@ export type ReassessmentSchedule = {
   updated_at: string;
 };
 
+export type FormDefinition = {
+  id: string;
+  rule_version_id: string;
+  requirement_item_id: string;
+  form_key: string;
+  title: string;
+  description: string | null;
+  /** Validated by parseFormSchema in lib/forms/schema.ts, not by the database. */
+  schema_json: Json;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FormResponse = {
+  id: string;
+  form_definition_id: string;
+  supplier_id: string;
+  importer_id: string | null;
+  requirement_item_id: string | null;
+  version: number;
+  answers_json: Json;
+  /** Review status lives on the rendered document, not here. */
+  status: "draft" | "submitted";
+  document_id: string | null;
+  submitted_by_profile_id: string | null;
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type QualificationBasis = "education" | "training" | "experience" | "combination";
 
 export type QualifiedIndividual = {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { DOCUMENT_BUCKET, DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { resolveProvenance } from "@/lib/evidence/provenance";
 import type { Database } from "@/types/database";
 
 export const runtime = "edge";
@@ -181,26 +182,23 @@ export async function POST(request: Request) {
   // upload is fully valid. This is fixed permanently by migration 028.
   const adminDb = createAdminSupabaseClient();
 
-  // Evidence provenance. A document the importer keyed in themselves is not the
-  // same evidentiary artifact as one the supplier attested to, and an FDA
-  // investigator will read the two differently — so keep them distinguishable.
-  // The export package prints this column.
-  const uploaderIsSupplierSide =
-    uploaderProfile?.supplier_id && uploaderProfile.supplier_id === resolvedSupplierId;
-  const evidenceSource = uploaderIsSupplierSide ? "supplier_attested" : "importer_uploaded";
-
-  // Importer-uploaded evidence does not enter the review queue as "submitted".
-  // The review queue is the importer reviewing their supplier; asking them to
-  // review their own upload would be theatre, and would inflate the pending
-  // count with work that does not exist.
-  const evidenceStatus = evidenceSource === "importer_uploaded" ? "accepted" : "submitted";
+  // Evidence provenance, and what it implies for the review queue. Shared with
+  // the form-submission route so an uploaded questionnaire and a completed one
+  // are treated identically — see lib/evidence/provenance.ts for the reasoning.
+  const provenance = resolveProvenance({
+    uploaderSupplierId: uploaderProfile?.supplier_id,
+    targetSupplierId: resolvedSupplierId,
+    uploaderProfileId: user.id,
+    attestedByName,
+    attestedAt,
+  });
 
   const documentRecord: Record<string, unknown> = {
     importer_id: resolvedImporterId,
     supplier_id: resolvedSupplierId || null,
-    evidence_source: evidenceSource,
-    attested_by_name: attestedByName || null,
-    attested_at: attestedAt || (evidenceSource === "importer_uploaded" ? new Date().toISOString() : null),
+    evidence_source: provenance.evidence_source,
+    attested_by_name: provenance.attested_by_name,
+    attested_at: provenance.attested_at,
     document_kind: documentKind,
     title: title || file.name,
     storage_path: storagePath,
@@ -215,8 +213,8 @@ export async function POST(request: Request) {
     facility_id: linkType === "facility" ? facilityId || null : linkedProductFacilityId,
     expiration_date: expirationDate || null,
     uploaded_by_profile_id: user.id,
-    evidence_status: evidenceStatus,
-    reviewer_profile_id: evidenceSource === "importer_uploaded" ? user.id : null,
+    evidence_status: provenance.evidence_status,
+    reviewer_profile_id: provenance.reviewer_profile_id,
     uploaded_via: "app"
   };
 

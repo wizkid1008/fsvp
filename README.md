@@ -99,6 +99,10 @@ npm test
    - `005_qualified_individuals.sql` — QI register and attestation ledger
      (**required** — the record page and the approval gate both read `qi_attestations`,
      so deploying the app without this migration breaks both)
+   - `006_evidence_forms.sql` — online forms as evidence
+     (**required** — the evidence checklists read `form_definitions`)
+   - `007_seed_evidence_forms.sql` — the standard supplier questionnaire and contact forms,
+     and the `evidence_type = 'form'` flag that makes those items answerable in the app
 
    Migrations `001`–`044` were collapsed into this baseline on 2026-07-30 and are kept
    under `supabase/migrations/archive/` for reference. Do not run them; see

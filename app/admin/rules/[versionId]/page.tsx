@@ -4,6 +4,11 @@ import { AppShell } from "@/components/layout/AppShell";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ScoringWeightsEditor } from "@/components/admin/rules/ScoringWeightsEditor";
 import { RequirementItemsPanel } from "@/components/admin/rules/RequirementItemsPanel";
+import {
+  FormDefinitionsPanel,
+  type FormDefinitionRow,
+  type FormItemOption,
+} from "@/components/admin/rules/FormDefinitionsPanel";
 import { ApprovalThresholdsEditor } from "@/components/admin/rules/ApprovalThresholdsEditor";
 import {
   CloneVersionButton,
@@ -100,6 +105,24 @@ export default async function RuleVersionPage({
     items: (rawItems ?? []).filter((i: { section_id: string }) => i.section_id === s.id),
   }));
 
+  const { data: rawForms } = await (supabase.from("form_definitions") as any)
+    .select("id, requirement_item_id, form_key, title, description, schema_json")
+    .eq("rule_version_id", versionId);
+
+  const formDefinitions = (rawForms ?? []) as FormDefinitionRow[];
+
+  const formItems: FormItemOption[] = (rawItems ?? []).map((i: {
+    id: string;
+    item_name: string;
+    item_key: string;
+    evidence_type: string | null;
+  }) => ({
+    id: i.id,
+    item_name: i.item_name,
+    item_key: i.item_key,
+    evidence_type: i.evidence_type,
+  }));
+
   const statusTone: StatusTone =
     version.status === "published" ? "success" :
     version.status === "draft" ? "info" : "neutral";
@@ -175,6 +198,24 @@ export default async function RuleVersionPage({
             </p>
           </div>
           <RequirementItemsPanel sections={sections} isDraft={isDraft} />
+        </section>
+
+        {/* Online forms */}
+        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <div className="mb-5 border-b border-line pb-4">
+            <h2 className="text-base font-semibold text-ink">Online Forms</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Requirement items that are questions rather than documents the supplier already holds.
+              An item with a form is answered in the app; the answers are rendered to a document so
+              the rest of the platform treats them as ordinary evidence.
+            </p>
+          </div>
+          <FormDefinitionsPanel
+            ruleVersionId={versionId}
+            isDraft={isDraft}
+            items={formItems}
+            forms={formDefinitions}
+          />
         </section>
 
         {/* Approval Thresholds */}
