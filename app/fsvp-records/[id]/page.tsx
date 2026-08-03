@@ -12,6 +12,7 @@ import { InspectionPackageButton } from "@/components/fsvp/InspectionPackageButt
 import { ReassessmentSection } from "@/components/fsvp/ReassessmentSection";
 import { QiAttestationPanel, type SignedAttestation } from "@/components/fsvp/QiAttestationPanel";
 import { evaluateAttestations, hashAttestationContent } from "@/lib/fsvp/qi-attestation";
+import { basisSpec, fetchDetermination, isDeterminationLive, OUTCOME_LABEL } from "@/lib/fsvp/applicability";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -236,7 +237,26 @@ export default async function FsvpRecordPage({
     .order("signed_at", { ascending: false });
 
   const attestationRows = (rawAttestations ?? []) as AttestationRow[];
-  const attestationEval = await evaluateAttestations(record, attestationRows as any);
+
+  // How FSVP applies to this food governs what has to be signed — see
+  // requiredTypesFor in lib/fsvp/qi-attestation.ts.
+  const determination = await fetchDetermination(
+    admin, record.importer_id, supplier.id, product.id
+  );
+  const determinationLive = determination ? isDeterminationLive(determination) : false;
+  const determinationSpec = determination ? basisSpec(determination.basis) : null;
+
+  const attestationEval = await evaluateAttestations(
+    record,
+    attestationRows as any,
+    determinationLive ? determination!.outcome : null
+  );
+
+  const applicabilityBlock = !determination
+    ? "Nobody has determined whether FSVP applies to this food. A qualified individual must do that before the record can be approved."
+    : !determinationLive
+    ? `The applicability determination for this food expired on ${determination.expires_at}. A qualified individual must make a current one.`
+    : null;
 
   const signerIds = [...new Set(attestationRows.map((a) => a.signed_by_profile_id))];
   const { data: rawSigners } = signerIds.length > 0
@@ -485,14 +505,57 @@ export default async function FsvpRecordPage({
           </section>
         )}
 
+        {/* Applicability */}
+        <section className={`rounded-lg border p-5 shadow-soft ${
+          applicabilityBlock ? "border-amber-200 bg-amber-50" : "border-line bg-white"
+        }`}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-ink">How FSVP Applies</h2>
+              {applicabilityBlock ? (
+                <p className="mt-1 max-w-2xl text-sm text-amber-900">{applicabilityBlock}</p>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm text-slate-700">
+                    <span className="font-semibold">{OUTCOME_LABEL[determination!.outcome]}</span>
+                    {determinationSpec && <> — {determinationSpec.label}</>}
+                    <span className="text-slate-500"> · {determination!.citation}</span>
+                  </p>
+                  {determination!.outcome === "modified" && (
+                    <p className="mt-1 max-w-2xl text-sm text-slate-600">
+                      Under {determination!.citation} this record does not require a hazard analysis
+                      or a foreign supplier evaluation. The verification activities determination is
+                      still required, because the written assurance that replaces them is itself a
+                      verification activity.
+                    </p>
+                  )}
+                  {determination!.expires_at && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Expires {new Date(determination!.expires_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+            <Link
+              href="/applicability"
+              className="inline-flex h-9 items-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
+            >
+              {determination ? "Review determination" : "Determine applicability"}
+            </Link>
+          </div>
+        </section>
+
         {/* Qualified individual attestations */}
         <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="mb-5 border-b border-line pb-4">
             <h2 className="text-base font-semibold text-ink">Qualified Individual Attestations</h2>
             <p className="mt-1 text-sm text-slate-500">
-              § 1.503 requires a qualified individual to perform or oversee each of these
-              determinations, and § 1.510(b) requires the record to be signed and dated. All three
-              must carry a current signature before this record can be approved.
+              § 1.503 requires a qualified individual to perform or oversee these determinations, and
+              § 1.510(b) requires the record to be signed and dated.{" "}
+              {attestationEval.required.length === 3
+                ? "All three must carry a current signature before this record can be approved."
+                : `Given how FSVP applies to this food, ${attestationEval.required.length} of the three is required.`}
             </p>
           </div>
           <QiAttestationPanel
@@ -519,7 +582,10 @@ export default async function FsvpRecordPage({
             <ApprovalDecisionForm
               recordId={id}
               currentDecision={record.status}
-              blockingReasons={attestationEval.reasons}
+              blockingReasons={[
+                ...(applicabilityBlock ? [applicabilityBlock] : []),
+                ...attestationEval.reasons,
+              ]}
             />
           </section>
         )}

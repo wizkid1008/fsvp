@@ -32,6 +32,7 @@ const en = {
     auditLog: "Audit Log",
     fsvpRecords: "FSVP Records",
     qualifiedIndividuals: "Qualified Individuals",
+    applicability: "FSVP Applicability",
     admin: "Admin",
     account: "Account",
   },

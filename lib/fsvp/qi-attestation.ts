@@ -23,11 +23,37 @@ export const REQUIRED_ATTESTATION_TYPES = [
 
 export type RequiredAttestationType = (typeof REQUIRED_ATTESTATION_TYPES)[number];
 
+/**
+ * What a record actually has to carry, given how FSVP applies to it.
+ *
+ * § 1.512 does not require a very small importer, or an importer of food from a
+ * small foreign supplier, to conduct a hazard analysis or a supplier
+ * evaluation — so demanding a signature on either would be asking a qualified
+ * individual to sign work the regulation never called for. What § 1.512(b)(3)
+ * does require is written assurance from the supplier, which is a verification
+ * activity, so the verification determination is still signed.
+ *
+ * An exempt pair should not have a record at all (the creation gate in
+ * /api/fsvp-records refuses one), but if a pre-existing record is exempt there
+ * is nothing left to attest to.
+ */
+export function requiredTypesFor(
+  outcome: "in_scope" | "modified" | "exempt" | null | undefined
+): readonly RequiredAttestationType[] {
+  if (outcome === "exempt") return [];
+  if (outcome === "modified") return ["verification_determination"];
+  // Null means no determination has been made. The record cannot be approved in
+  // that state anyway — the approve route says so in its own words — so fall
+  // back to the full set rather than silently relaxing anything.
+  return REQUIRED_ATTESTATION_TYPES;
+}
+
 export const ATTESTATION_LABEL: Record<AttestationType, string> = {
   hazard_analysis: "Hazard analysis (§ 1.504)",
   supplier_evaluation: "Foreign supplier evaluation (§ 1.505)",
   verification_determination: "Verification activities determination (§ 1.506)",
   reassessment: "Reassessment (§ 1.508)",
+  applicability_determination: "Applicability determination (§§ 1.501–1.513)",
 };
 
 /** The default wording a QI signs. Stored per row so it survives copy changes. */
@@ -36,10 +62,10 @@ export const DEFAULT_ATTESTATION_STATEMENT =
   "determination, and the record above is accurate and complete to the best of my knowledge.";
 
 export function isAttestationType(value: unknown): value is AttestationType {
-  return (
-    typeof value === "string" &&
-    ["hazard_analysis", "supplier_evaluation", "verification_determination", "reassessment"].includes(value)
-  );
+  // Derived from the label map rather than repeated, so adding a type in one
+  // place cannot leave the guard behind — which is exactly what happened when
+  // applicability_determination was added.
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(ATTESTATION_LABEL, value);
 }
 
 /**
@@ -75,7 +101,9 @@ export type AttestationEvaluation = {
   /** Human-readable blocking reasons, safe to show the user verbatim. */
   reasons: string[];
   /** Per-type state, for rendering the sign-off panel. */
-  state: Record<RequiredAttestationType, "signed" | "missing" | "stale">;
+  state: Record<RequiredAttestationType, "signed" | "missing" | "stale" | "not_required">;
+  /** Which types this record actually has to carry, given its applicability. */
+  required: readonly RequiredAttestationType[];
 };
 
 function narrativeFor(record: AttestationRecordInput, type: RequiredAttestationType): string | null {
@@ -97,12 +125,19 @@ function narrativeFor(record: AttestationRecordInput, type: RequiredAttestationT
  */
 export async function evaluateAttestations(
   record: AttestationRecordInput,
-  attestations: AttestationInput[]
+  attestations: AttestationInput[],
+  outcome?: "in_scope" | "modified" | "exempt" | null
 ): Promise<AttestationEvaluation> {
   const reasons: string[] = [];
   const state = {} as AttestationEvaluation["state"];
+  const required = requiredTypesFor(outcome);
 
   for (const type of REQUIRED_ATTESTATION_TYPES) {
+    if (!required.includes(type)) {
+      state[type] = "not_required";
+      continue;
+    }
+
     const label = ATTESTATION_LABEL[type];
     const narrative = narrativeFor(record, type);
 
@@ -132,5 +167,5 @@ export async function evaluateAttestations(
     state[type] = "signed";
   }
 
-  return { satisfied: reasons.length === 0, reasons, state };
+  return { satisfied: reasons.length === 0, reasons, state, required };
 }

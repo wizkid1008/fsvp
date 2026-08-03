@@ -103,6 +103,10 @@ npm test
      (**required** — the evidence checklists read `form_definitions`)
    - `007_seed_evidence_forms.sql` — the standard supplier questionnaire and contact forms,
      and the `evidence_type = 'form'` flag that makes those items answerable in the app
+   - `008_applicability_determinations.sql` — FSVP applicability and exemption determinations
+     (**required** — the record page, the approval gate and record creation all read
+     `fsvp_applicability_determinations`. Note this changes existing behaviour: every FSVP
+     record now needs a determination for its supplier/product pair before it can be approved)
 
    Migrations `001`–`044` were collapsed into this baseline on 2026-07-30 and are kept
    under `supabase/migrations/archive/` for reference. Do not run them; see

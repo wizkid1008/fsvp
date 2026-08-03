@@ -3,6 +3,7 @@ import {
   evaluateAttestations,
   hashAttestationContent,
   isAttestationType,
+  requiredTypesFor,
   REQUIRED_ATTESTATION_TYPES,
   type AttestationInput,
   type AttestationRecordInput,
@@ -149,5 +150,78 @@ describe("evaluateAttestations", () => {
   it("does not require a reassessment attestation to approve", async () => {
     const result = await evaluateAttestations(RECORD, await fullySigned(RECORD));
     expect(result.satisfied).toBe(true);
+  });
+});
+
+describe("requiredTypesFor", () => {
+  it("demands all three when FSVP applies in full", () => {
+    expect(requiredTypesFor("in_scope")).toEqual([
+      "hazard_analysis",
+      "supplier_evaluation",
+      "verification_determination",
+    ]);
+  });
+
+  it("demands only the verification determination under modified requirements", () => {
+    // § 1.512 does not require a very small importer to conduct a hazard
+    // analysis or supplier evaluation; § 1.512(b)(3) still requires written
+    // assurance, which is a verification activity.
+    expect(requiredTypesFor("modified")).toEqual(["verification_determination"]);
+  });
+
+  it("demands nothing of an exempt pair", () => {
+    expect(requiredTypesFor("exempt")).toEqual([]);
+  });
+
+  it("falls back to the full set when applicability is undetermined", () => {
+    expect(requiredTypesFor(null)).toHaveLength(3);
+    expect(requiredTypesFor(undefined)).toHaveLength(3);
+  });
+});
+
+describe("evaluateAttestations with an applicability outcome", () => {
+  it("approves a modified record signed only for verification", async () => {
+    const signed: AttestationInput[] = [
+      {
+        attestation_type: "verification_determination",
+        content_hash: await hashAttestationContent(RECORD.verification_determination),
+        revoked_at: null,
+      },
+    ];
+
+    const modified = await evaluateAttestations(RECORD, signed, "modified");
+    expect(modified.satisfied).toBe(true);
+    expect(modified.state.hazard_analysis).toBe("not_required");
+    expect(modified.state.supplier_evaluation).toBe("not_required");
+    expect(modified.state.verification_determination).toBe("signed");
+
+    // The same record and signatures under full FSVP is still blocked.
+    const inScope = await evaluateAttestations(RECORD, signed, "in_scope");
+    expect(inScope.satisfied).toBe(false);
+    expect(inScope.reasons).toHaveLength(2);
+  });
+
+  it("blocks a modified record whose verification signature is stale", async () => {
+    const signed: AttestationInput[] = [
+      {
+        attestation_type: "verification_determination",
+        content_hash: await hashAttestationContent("something else entirely"),
+        revoked_at: null,
+      },
+    ];
+    const result = await evaluateAttestations(RECORD, signed, "modified");
+    expect(result.satisfied).toBe(false);
+    expect(result.state.verification_determination).toBe("stale");
+  });
+
+  it("approves an exempt record with no signatures at all", async () => {
+    const result = await evaluateAttestations(RECORD, [], "exempt");
+    expect(result.satisfied).toBe(true);
+    expect(result.required).toEqual([]);
+  });
+
+  it("reports which types were actually required", async () => {
+    const result = await evaluateAttestations(RECORD, [], "modified");
+    expect(result.required).toEqual(["verification_determination"]);
   });
 });

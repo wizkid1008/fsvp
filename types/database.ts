@@ -650,13 +650,53 @@ export type AttestationType =
   | "hazard_analysis"
   | "supplier_evaluation"
   | "verification_determination"
-  | "reassessment";
+  | "reassessment"
+  | "applicability_determination";
+
+export type EntitySizeDetermination = {
+  id: string;
+  importer_id: string;
+  category: "very_small_importer";
+  food_scope: "human" | "animal";
+  three_year_average: number;
+  currency: string;
+  basis_notes: string | null;
+  determined_at: string;
+  reaffirmed_at: string | null;
+  expires_at: string | null;
+  created_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicabilityDetermination = {
+  id: string;
+  importer_id: string;
+  supplier_id: string;
+  product_id: string;
+  outcome: "in_scope" | "exempt" | "modified";
+  /** One of the keys in lib/fsvp/applicability.ts. */
+  basis: string;
+  /** Written server-side from the basis, never taken from the client. */
+  citation: string;
+  rationale: string;
+  entity_size_determination_id: string | null;
+  qualified_individual_id: string;
+  determined_at: string;
+  expires_at: string | null;
+  superseded_at: string | null;
+  created_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export type QiAttestation = {
   id: string;
   importer_id: string;
   qualified_individual_id: string;
-  fsvp_record_id: string;
+  /** Exactly one of these two is set. */
+  fsvp_record_id: string | null;
+  applicability_determination_id: string | null;
   attestation_type: AttestationType;
   statement: string;
   /** The narrative exactly as it stood when signed, plus its SHA-256. */

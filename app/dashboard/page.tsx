@@ -77,6 +77,7 @@ async function ImporterDashboard({
         { label: "Reassessments overdue",  value: signals.overdue.length,     href: "/fsvp-records",    danger: true  },
         { label: "Open corrective actions",value: signals.actions.length,     href: "/gaps-actions",    danger: true  },
         { label: "Records unsigned",       value: signals.unsignedRecords,    href: "/fsvp-records",    danger: false },
+        { label: "Applicability undetermined", value: signals.undeterminedPairs, href: "/applicability", danger: false },
       ]
     : [];
 
@@ -99,7 +100,7 @@ async function ImporterDashboard({
       </section>
 
       {signals && !signals.clear && (
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {metrics.map((m) => (
             <Link key={m.label} href={m.href}
               className="group flex flex-col justify-between gap-2 rounded-lg border border-line bg-white p-4 shadow-soft transition hover:border-forest">

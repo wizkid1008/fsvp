@@ -31,6 +31,7 @@ const es: Messages = {
     auditLog: "Registro de auditoría",
     fsvpRecords: "Registros FSVP",
     qualifiedIndividuals: "Individuos Calificados",
+    applicability: "Aplicabilidad FSVP",
     admin: "Administración",
     account: "Cuenta",
   },
