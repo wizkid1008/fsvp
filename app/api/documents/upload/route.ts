@@ -3,6 +3,7 @@ import { DOCUMENT_BUCKET, DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL }
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvenance } from "@/lib/evidence/provenance";
+import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 import type { Database } from "@/types/database";
 
 export const runtime = "edge";
@@ -66,6 +67,12 @@ export async function POST(request: Request) {
     .select("role, supplier_id, importer_id")
     .eq("id", user.id)
     .maybeSingle();
+
+  // An admin previewing an account has no supplier_id or importer_id of their
+  // own, so nothing below would have stopped them: the upload went through and
+  // landed as importer_uploaded with the admin recorded as its reviewer.
+  const previewRefusal = refusePreviewWrite(uploaderProfile?.role, "upload evidence");
+  if (previewRefusal) return previewRefusal;
 
   let resolvedImporterId: string | null = importerId || uploaderProfile?.importer_id || null;
   const resolvedSupplierId = supplierId || uploaderProfile?.supplier_id || "";

@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 import { DOCUMENT_BUCKET } from "@/lib/constants";
 import { resolveProvenance } from "@/lib/evidence/provenance";
 import { parseFormSchema, validateAnswers, type FormAnswers } from "@/lib/forms/schema";
@@ -62,6 +63,10 @@ export async function POST(req: NextRequest) {
   if (!definition) return NextResponse.json({ error: "Form not found." }, { status: 404 });
 
   // ── Who is this for, and may the caller act for them? ────────────────────
+  // An admin previewing a supplier account reaches here with neither id set.
+  const previewRefusal = refusePreviewWrite(profile.role, "answer its forms");
+  if (previewRefusal) return previewRefusal;
+
   const callerSupplierId: string | null = profile.supplier_id ?? null;
   let supplierId = body.supplier_id?.trim() || callerSupplierId || "";
 
@@ -90,19 +95,6 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-  } else if (profile.role === "administrator") {
-    // Reachable when an admin previews a supplier account. Deliberately refused:
-    // every submission is attributed to the supplier or to the importer acting
-    // for them, and an admin is neither. Letting it through would put a
-    // `supplier_attested` document in the ledger that no supplier attested to.
-    return NextResponse.json(
-      {
-        error:
-          "Administrators can view a supplier's answers but cannot submit them. " +
-          "The supplier, or the importer acting on their behalf, has to answer this form.",
-      },
-      { status: 403 }
-    );
   } else {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
