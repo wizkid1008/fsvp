@@ -41,26 +41,32 @@ export async function GET(
 
   const supplierId = req.nextUrl.searchParams.get("supplier_id") || profile.supplier_id || "";
   if (!supplierId) {
-    return NextResponse.json({ definition, response: null });
+    return NextResponse.json({ definition, response: null, read_only: profile.role === "administrator" });
   }
 
   // A supplier only ever sees their own; an importer must be linked to the one
-  // they are asking about.
-  if (profile.supplier_id) {
-    if (supplierId !== profile.supplier_id) {
+  // they are asking about. An administrator previewing an account sees any
+  // supplier's form, read-only — previewing looks, it never writes.
+  // Admins need no relationship check — they already read every tenant elsewhere.
+  const isAdministrator = profile.role === "administrator";
+
+  if (!isAdministrator) {
+    if (profile.supplier_id) {
+      if (supplierId !== profile.supplier_id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (profile.importer_id) {
+      const { data: link } = await (admin.from("supplier_relationships") as any)
+        .select("supplier_id")
+        .eq("relationship_type", "importer_supplier")
+        .eq("importer_id", profile.importer_id)
+        .eq("supplier_id", supplierId)
+        .in("status", ["active", "pending_invite"])
+        .maybeSingle();
+      if (!link) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    } else {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  } else if (profile.importer_id) {
-    const { data: link } = await (admin.from("supplier_relationships") as any)
-      .select("supplier_id")
-      .eq("relationship_type", "importer_supplier")
-      .eq("importer_id", profile.importer_id)
-      .eq("supplier_id", supplierId)
-      .in("status", ["active", "pending_invite"])
-      .maybeSingle();
-    if (!link) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  } else {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { data: rows } = await (admin.from("form_responses") as any)
@@ -90,6 +96,9 @@ export async function GET(
 
   return NextResponse.json({
     definition,
+    // Signals the fill panel to drop its Save/Submit buttons: an administrator
+    // may read a supplier's answers but may not stand behind them.
+    read_only: isAdministrator,
     response: current
       ? {
           id:              current.id,

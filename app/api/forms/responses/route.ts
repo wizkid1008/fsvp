@@ -90,6 +90,19 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
+  } else if (profile.role === "administrator") {
+    // Reachable when an admin previews a supplier account. Deliberately refused:
+    // every submission is attributed to the supplier or to the importer acting
+    // for them, and an admin is neither. Letting it through would put a
+    // `supplier_attested` document in the ledger that no supplier attested to.
+    return NextResponse.json(
+      {
+        error:
+          "Administrators can view a supplier's answers but cannot submit them. " +
+          "The supplier, or the importer acting on their behalf, has to answer this form.",
+      },
+      { status: 403 }
+    );
   } else {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
