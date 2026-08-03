@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 import { DOCUMENT_BUCKET } from "@/lib/constants";
 import { resolveProvenance } from "@/lib/evidence/provenance";
 import { parseFormSchema, validateAnswers, type FormAnswers } from "@/lib/forms/schema";
@@ -62,6 +63,10 @@ export async function POST(req: NextRequest) {
   if (!definition) return NextResponse.json({ error: "Form not found." }, { status: 404 });
 
   // ── Who is this for, and may the caller act for them? ────────────────────
+  // An admin previewing a supplier account reaches here with neither id set.
+  const previewRefusal = refusePreviewWrite(profile.role, "answer its forms");
+  if (previewRefusal) return previewRefusal;
+
   const callerSupplierId: string | null = profile.supplier_id ?? null;
   let supplierId = body.supplier_id?.trim() || callerSupplierId || "";
 

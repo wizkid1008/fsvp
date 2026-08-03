@@ -20,6 +20,8 @@ type LoadedForm = {
     description: string | null;
     schema_json: unknown;
   };
+  /** Set when the caller may read the answers but not submit them (admin preview). */
+  read_only?: boolean;
   response: {
     id: string;
     version: number;
@@ -285,7 +287,7 @@ export function FormFillPanel({
 
   const title = preview?.title ?? loaded?.definition.title ?? "Loading…";
   const description = preview?.description ?? loaded?.definition.description;
-  const readOnly = Boolean(preview);
+  const readOnly = Boolean(preview) || Boolean(loaded?.read_only);
   const review = loaded?.response;
 
   const bodyContent = () => {
@@ -300,6 +302,15 @@ export function FormFillPanel({
 
     return (
       <>
+        {loaded?.read_only && (
+          <div className="rounded-md border border-line bg-slate-50 px-3 py-2">
+            <p className="text-sm text-slate-600">
+              You are viewing this as an administrator. The answers are read-only — only the
+              supplier, or the importer acting for them, can submit this form.
+            </p>
+          </div>
+        )}
+
         {review?.review_status === "needs_revision" || review?.review_status === "rejected" ? (
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
             <p className="text-sm font-semibold text-amber-900">
