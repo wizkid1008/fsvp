@@ -32,6 +32,7 @@ const es: Messages = {
     fsvpRecords: "Registros FSVP",
     qualifiedIndividuals: "Individuos Calificados",
     applicability: "Aplicabilidad FSVP",
+    complianceHistory: "Historial de Cumplimiento",
     admin: "Administración",
     account: "Cuenta",
   },

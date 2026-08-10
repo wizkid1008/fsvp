@@ -224,8 +224,19 @@ Closes the P1 gaps so the FSVP claim is defensible. Highest value per unit of ef
 2. **FSVP applicability & exemption determination** — in scope / exempt / modified, with basis
    and citation; blocks record creation until determined.
 3. **Regulatory intelligence** — FDA Data Dashboard and openFDA feeds into supplier and facility
-   compliance history, wired into scoring and alerting. *Free public data, no gatekeeper, most
-   differentiating single item on this list.*
+   compliance history, wired into scoring and alerting. *The most differentiating single item on
+   this list.* **Partially delivered — migration `009`.** Corrections found while building it,
+   which the rest of this document has been updated to reflect:
+   - The Data Dashboard API is free but **not** ungated, as this line originally claimed. Every
+     request needs `Authorization-User` and `Authorization-Key` headers issued through FDA's OII
+     Unified Logon, which covers import refusals, inspection classifications and compliance
+     actions — three of the five datasets. Only openFDA recalls is ingested today.
+   - **Import alerts have no API at all.** They are web-only, so a supplier showing no findings
+     has not been screened against them. The UI says so rather than implying a clean sweep.
+   - Matching is the hard part, not the fetching. FDA identifies firms by FEI; we mostly hold
+     names and countries, and `fda_registration_number` is a *different* identifier that cannot
+     be joined against FEI. So matches are proposed and a person confirms them; nothing
+     auto-attributes. A false positive puts another company's recall on a supplier's record.
 4. **Suspension as a blocking state**, written assurances for post-import control, structured
    § 1.506(d) verification justification, event-driven reassessment triggers.
 5. **Record retention enforcement and signature ledger** — § 1.510(b) requires signed and dated
@@ -294,9 +305,9 @@ insurer.
 
 | Source | Access | Use | Note |
 |---|---|---|---|
-| **FDA Data Dashboard API** | Public REST | Import refusals, inspection classifications, compliance actions | Free, no gatekeeper. Refusals refresh weekly |
-| **openFDA** | Public REST | Food enforcement and recall history | Free |
-| **FDA Import Alerts** | Web, no API | Detention-without-physical-examination screening | Scrape or manual monitoring |
+| **FDA Data Dashboard API** | REST, **credentialed** | Import refusals, inspection classifications, compliance actions | Free but gated: `Authorization-User` + `Authorization-Key` via OII Unified Logon. FDA's own pages disagree on refusal cadence — the refusals dashboard says weekly, the supplier-evaluation page says monthly. Trust the retrieval date, not either claim |
+| **openFDA** | Public REST | Food enforcement and recall history | Free. Key optional (1k/day per IP → 120k/day per key). Weekly. FDA does not update a recall's status after classification |
+| **FDA Import Alerts** | Web, no API | Detention-without-physical-examination screening | Manual only. Nothing screens these automatically, and a screening record must say so |
 | **FDA FFR / FURLS** | Portal, no API | Facility registration verification | Manual — capture number and status, verify periodically |
 | **FDA Prior Notice (PNSI)** | Portal, or via broker ABI | Prior Notice confirmation | No API. Capture the confirmation number |
 | **FDA FSVP Importer Portal** | Portal, inspection-gated | Records submission during an inspection | **No API, and only opens after FDA initiates.** Build the package, not an integration |

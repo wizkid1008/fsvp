@@ -33,6 +33,7 @@ const en = {
     fsvpRecords: "FSVP Records",
     qualifiedIndividuals: "Qualified Individuals",
     applicability: "FSVP Applicability",
+    complianceHistory: "Compliance History",
     admin: "Admin",
     account: "Account",
   },

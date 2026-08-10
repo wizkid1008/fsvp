@@ -6,6 +6,8 @@ import { InviteUserButton } from "@/components/admin/InviteUserButton";
 import { RolePreviewSelector } from "@/components/admin/RolePreview";
 import { UserManagement } from "@/components/admin/UserManagement";
 import { AdminWorkflowControls, type WorkflowSetting } from "@/components/admin/AdminWorkflowControls";
+import { RegulatoryRefresh, type RunSummary } from "@/components/admin/RegulatoryRefresh";
+import { REGULATORY_SOURCES } from "@/lib/regulatory/sources";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Profile, Database } from "@/types/database";
@@ -127,6 +129,34 @@ export default async function AdminPage() {
     { label: "Documents", value: String(documentCount), detail: "uploaded to Supabase", tone: documentCount > 0 ? "info" : "neutral" },
   ];
 
+  // Most recent run per FDA source, including failures — an admin needs to see
+  // that a refresh broke, not just that it has been a while.
+  const { data: rawRuns } = await (supabase.from("regulatory_ingest_runs") as any)
+    .select("source, status, completed_at, records_seen, records_new, candidates_created, error_message")
+    .order("started_at", { ascending: false })
+    .limit(50);
+
+  const latestBySource = new Map<string, any>();
+  for (const run of (rawRuns ?? []) as any[]) {
+    if (!latestBySource.has(run.source)) latestBySource.set(run.source, run);
+  }
+
+  const regulatoryRuns: RunSummary[] = REGULATORY_SOURCES
+    .filter((s) => s.access !== "manual")
+    .map((s) => {
+      const run = latestBySource.get(s.id);
+      return {
+        source:            s.id,
+        label:             s.label,
+        status:            run?.status ?? null,
+        completedAt:       run?.completed_at ?? null,
+        recordsSeen:       run?.records_seen ?? null,
+        recordsNew:        run?.records_new ?? null,
+        candidatesCreated: run?.candidates_created ?? null,
+        errorMessage:      run?.error_message ?? null,
+      };
+    });
+
   return (
     <AppShell role={role}>
       <SectionHeader
@@ -162,6 +192,10 @@ export default async function AdminPage() {
 
       <section className="mt-6">
         <UserManagement users={(allUsers ?? []) as any} />
+      </section>
+
+      <section className="mt-6">
+        <RegulatoryRefresh runs={regulatoryRuns} />
       </section>
 
       <section className="mt-6">
