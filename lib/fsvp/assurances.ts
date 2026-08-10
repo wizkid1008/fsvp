@@ -137,7 +137,11 @@ export function validateAssurance(
       return {
         ok: false,
         error:
-          `${spec.citation} requires the assurance to carry the printed name and signature of an ` +
+          // § 1.507(b), not the (a)(N) paragraph the category comes from: the
+          // paragraphs under (a) say WHICH assurance is needed, while (b) is
+          // what every assurance must carry — effective date, printed name and
+          // the signature of an authorised official.
+          "21 CFR 1.507(b) requires the assurance to carry the printed name and signature of an " +
           "authorised official. Record who signed it.",
       };
     }
@@ -147,8 +151,9 @@ export function validateAssurance(
 }
 
 /**
- * § 1.507(b) sets annual renewal as the floor, so an assurance with no end date
- * would quietly become permanent. Used as the default when none is given.
+ * The reliance paragraphs of § 1.507(a) each require the assurance to be
+ * renewed at least annually, so an assurance with no end date would quietly
+ * become permanent. Used as the default when none is given.
  */
 export const ASSURANCE_VALIDITY_DAYS = 365;
 

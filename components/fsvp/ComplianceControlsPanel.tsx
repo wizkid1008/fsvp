@@ -344,7 +344,10 @@ function AssuranceForm({ recordId, onClose }: { recordId: string; onClose: () =>
 
         <div>
           <label className={labelClass} htmlFor="expires_at">
-            Valid until <span className="font-normal text-slate-500">(defaults to one year — § 1.507(b))</span>
+            Valid until{" "}
+            <span className="font-normal text-slate-500">
+              (defaults to one year — § 1.507 requires annual renewal)
+            </span>
           </label>
           <input id="expires_at" name="expires_at" type="date" className={inputClass} />
         </div>

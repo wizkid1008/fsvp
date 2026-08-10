@@ -123,9 +123,10 @@ create table written_assurances (
   hazard_description    text,
   assurance_text        text not null,
 
-  -- § 1.507(b): an assurance carries an effective date. Annual renewal is the
-  -- regulation's floor, so expiry is defaulted rather than optional — an
-  -- assurance with no end date would silently become permanent.
+  -- § 1.507(b): an assurance carries an effective date. The reliance paragraphs
+  -- of § 1.507(a) each require it renewed at least annually, so expiry is
+  -- required rather than optional — an assurance with no end date would
+  -- silently become permanent.
   effective_from        date not null default current_date,
   expires_at            date not null,
 

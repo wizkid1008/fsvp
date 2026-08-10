@@ -259,7 +259,16 @@ export function DocumentActions({
   }
 
   function removeDocument() {
-    if (!window.confirm("Remove this document from active evidence? The record will be hidden from working dashboards but retained for audit history.")) {
+    // Deliberately explicit that this is not a delete. 21 CFR 1.510(c) requires
+    // FSVP records to be retained for at least two years, and the database
+    // refuses the deletion outright (migration 011) — so promising removal here
+    // would be promising something the platform will not do.
+    if (!window.confirm(
+      "Remove this document from active evidence?\n\n" +
+      "It stops counting towards readiness and drops off the working dashboards, but the document " +
+      "and the record of which requirement it answered are both kept: 21 CFR 1.510(c) requires FSVP " +
+      "records to be retained for at least two years."
+    )) {
       return;
     }
 
