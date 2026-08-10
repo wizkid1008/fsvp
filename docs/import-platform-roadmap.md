@@ -239,7 +239,7 @@ Closes the P1 gaps so the FSVP claim is defensible. Highest value per unit of ef
      auto-attributes. A false positive puts another company's recall on a supplier's record.
 4. **Suspension as a blocking state**, written assurances for post-import control, structured
    § 1.506(d) verification justification, event-driven reassessment triggers.
-5. **Record retention enforcement and signature ledger** — § 1.510(b) requires signed and dated
+5. **Record retention enforcement and signature ledger** — § 1.510(a)(2) requires signed and dated
    records; retention must prevent deletion.
 6. Finish the outstanding items from the current plan: readiness per supplier, importer
    dashboard parity, nav and onboarding coherence.

@@ -212,9 +212,14 @@ export function DocumentActions({
 
         if (documentError) throw documentError;
 
+        // Withdrawn, not destroyed. This row records WHICH requirement the
+        // document was offered against, so deleting it leaves a retained
+        // document whose meaning is gone — the letter of 21 CFR 1.510(c) and
+        // none of its purpose. See migration 011.
         await (supabase.from("requirement_evidence") as any)
-          .delete()
-          .eq("document_id", document.id);
+          .update({ soft_deleted_at: new Date().toISOString() })
+          .eq("document_id", document.id)
+          .is("soft_deleted_at", null);
 
         if (requirementId) {
           const { error: evidenceError } = await (supabase.from("requirement_evidence") as any).insert({
@@ -269,8 +274,9 @@ export function DocumentActions({
         if (documentError) throw documentError;
 
         await (supabase.from("requirement_evidence") as any)
-          .delete()
-          .eq("document_id", document.id);
+          .update({ soft_deleted_at: deletedAt })
+          .eq("document_id", document.id)
+          .is("soft_deleted_at", null);
 
         const {
           data: { user }

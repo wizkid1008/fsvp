@@ -7,6 +7,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isValidDecision, isValidReassessmentMonths, statusForDecision, type ApprovalDecision } from "@/lib/fsvp/status-transitions";
 import { evaluateAttestations } from "@/lib/fsvp/qi-attestation";
 import { fetchDetermination, isDeterminationLive } from "@/lib/fsvp/applicability";
+import { evaluateGates } from "@/lib/fsvp/gates";
 import { scoreFsvpRecord } from "@/lib/scoring";
 import { notify } from "@/lib/notifications/notify";
 
@@ -134,6 +135,29 @@ export async function POST(
         {
           error: "Cannot approve: this record is not covered by a current qualified individual attestation.",
           reasons: attestations.reasons,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Suspension, the § 1.506(d) determination and § 1.507 assurances. Each of
+    // these existed in the schema before migration 010 as a value nothing read,
+    // so a suspended supplier's record could be approved and a lapsed assurance
+    // went unnoticed. All blockers are returned together rather than one at a
+    // time — see lib/fsvp/gates.ts.
+    const gateBlocks = await evaluateGates(admin, {
+      importerId:   record.importer_id,
+      supplierId:   record.supplier_id,
+      fsvpRecordId: id,
+      outcome:      determination.outcome,
+    });
+
+    if (gateBlocks.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Cannot approve: this record has unresolved blocking conditions.",
+          reasons: gateBlocks.map((b) => b.message),
+          codes:   gateBlocks.map((b) => b.code),
         },
         { status: 400 }
       );

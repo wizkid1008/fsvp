@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AddSupplierForm } from "@/components/suppliers/AddSupplierForm";
 import { LinkSupplierModal } from "@/components/suppliers/LinkSupplierModal";
 import { CreateExporterForm } from "@/components/suppliers/CreateExporterForm";
+import { SuspensionControl, type SuspensionRow } from "@/components/suppliers/SuspensionControl";
 import { Building2, Pencil, Search, Plus, Link2, MailWarning } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 import type { Country } from "@/types/database";
@@ -56,10 +57,13 @@ export function SupplierTable({
   countries,
   suppliers,
   importerId,
+  suspensions = [],
 }: {
   countries: CountryOption[];
   suppliers: SupplierRow[];
   importerId?: string;
+  /** Live suspensions for THIS importer only — suspension is never global. */
+  suspensions?: SuspensionRow[];
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<SupplierRow | null>(null);
@@ -68,6 +72,11 @@ export function SupplierTable({
   const [editingExporter, setEditingExporter] = useState<SupplierRow | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+
+  const suspensionBySupplier = useMemo(
+    () => new Map(suspensions.map((s) => [s.supplier_id, s])),
+    [suspensions]
+  );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -304,6 +313,14 @@ export function SupplierTable({
                       {new Date(supplier.updated_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                      {importerId && (
+                        <SuspensionControl
+                          supplierId={supplier.id}
+                          supplierName={supplier.company_name}
+                          suspension={suspensionBySupplier.get(supplier.id) ?? null}
+                        />
+                      )}
                       <button
                         type="button"
                         onClick={() => handleEditClick(supplier)}
@@ -318,6 +335,7 @@ export function SupplierTable({
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
+                      </div>
                     </td>
                   </tr>
                 );

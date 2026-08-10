@@ -11,6 +11,12 @@ import { PrintButton } from "@/components/fsvp/PrintButton";
 import { InspectionPackageButton } from "@/components/fsvp/InspectionPackageButton";
 import { ReassessmentSection } from "@/components/fsvp/ReassessmentSection";
 import { QiAttestationPanel, type SignedAttestation } from "@/components/fsvp/QiAttestationPanel";
+import {
+  ComplianceControlsPanel,
+  SuspensionBanner,
+  type AssuranceView,
+} from "@/components/fsvp/ComplianceControlsPanel";
+import { evaluateGates } from "@/lib/fsvp/gates";
 import { evaluateAttestations, hashAttestationContent } from "@/lib/fsvp/qi-attestation";
 import { basisSpec, fetchDetermination, isDeterminationLive, OUTCOME_LABEL } from "@/lib/fsvp/applicability";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
@@ -294,6 +300,41 @@ export default async function FsvpRecordPage({
 
   const viewerIsActiveQi = Boolean(viewerQi && isActiveOn(viewerQi));
 
+  // The blocking conditions added by migration 010: suspension, the § 1.506(d)
+  // determination and § 1.507 assurances. Evaluated with the same function the
+  // approve route uses, so the page cannot promise an approval the API refuses.
+  const gateBlocks = await evaluateGates(admin, {
+    importerId:   record.importer_id,
+    supplierId:   supplier.id,
+    fsvpRecordId: id,
+    outcome:      determinationLive ? determination!.outcome : null,
+  });
+
+  const [{ data: verificationDetermination }, { data: rawAssurances }, { data: liveSuspension }] =
+    await Promise.all([
+      (admin.from("verification_determinations") as any)
+        .select(
+          "id, activities, frequency_notes, sahcodha_hazard_present, controlled_by_foreign_supplier, " +
+          "annual_onsite_audit_performed, alternative_justification, determined_at"
+        )
+        .eq("fsvp_record_id", id)
+        .is("superseded_at", null)
+        .maybeSingle(),
+
+      (admin.from("written_assurances") as any)
+        .select("id, category, citation, counterparty_name, food_scope, expires_at")
+        .eq("fsvp_record_id", id)
+        .is("superseded_at", null)
+        .order("expires_at"),
+
+      (admin.from("supplier_suspensions") as any)
+        .select("basis, reason")
+        .eq("importer_id", record.importer_id)
+        .eq("supplier_id", supplier.id)
+        .is("lifted_at", null)
+        .maybeSingle(),
+    ]);
+
   const narrativeSections = [
     {
       field: "hazard_analysis_notes",
@@ -505,6 +546,12 @@ export default async function FsvpRecordPage({
           </section>
         )}
 
+        {/* Suspension is the loudest state a record can be in: nothing about it
+            can be approved while it holds, so it sits above everything else. */}
+        {liveSuspension && (
+          <SuspensionBanner basis={liveSuspension.basis} reason={liveSuspension.reason} />
+        )}
+
         {/* Applicability */}
         <section className={`rounded-lg border p-5 shadow-soft ${
           applicabilityBlock ? "border-amber-200 bg-amber-50" : "border-line bg-white"
@@ -552,7 +599,8 @@ export default async function FsvpRecordPage({
             <h2 className="text-base font-semibold text-ink">Qualified Individual Attestations</h2>
             <p className="mt-1 text-sm text-slate-500">
               § 1.503 requires a qualified individual to perform or oversee these determinations, and
-              § 1.510(b) requires the record to be signed and dated.{" "}
+              § 1.510(a)(2) requires the record to be signed and dated on completion and on any
+              modification.{" "}
               {attestationEval.required.length === 3
                 ? "All three must carry a current signature before this record can be approved."
                 : `Given how FSVP applies to this food, ${attestationEval.required.length} of the three is required.`}
@@ -566,6 +614,16 @@ export default async function FsvpRecordPage({
             viewerCanManageRegister={isImporter}
           />
         </section>
+
+        {/* § 1.506(d) determination and § 1.507 assurances */}
+        <ComplianceControlsPanel
+          recordId={id}
+          blocks={gateBlocks}
+          determination={(verificationDetermination as any) ?? null}
+          assurances={(rawAssurances ?? []) as AssuranceView[]}
+          canEdit={isImporter}
+          viewerIsActiveQi={viewerIsActiveQi}
+        />
 
         {/* Reassessment schedule */}
         <ReassessmentSection fsvpRecordId={id} schedule={schedule} />
@@ -585,6 +643,10 @@ export default async function FsvpRecordPage({
               blockingReasons={[
                 ...(applicabilityBlock ? [applicabilityBlock] : []),
                 ...attestationEval.reasons,
+                // Suspension, § 1.506(d) and § 1.507 — the same list the approve
+                // route refuses on, so the form cannot offer a decision the API
+                // will reject.
+                ...gateBlocks.map((b) => b.message),
               ]}
             />
           </section>

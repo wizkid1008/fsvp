@@ -266,7 +266,7 @@ export async function POST(req: NextRequest) {
         .is("superseded_at", null)
         .maybeSingle();
 
-      // § 1.503 / § 1.510(b): who was qualified, what they attested to, and when.
+      // § 1.503 / § 1.510(a)(2): who was qualified, what they attested to, and when.
       // This is the part of the package an investigator turns to first, so it
       // prints the signature even when it has gone stale or been withdrawn —
       // presenting only the clean ones would be the dishonest version.
@@ -389,7 +389,7 @@ ${section("Foreign Supplier Evaluation (§ 1.505)", record.supplier_evaluation_n
 ${section("Facility Evaluation", record.facility_evaluation_notes)}
 ${section("Verification Determination (§§ 1.506–1.507)", record.verification_determination)}
 
-<h2>Qualified Individual Attestations (§§ 1.503, 1.510(b))</h2>
+<h2>Qualified Individual Attestations (§§ 1.503, 1.510(a)(2))</h2>
 <table><thead><tr><th>Determination</th><th>Signed by</th><th>Date</th><th>Status</th></tr></thead>
 <tbody>${attestationRowsHtml}</tbody></table>
 ${attestationStatement ? `<p class="meta" style="margin-top:8px;">Statement signed: &ldquo;${esc(attestationStatement)}&rdquo;</p>` : ""}
