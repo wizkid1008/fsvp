@@ -2,7 +2,7 @@
 //
 // § 1.503 requires the hazard analysis, supplier evaluation and verification
 // determination to be performed or overseen by a qualified individual, and
-// § 1.510(b) requires those records to be signed. This is the register that
+// § 1.510(a)(2) requires those records to be signed. This is the register that
 // makes "qualified" a fact on the record rather than an assumption.
 //
 // profile_id is mandatory: only someone who can authenticate can sign. To bring

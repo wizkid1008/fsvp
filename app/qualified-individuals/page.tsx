@@ -61,7 +61,7 @@ export default async function QualifiedIndividualsPage() {
         title="Qualified Individuals"
         description={
           "21 CFR § 1.503 requires a qualified individual to perform or oversee your hazard analyses, " +
-          "supplier evaluations and verification determinations, and § 1.510(b) requires those records to be " +
+          "supplier evaluations and verification determinations, and § 1.510(a)(2) requires those records to be " +
           "signed and dated. Everyone here can sign; an FSVP record cannot be approved until all three " +
           "determinations carry a current signature."
         }

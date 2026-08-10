@@ -81,7 +81,10 @@ export async function SupplierReadinessPanel({
       .select("id, title, document_kind, approval_status, related_requirement_id")
       .is("soft_deleted_at", null),
     (supabase.from("requirement_evidence") as any)
-      .select("id, requirement_id, document_id, status, gap_status"),
+      .select("id, requirement_id, document_id, status, gap_status")
+      // Withdrawn links are retained for the record but must not count towards
+      // readiness — see migration 011.
+      .is("soft_deleted_at", null),
   ]);
 
   const requirements = ((reqsRes.data ?? []) as ReqRow[]).sort((a, b) => requirementRank(a) - requirementRank(b));

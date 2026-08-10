@@ -36,6 +36,20 @@ export default async function SuppliersPage() {
       .filter(Boolean);
   }
 
+  // Suspension is per importer, not per supplier — see migration 010. A
+  // platform-wide viewer sees none, because there is no tenant to be suspended
+  // in relation to.
+  const { data: rawSuspensions } = importerId
+    ? await (admin.from("supplier_suspensions") as any)
+        .select("id, supplier_id, basis, reason, suspended_at")
+        .eq("importer_id", importerId)
+        .is("lifted_at", null)
+    : { data: [] };
+
+  const suspensions = (rawSuspensions ?? []) as Array<{
+    id: string; supplier_id: string; basis: string; reason: string; suspended_at: string;
+  }>;
+
   // If importer has no linked suppliers yet, show empty state rather than all suppliers
   let suppliersQuery = (admin.from("suppliers") as any)
     .select("id, company_name, legal_entity_name, country, website, approval_status, certification_status, fda_registration_number, contact_json, supplier_type, updated_at, record_mode, managed_by_importer_id, duns_number")
@@ -114,6 +128,7 @@ export default async function SuppliersPage() {
         countries={countryOptions}
         suppliers={suppliers}
         importerId={role === "us_importer" ? (importerId ?? undefined) : undefined}
+        suspensions={suspensions}
       />
     </AppShell>
   );

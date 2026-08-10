@@ -1,6 +1,6 @@
 // POST — a qualified individual signs one or more sections of an FSVP record.
 //
-// § 1.503 names three determinations a QI must perform or oversee, and § 1.510(b)
+// § 1.503 names three determinations a QI must perform or oversee, and § 1.510(a)(2)
 // requires the record to be signed and dated. One submit can cover all three,
 // because in practice one person does all three at once — but each is stored as
 // its own row so the ledger says which determination was attested to, and so a

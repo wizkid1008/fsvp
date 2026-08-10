@@ -709,6 +709,125 @@ export type QiAttestation = {
   created_at: string;
 };
 
+// ── Suspension, assurances, verification (migration 010) ────────────────────
+
+/** Per importer, never per supplier: `suppliers` is a shared global entity. */
+export type SupplierSuspension = {
+  id: string;
+  importer_id: string;
+  supplier_id: string;
+  basis:
+    | "verification_failure"
+    | "corrective_action_open"
+    | "regulatory_finding"
+    | "evidence_lapsed"
+    | "commercial"
+    | "other";
+  reason: string;
+  suspended_at: string;
+  suspended_by_profile_id: string;
+  lifted_at: string | null;
+  lifted_by_profile_id: string | null;
+  lift_rationale: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** 21 CFR 1.507. Renewed at least annually; `citation` is written server-side. */
+export type WrittenAssurance = {
+  id: string;
+  importer_id: string;
+  supplier_id: string | null;
+  product_id: string | null;
+  fsvp_record_id: string | null;
+  category:
+    | "customer_preventive_controls"
+    | "customer_food_safety_compliance"
+    | "downstream_processing"
+    | "rac_no_assurance_required"
+    | "importer_controlled";
+  citation: string;
+  counterparty_name: string | null;
+  counterparty_role: string | null;
+  signatory_name: string | null;
+  signatory_title: string | null;
+  food_scope: string;
+  hazard_description: string | null;
+  assurance_text: string;
+  effective_from: string;
+  expires_at: string;
+  document_id: string | null;
+  superseded_at: string | null;
+  created_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** 21 CFR 1.506(d). The SAHCODHA rule is enforced by trigger and by the API. */
+export type VerificationDetermination = {
+  id: string;
+  importer_id: string;
+  fsvp_record_id: string;
+  activities: string[];
+  frequency_notes: string;
+  hazard_analysis_basis: string;
+  supplier_performance_basis: string;
+  food_and_supplier_risk_basis: string;
+  storage_and_transport_basis: string | null;
+  sahcodha_hazard_present: boolean;
+  controlled_by_foreign_supplier: boolean;
+  annual_onsite_audit_performed: boolean;
+  alternative_justification: string | null;
+  determined_at: string;
+  qualified_individual_id: string;
+  superseded_at: string | null;
+  created_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** 21 CFR 1.508(b): reassessment prompted by an event, not just the clock. */
+export type ReassessmentTrigger = {
+  id: string;
+  importer_id: string;
+  fsvp_record_id: string;
+  trigger_type:
+    | "corrective_action_opened"
+    | "verification_unacceptable"
+    | "regulatory_finding_confirmed"
+    | "supplier_suspended"
+    | "assurance_expired"
+    | "manual";
+  source_table: string | null;
+  source_id: string | null;
+  detail: string;
+  triggered_at: string;
+  resolved_at: string | null;
+  resolved_by_reassessment_id: string | null;
+  created_at: string;
+};
+
+// ── Retention and the signature ledger (migration 011) ──────────────────────
+
+/** One row per signature, across every kind of signed record. § 1.510(a)(2). */
+export type FsvpSignatureLedgerRow = {
+  id: string;
+  importer_id: string;
+  attestation_type: AttestationType;
+  target_type: "fsvp_record" | "applicability_determination";
+  target_id: string;
+  qualified_individual_id: string;
+  signer_profile_id: string | null;
+  signer_name: string | null;
+  signer_email: string | null;
+  statement: string;
+  content_hash: string;
+  signed_at: string;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  is_current: boolean;
+};
+
 // ── Regulatory intelligence types (migration 009) ───────────────────────────
 
 export type RegulatorySource =
