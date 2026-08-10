@@ -41,10 +41,17 @@ export function RegulatoryRefresh({ runs }: { runs: RunSummary[] }) {
           router.refresh();
           return;
         }
+        // Partial success is normal while only some sources are configured, so
+        // the summary reports both halves rather than a single verdict.
+        const sources: Array<{ source: string; error: string | null }> = json.sources ?? [];
+        const failed = sources.filter((s) => s.error);
+
         setResult(
+          `${sources.length - failed.length} of ${sources.length} sources refreshed. ` +
           `${json.records_seen} records read, ${json.records_new} new, ` +
           `${json.candidates_created} candidate match${json.candidates_created === 1 ? "" : "es"} raised.`
         );
+        if (failed.length > 0) setError(json.error ?? "Some sources failed.");
         router.refresh();
       } catch {
         setError("Could not reach the server.");
@@ -102,8 +109,10 @@ export function RegulatoryRefresh({ runs }: { runs: RunSummary[] }) {
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
       <p className="mt-3 text-xs leading-relaxed text-slate-500">
-        Only recalls are wired up. Import refusals, inspection outcomes and warning letters need FDA
-        Data Dashboard credentials; import alerts have no API and must be checked by hand.
+        Recalls come from openFDA and need no credentials. Import refusals, inspection outcomes and
+        warning letters need <code>FDA_DATADASHBOARD_USER</code> and <code>FDA_DATADASHBOARD_KEY</code>;
+        without both they are skipped rather than attempted, so they stay marked never refreshed.
+        Import alerts have no API at all and must be checked by hand.
       </p>
     </aside>
   );

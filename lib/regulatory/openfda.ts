@@ -14,7 +14,7 @@
  * look exactly like a supplier having a clean history.
  */
 
-import type { RegulatoryEventType } from "./sources";
+import { shorten, toIsoDate, type NormalisedEvent } from "./events";
 
 const ENDPOINT = "https://api.fda.gov/food/enforcement.json";
 
@@ -136,28 +136,6 @@ export async function fetchFoodEnforcement(
 
 // ── Normalisation into our event shape ──────────────────────────────────────
 
-export type NormalisedEvent = {
-  source: "fda_food_enforcement";
-  source_ref: string;
-  event_type: RegulatoryEventType;
-  event_date: string | null;
-  firm_name: string | null;
-  firm_fei: null;
-  firm_country: string | null;
-  firm_address: string | null;
-  product_description: string | null;
-  summary: string;
-  classification: string | null;
-  detail_json: FoodEnforcementRecord;
-  source_url: string;
-};
-
-/** openFDA dates are YYYYMMDD strings; Postgres wants YYYY-MM-DD. */
-function toIsoDate(compact: string | undefined): string | null {
-  if (!compact || !/^\d{8}$/.test(compact)) return null;
-  return `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`;
-}
-
 function joinAddress(r: FoodEnforcementRecord): string | null {
   const parts = [r.address_1, r.address_2, r.city, r.state, r.postal_code].filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : null;
@@ -170,10 +148,9 @@ function joinAddress(r: FoodEnforcementRecord): string | null {
  */
 function summarise(r: FoodEnforcementRecord): string {
   const firm = r.recalling_firm?.trim() || "Unnamed firm";
-  const reason = r.reason_for_recall?.trim().replace(/\s+/g, " ") ?? "";
-  const short = reason.length > 180 ? `${reason.slice(0, 177)}…` : reason;
+  const reason = shorten(r.reason_for_recall);
   const cls = r.classification ? ` (${r.classification})` : "";
-  return short ? `${firm}${cls}: ${short}` : `${firm}${cls}: recall recorded`;
+  return reason ? `${firm}${cls}: ${reason}` : `${firm}${cls}: recall recorded`;
 }
 
 export function normaliseEnforcement(r: FoodEnforcementRecord): NormalisedEvent | null {

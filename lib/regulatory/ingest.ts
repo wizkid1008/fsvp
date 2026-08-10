@@ -14,20 +14,31 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
-import { fetchFoodEnforcement, normaliseEnforcement, OpenFdaError, type NormalisedEvent } from "./openfda";
+import { fetchFoodEnforcement, normaliseEnforcement, OpenFdaError } from "./openfda";
+import {
+  credentialsFromEnv,
+  datasetFor,
+  fetchDashboardWindow,
+  DataDashboardError,
+} from "./datadashboard";
+import type { NormalisedEvent } from "./events";
 import { proposeMatches, type CountryLookup, type MatchableEntity } from "./matching";
-import { findingSeverity } from "./sources";
+import { findingSeverity, type RegulatorySourceId } from "./sources";
 import { notify } from "@/lib/notifications/notify";
 
 type AdminClient = SupabaseClient<Database>;
 
 export type IngestResult = {
+  source: RegulatorySourceId;
   runId: string;
   recordsSeen: number;
   recordsNew: number;
   candidatesCreated: number;
   error?: string;
 };
+
+/** Fetches one window's worth of a source, already normalised. */
+type Fetcher = (window: { from: string; to: string }) => Promise<NormalisedEvent[]>;
 
 /** How far back a first-ever ingest reaches. */
 const INITIAL_LOOKBACK_DAYS = 730;
@@ -156,13 +167,15 @@ async function loadMatchTargets(admin: AdminClient) {
  * re-read rather than assumed final. Re-reading is safe because
  * (source, source_ref) is unique.
  */
-export async function runFoodEnforcementIngest(
+async function runIngest(
   admin: AdminClient,
-  opts: { apiKey?: string; triggeredByProfileId?: string | null; fetchImpl?: typeof fetch } = {}
+  source: RegulatorySourceId,
+  fetcher: Fetcher,
+  opts: { triggeredByProfileId?: string | null } = {}
 ): Promise<IngestResult> {
   const { data: lastRun } = await (admin.from("regulatory_ingest_runs") as any)
     .select("window_to")
-    .eq("source", "fda_food_enforcement")
+    .eq("source", source)
     .eq("status", "succeeded")
     .order("started_at", { ascending: false })
     .limit(1)
@@ -175,7 +188,7 @@ export async function runFoodEnforcementIngest(
 
   const { data: run } = await (admin.from("regulatory_ingest_runs") as any)
     .insert({
-      source: "fda_food_enforcement",
+      source,
       status: "running",
       window_from: from,
       window_to: to,
@@ -187,32 +200,25 @@ export async function runFoodEnforcementIngest(
   const runId: string = run.id;
 
   try {
-    const raw = await fetchFoodEnforcement(
-      { from, to },
-      { apiKey: opts.apiKey, fetchImpl: opts.fetchImpl }
-    );
+    const events = await fetcher({ from, to });
 
-    const events = raw
-      .map(normaliseEnforcement)
-      .filter((e): e is NormalisedEvent => e !== null);
-
-    const { recordsNew, eventIds } = await storeEvents(admin, events, runId);
+    const { recordsNew, eventIds } = await storeEvents(admin, events, runId, source);
     const candidatesCreated = await proposeCandidates(admin, events, eventIds);
 
     await (admin.from("regulatory_ingest_runs") as any)
       .update({
         status: "succeeded",
-        records_seen: raw.length,
+        records_seen: events.length,
         records_new: recordsNew,
         candidates_created: candidatesCreated,
         completed_at: new Date().toISOString(),
       })
       .eq("id", runId);
 
-    return { runId, recordsSeen: raw.length, recordsNew, candidatesCreated };
+    return { source, runId, recordsSeen: events.length, recordsNew, candidatesCreated };
   } catch (err) {
     const message =
-      err instanceof OpenFdaError ? err.message
+      err instanceof OpenFdaError || err instanceof DataDashboardError ? err.message
       : err instanceof Error ? err.message
       : "Unknown error during ingest.";
 
@@ -220,8 +226,95 @@ export async function runFoodEnforcementIngest(
       .update({ status: "failed", error_message: message, completed_at: new Date().toISOString() })
       .eq("id", runId);
 
-    return { runId, recordsSeen: 0, recordsNew: 0, candidatesCreated: 0, error: message };
+    return { source, runId, recordsSeen: 0, recordsNew: 0, candidatesCreated: 0, error: message };
   }
+}
+
+/** openFDA food enforcement (recalls). Needs no credentials. */
+export async function runFoodEnforcementIngest(
+  admin: AdminClient,
+  opts: { apiKey?: string; triggeredByProfileId?: string | null; fetchImpl?: typeof fetch } = {}
+): Promise<IngestResult> {
+  return runIngest(
+    admin,
+    "fda_food_enforcement",
+    async (window) => {
+      const raw = await fetchFoodEnforcement(window, {
+        apiKey: opts.apiKey,
+        fetchImpl: opts.fetchImpl,
+      });
+      return raw
+        .map(normaliseEnforcement)
+        .filter((e): e is NormalisedEvent => e !== null);
+    },
+    opts
+  );
+}
+
+/**
+ * One of the three credentialed Data Dashboard datasets.
+ *
+ * Throws rather than returning a result when credentials are absent: a run row
+ * saying "succeeded, 0 records" for a source that was never actually asked
+ * would be a lie on the freshness banner, and that banner is the only thing
+ * standing between a stale screen and a confident wrong answer.
+ */
+export async function runDataDashboardIngest(
+  admin: AdminClient,
+  source: RegulatorySourceId,
+  opts: { triggeredByProfileId?: string | null; fetchImpl?: typeof fetch } = {}
+): Promise<IngestResult> {
+  const spec = datasetFor(source);
+  if (!spec) throw new Error(`${source} is not a Data Dashboard dataset.`);
+
+  const creds = credentialsFromEnv();
+  if (!creds) {
+    throw new DataDashboardError(
+      "FDA_DATADASHBOARD_USER and FDA_DATADASHBOARD_KEY are not both configured."
+    );
+  }
+
+  return runIngest(
+    admin,
+    source,
+    (window) => fetchDashboardWindow(spec, creds, window, { fetchImpl: opts.fetchImpl }),
+    opts
+  );
+}
+
+/**
+ * Every source this deployment can actually reach, in one pass.
+ *
+ * Sources are run in sequence, not in parallel: they share the matching pass
+ * and the candidate table, and three concurrent writers racing on the same
+ * dedupe read would produce duplicate candidates. Regulatory data refreshes
+ * weekly at best — there is nothing to gain by hurrying.
+ *
+ * A failing source does not stop the others. Its run row records the error and
+ * the freshness banner shows it as stale, which is the honest outcome.
+ */
+export async function runAllIngests(
+  admin: AdminClient,
+  opts: { triggeredByProfileId?: string | null; fetchImpl?: typeof fetch } = {}
+): Promise<IngestResult[]> {
+  const results: IngestResult[] = [
+    await runFoodEnforcementIngest(admin, {
+      apiKey: process.env.OPENFDA_API_KEY?.trim() || undefined,
+      ...opts,
+    }),
+  ];
+
+  if (credentialsFromEnv()) {
+    for (const source of [
+      "fda_import_refusals",
+      "fda_inspections_classifications",
+      "fda_compliance_actions",
+    ] as const) {
+      results.push(await runDataDashboardIngest(admin, source, opts));
+    }
+  }
+
+  return results;
 }
 
 /**
@@ -234,7 +327,8 @@ export async function runFoodEnforcementIngest(
 async function storeEvents(
   admin: AdminClient,
   events: NormalisedEvent[],
-  runId: string
+  runId: string,
+  source: RegulatorySourceId
 ): Promise<{ recordsNew: number; eventIds: Map<string, string> }> {
   const eventIds = new Map<string, string>();
   if (events.length === 0) return { recordsNew: 0, eventIds };
@@ -271,7 +365,7 @@ async function storeEvents(
   for (const batch of chunk(events.map((e) => e.source_ref))) {
     const { data: all } = await (admin.from("regulatory_events") as any)
       .select("id, source_ref")
-      .eq("source", "fda_food_enforcement")
+      .eq("source", source)
       .in("source_ref", batch);
 
     for (const row of (all ?? []) as Array<{ id: string; source_ref: string }>) {
