@@ -113,11 +113,24 @@ describe("proposeMatch — what it refuses to propose", () => {
   });
 
   it("does not fuzzy-match short names", () => {
-    // "SUN CO" vs "SUN AG" are similar as strings and unrelated as firms.
+    // "SUN" and "SAN" are 67% similar as strings and unrelated as firms. Short
+    // names carry too little signal for a resemblance to mean anything, so they
+    // must match exactly or not at all.
     const short = supplier({ name: "Sun Co", countryCode: "MX" });
     expect(
-      proposeMatch(short, { firmName: "Sun AG", firmCountry: "Mexico", firmFei: null }, lookup)
+      proposeMatch(short, { firmName: "San Co", firmCountry: "Mexico", firmFei: null }, lookup)
     ).toBeNull();
+  });
+
+  it("still matches short names when they are exactly equal", () => {
+    // The length floor guards the fuzzy path only. "Sun Co" and "Sun Ltd" both
+    // reduce to "SUN" in the same country, which is worth a reviewer's glance
+    // even though it is only a trading name.
+    const short = supplier({ name: "Sun Co", countryCode: "MX" });
+    const match = proposeMatch(
+      short, { firmName: "Sun Ltd", firmCountry: "Mexico", firmFei: null }, lookup
+    );
+    expect(match?.method).toBe("name_country_exact");
   });
 
   it("does not propose anything below the similarity floor", () => {
