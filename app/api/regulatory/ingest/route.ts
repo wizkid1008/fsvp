@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { runFoodEnforcementIngest } from "@/lib/regulatory/ingest";
+import { runAllIngests } from "@/lib/regulatory/ingest";
 
 export const runtime = "edge";
 
@@ -36,23 +36,37 @@ export async function POST(_req: NextRequest) {
 
   const admin = createAdminSupabaseClient();
 
-  const result = await runFoodEnforcementIngest(admin, {
-    apiKey: process.env.OPENFDA_API_KEY?.trim() || undefined,
-    triggeredByProfileId: user.id,
-  });
+  // Every source this deployment can reach. Sources without credentials are
+  // skipped rather than attempted, so they stay visibly "never refreshed"
+  // instead of accumulating failed runs that look like an outage.
+  const results = await runAllIngests(admin, { triggeredByProfileId: user.id });
 
-  if (result.error) {
-    return NextResponse.json(
-      { ok: false, run_id: result.runId, error: result.error },
-      { status: 502 }
-    );
-  }
+  const failed = results.filter((r) => r.error);
 
-  return NextResponse.json({
-    ok: true,
-    run_id: result.runId,
-    records_seen: result.recordsSeen,
-    records_new: result.recordsNew,
-    candidates_created: result.candidatesCreated,
-  });
+  return NextResponse.json(
+    {
+      // Partial success is the normal case while only some sources are
+      // configured, so `ok` means "nothing failed", not "everything ran".
+      ok: failed.length === 0,
+      sources: results.map((r) => ({
+        source:             r.source,
+        run_id:             r.runId,
+        records_seen:       r.recordsSeen,
+        records_new:        r.recordsNew,
+        candidates_created: r.candidatesCreated,
+        error:              r.error ?? null,
+      })),
+      records_seen:       results.reduce((n, r) => n + r.recordsSeen, 0),
+      records_new:        results.reduce((n, r) => n + r.recordsNew, 0),
+      candidates_created: results.reduce((n, r) => n + r.candidatesCreated, 0),
+      error: failed.length > 0
+        ? `${failed.length} of ${results.length} sources failed: ` +
+          failed.map((f) => `${f.source} — ${f.error}`).join("; ")
+        : null,
+    },
+    // 207-style semantics without the ceremony: a failure is reported with the
+    // successes beside it, because "recalls refreshed, refusals did not" is
+    // more useful than a bare 502.
+    { status: failed.length === results.length ? 502 : 200 }
+  );
 }

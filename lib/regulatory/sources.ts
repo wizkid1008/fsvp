@@ -83,7 +83,7 @@ export const REGULATORY_SOURCES: RegulatorySourceSpec[] = [
       "Only final actions appear, so pending decisions are absent. FDA notes some refused " +
       "shipments were never intended for US sale or moved outside established supply chains, so a " +
       "refusal is not automatically a judgement on a supplier's normal trade.",
-    implemented: false,
+    implemented: true,
   },
   {
     id: "fda_inspections_classifications",
@@ -97,7 +97,7 @@ export const REGULATORY_SOURCES: RegulatorySourceSpec[] = [
     caveat:
       "A classification describes one inspection on one date. Absence of a record means FDA has " +
       "not inspected and published, not that a facility passed.",
-    implemented: false,
+    implemented: true,
   },
   {
     id: "fda_compliance_actions",
@@ -111,7 +111,7 @@ export const REGULATORY_SOURCES: RegulatorySourceSpec[] = [
     caveat:
       "An action is a point-in-time record. It does not show whether the firm subsequently " +
       "corrected the problem to FDA's satisfaction.",
-    implemented: false,
+    implemented: true,
   },
   {
     id: "fda_import_alerts",
