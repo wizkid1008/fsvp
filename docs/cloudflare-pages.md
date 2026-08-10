@@ -28,6 +28,24 @@ Set these in Cloudflare Pages:
 
 Only server-side code may read the service role key.
 
+### FDA regulatory intelligence (migration 009)
+
+Optional, and the feature degrades rather than breaks without them:
+
+- `OPENFDA_API_KEY` — openFDA works with no key at 1,000 requests per day per IP.
+  A free [api.data.gov key](https://open.fda.gov/apis/authentication/) raises that to
+  120,000 per day. Recall ingestion works either way.
+- `FDA_DATADASHBOARD_USER` — the email FDA approved, sent as the `Authorization-User` header.
+- `FDA_DATADASHBOARD_KEY` — the key FDA issued, sent as `Authorization-Key`.
+
+The Data Dashboard pair gates import refusals, inspection classifications and compliance
+actions. Both must be set; `ingestableSources()` in `lib/regulatory/sources.ts` treats one
+without the other as absent, because a half-configured credential fails at request time with
+a 401 that looks like a supplier having no findings.
+
+None of these are `NEXT_PUBLIC_`. They are read server-side only, inside request handlers —
+an FDA credential in a client bundle is a published credential.
+
 ## Deployment Workflow
 
 1. Push the repository to GitHub.
