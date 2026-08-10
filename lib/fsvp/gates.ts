@@ -2,14 +2,17 @@
  * The blocking conditions that are not about evidence or signatures.
  *
  * The § 1.503 signature gate lives in ./qi-attestation and the applicability
- * gate in ./applicability. This module holds the three added by migration 010,
- * each of which existed in the schema as a word the platform never read:
+ * gate in ./applicability. This module holds the rest, each of which existed as
+ * something the platform recorded and never read:
  *
  *   - A SUSPENDED supplier could still have their record approved.
  *   - A § 1.506(d) verification determination was free text, so "the importer
  *     determined which activities were appropriate" could not be checked.
  *   - A § 1.507 written assurance could lapse with nothing noticing, leaving
  *     the importer relying on a promise that expired last year.
+ *   - A § 1.505(a)(1)(iv) compliance history screening could be absent or years
+ *     stale. This is the third condition of the roadmap's Phase 1 exit
+ *     criterion, and the last one to be enforced rather than merely stored.
  *
  * Shared between the approve route and the record page so both give the same
  * answer. A gate the UI does not show is a gate the user hits by surprise, and
@@ -27,7 +30,10 @@ export type GateBlock = {
     | "verification_determination_missing"
     | "verification_determination_stale"
     | "sahcodha_audit_unjustified"
-    | "assurance_expired";
+    | "assurance_expired"
+    | "compliance_screening_missing"
+    | "compliance_screening_expired"
+    | "compliance_screening_blocking";
   /** Shown to the user verbatim. */
   message: string;
 };
@@ -41,7 +47,7 @@ export type GateContext = {
 };
 
 /**
- * Every reason these three gates block, or an empty array.
+ * Every reason these gates block, or an empty array.
  *
  * Returns all of them rather than the first: an importer fixing one blocker at
  * a time, discovering the next only after resubmitting, is how a compliance
@@ -53,7 +59,8 @@ export async function evaluateGates(
 ): Promise<GateBlock[]> {
   const blocks: GateBlock[] = [];
 
-  const [{ data: suspension }, { data: determination }, { data: assurances }] = await Promise.all([
+  const [{ data: suspension }, { data: determination }, { data: assurances }, { data: screening }] =
+    await Promise.all([
     (supabase.from("supplier_suspensions") as any)
       .select("basis, reason, suspended_at")
       .eq("importer_id", ctx.importerId)
@@ -74,6 +81,16 @@ export async function evaluateGates(
       .select("category, expires_at, superseded_at")
       .eq("fsvp_record_id", ctx.fsvpRecordId)
       .is("superseded_at", null),
+
+    // Scoped to the supplier, not the record: § 1.505 evaluates the FOREIGN
+    // SUPPLIER, so one screening covers every food imported from them rather
+    // than being repeated per product.
+    (supabase.from("supplier_compliance_screenings") as any)
+      .select("id, conclusion, expires_at, screened_at")
+      .eq("importer_id", ctx.importerId)
+      .eq("supplier_id", ctx.supplierId)
+      .is("superseded_at", null)
+      .maybeSingle(),
   ]);
 
   // ── Suspension ───────────────────────────────────────────────────────────
@@ -123,6 +140,47 @@ export async function evaluateGates(
   const assuranceMessage = assuranceBlock((assurances ?? []) as AssuranceRow[]);
   if (assuranceMessage) {
     blocks.push({ code: "assurance_expired", message: assuranceMessage });
+  }
+
+  // ── § 1.505(a)(1)(iv) compliance history screening ───────────────────────
+  //
+  // This is the last of the three conditions in the Phase 1 exit criterion, and
+  // the one that was recorded but never enforced. Holding FDA data is not the
+  // same as having considered it: the platform can ingest every refusal FDA has
+  // ever published and an importer who never opened the screen has still not
+  // done what § 1.505(a)(1)(iv) asks.
+  //
+  // Required for in-scope foods only. § 1.512 replaces the supplier evaluation
+  // with written assurance for modified-requirement records, so demanding a
+  // § 1.505 screening there would be asking for work the regulation does not
+  // require — the same reasoning as the § 1.506(d) gate above.
+  if (ctx.outcome === "in_scope") {
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (!screening) {
+      blocks.push({
+        code: "compliance_screening_missing",
+        message:
+          "21 CFR 1.505(a)(1)(iv) requires you to consider this supplier's FDA compliance history. " +
+          "No screening has been recorded. A qualified individual records one on the Compliance " +
+          "History screen.",
+      });
+    } else if (screening.expires_at && screening.expires_at < today) {
+      blocks.push({
+        code: "compliance_screening_expired",
+        message:
+          `The compliance history screening for this supplier expired on ${screening.expires_at}. ` +
+          "FDA publishes new refusals, recalls and actions continuously, so a lapsed screen is a " +
+          "statement about data that has since changed. Record a current one.",
+      });
+    } else if (screening.conclusion === "adverse_history_blocking") {
+      blocks.push({
+        code: "compliance_screening_blocking",
+        message:
+          "A qualified individual screened this supplier's FDA compliance history and concluded it " +
+          "blocks approval. Resolve the findings and record a new screening, or suspend the supplier.",
+      });
+    }
   }
 
   return blocks;

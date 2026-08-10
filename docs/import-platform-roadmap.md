@@ -245,7 +245,16 @@ Closes the P1 gaps so the FSVP claim is defensible. Highest value per unit of ef
    dashboard parity, nav and onboarding coherence.
 
 **Exit criterion:** an FSVP record cannot be approved without a QI signature, an applicability
-determination, and a current compliance-history screen.
+determination, and a current compliance-history screen. **Met.** All three are enforced
+server-side in `/api/fsvp-records/[id]/approve`: the signature gate in `lib/fsvp/qi-attestation.ts`,
+the applicability gate in `lib/fsvp/applicability.ts`, and the screening gate — along with
+suspension, § 1.506(d) and § 1.507 — in `lib/fsvp/gates.ts`. Each blocks with a named reason that
+the record page shows before the user attempts the action.
+
+Two qualifications on "met", both deliberate. The screening and § 1.506(d) gates apply to
+**in-scope** foods only, because § 1.512 replaces that work with written assurance for
+modified-requirement records. And **import alerts are still screened by hand** — FDA publishes no
+API, so a screening records them as not covered rather than implying a clean sweep.
 
 ### Phase 2 — Agricultural product admissibility *(3–4 months)*
 
