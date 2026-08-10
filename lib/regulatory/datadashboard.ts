@@ -132,9 +132,19 @@ export async function fetchDataset<T>(
     }
 
     const batch = json.result ?? [];
-    out.push(...batch);
 
+    // Accumulate no more than the budget allows. The page-size request is a
+    // request, not a guarantee: a server that returns more rows than `rows`
+    // asked for would otherwise walk straight past maxRecords, and this is the
+    // loop standing between a first-ever pull and an unbounded one.
+    out.push(...batch.slice(0, maxRecords - out.length));
+
+    // The short-page check reads the RAW length, not the truncated one —
+    // otherwise trimming the last batch would look like the end of the dataset
+    // and quietly stop an ingest that still had pages to go.
     if (batch.length === 0 || batch.length < body.rows) break;
+    if (out.length >= maxRecords) break;
+
     start += batch.length;
   }
 

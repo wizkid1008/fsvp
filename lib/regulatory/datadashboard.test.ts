@@ -83,14 +83,17 @@ describe("fetchDataset", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("honours maxRecords", async () => {
+  it("honours maxRecords even when a page returns more rows than asked for", async () => {
+    // The page size is a request, not a guarantee. This loop is what stands
+    // between a first-ever pull and an unbounded one, so it truncates rather
+    // than trusting the server to respect `rows`.
     const full = Array.from({ length: 1000 }, (_, i) => ({ i }));
     const { impl } = fakeFetch([full, full, full]);
     const rows = await fetchDataset("import_refusals", CREDS, { sort: "RefusalDate" }, {
       fetchImpl: impl,
       maxRecords: 1500,
     });
-    expect(rows.length).toBeLessThanOrEqual(1500);
+    expect(rows).toHaveLength(1500);
   });
 
   it("explains a 401 in terms of the credentials, not the HTTP code", async () => {
