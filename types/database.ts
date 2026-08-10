@@ -708,3 +708,100 @@ export type QiAttestation = {
   revoked_reason: string | null;
   created_at: string;
 };
+
+// ── Regulatory intelligence types (migration 009) ───────────────────────────
+
+export type RegulatorySource =
+  | "fda_food_enforcement"
+  | "fda_import_refusals"
+  | "fda_inspections_classifications"
+  | "fda_compliance_actions";
+
+export type RegulatoryIngestRun = {
+  id: string;
+  source: RegulatorySource;
+  status: "running" | "succeeded" | "failed";
+  window_from: string | null;
+  window_to: string | null;
+  records_seen: number;
+  records_new: number;
+  candidates_created: number;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+  triggered_by_profile_id: string | null;
+};
+
+/**
+ * A fact FDA published about a firm. Global and tenant-free — attribution to
+ * one of our suppliers lives in SupplierComplianceHistory, never here.
+ */
+export type RegulatoryEvent = {
+  id: string;
+  source: RegulatorySource;
+  /** The source's own identifier. Unique with `source`. */
+  source_ref: string;
+  event_type:
+    | "recall"
+    | "import_refusal"
+    | "inspection_classification"
+    | "warning_letter"
+    | "seizure"
+    | "injunction"
+    | "other_action";
+  event_date: string | null;
+  /** Firm identity exactly as FDA published it, never normalised in place. */
+  firm_name: string | null;
+  firm_fei: string | null;
+  firm_country: string | null;
+  firm_address: string | null;
+  product_description: string | null;
+  summary: string;
+  classification: string | null;
+  detail_json: Json;
+  source_url: string | null;
+  retrieved_at: string;
+  ingest_run_id: string | null;
+  created_at: string;
+};
+
+/**
+ * Our claim that an FDA record concerns one of our suppliers — a judgement,
+ * per tenant, that a person confirms. Only `confirmed` rows count anywhere.
+ */
+export type SupplierComplianceHistory = {
+  id: string;
+  importer_id: string;
+  regulatory_event_id: string;
+  /** Exactly one of these two is set. */
+  supplier_id: string | null;
+  facility_id: string | null;
+  match_status: "candidate" | "confirmed" | "rejected";
+  match_method: "fei_exact" | "name_country_exact" | "name_country_fuzzy" | "manual";
+  match_confidence: number;
+  match_rationale: string;
+  reviewed_by_profile_id: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** The § 1.505(a)(1)(iv) record that a supplier's history was considered. */
+export type SupplierComplianceScreening = {
+  id: string;
+  importer_id: string;
+  supplier_id: string;
+  /** Which sources were covered, and how fresh each was at the time. */
+  sources_json: Json;
+  confirmed_event_count: number;
+  adverse_findings: string | null;
+  conclusion: "no_adverse_history" | "adverse_history_accepted" | "adverse_history_blocking";
+  rationale: string;
+  screened_by_profile_id: string;
+  screened_at: string;
+  expires_at: string | null;
+  superseded_at: string | null;
+  created_at: string;
+  updated_at: string;
+};

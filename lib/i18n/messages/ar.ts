@@ -32,6 +32,7 @@ const ar: Messages = {
     fsvpRecords: "سجلات FSVP",
     qualifiedIndividuals: "الأفراد المؤهلون",
     applicability: "انطباق FSVP",
+    complianceHistory: "سجل الامتثال",
     admin: "الإدارة",
     account: "الحساب",
   },
