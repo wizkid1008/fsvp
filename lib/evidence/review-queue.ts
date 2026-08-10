@@ -40,6 +40,41 @@ export interface ReviewQueueItem {
  * queue never showed evidence uploaded by their own suppliers. It only looked
  * correct because the reviewer/admin queue is unfiltered.
  */
+/**
+ * PostgREST puts `.in(...)` filters in the query string. The platform-wide
+ * queue builds those lists from EVERY document in the deployment, so they grow
+ * without bound — and a long enough URL is rejected by the gateway before it
+ * reaches Postgres, which surfaces as the fetch throwing rather than as a
+ * query error this code could handle.
+ *
+ * The importer-scoped path never hit this because it filters to one tenant
+ * first, which is why /importer-review could look healthy while /reviewer did
+ * not. Same fix as lib/regulatory/ingest.ts.
+ */
+const LOOKUP_BATCH = 200;
+
+function chunk<T>(items: T[], size = LOOKUP_BATCH): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/** Runs an `.in()` lookup in batches and concatenates the rows. */
+async function lookupIn<T>(
+  admin: AdminClient,
+  table: string,
+  columns: string,
+  ids: string[]
+): Promise<T[]> {
+  if (ids.length === 0) return [];
+  const out: T[] = [];
+  for (const batch of chunk(ids)) {
+    const { data } = await (admin.from(table) as any).select(columns).in("id", batch);
+    out.push(...((data ?? []) as T[]));
+  }
+  return out;
+}
+
 export async function fetchReviewQueue(admin: AdminClient, importerId?: string | null): Promise<ReviewQueueItem[]> {
   let scopedSupplierIds: string[] | null = null;
 
@@ -104,49 +139,31 @@ export async function fetchReviewQueue(admin: AdminClient, importerId?: string |
   const productIds  = [...new Set(docs.filter((d) => d.linked_entity_type === "product").map((d) => d.linked_entity_id).filter(Boolean))] as string[];
   const importerIds = importerId ? [] : ([...new Set(docs.map((d) => d.importer_id).filter(Boolean))] as string[]);
 
-  const [suppliersRes, itemsRes, profilesRes, facilitiesRes, productsRes, importersRes] = await Promise.all([
-    supplierIds.length > 0
-      ? (admin.from("suppliers") as any).select("id, company_name").in("id", supplierIds)
-      : Promise.resolve({ data: [] }),
-    itemIds.length > 0
-      ? (admin.from("requirement_items") as any).select("id, item_name, is_critical_blocker").in("id", itemIds)
-      : Promise.resolve({ data: [] }),
-    profileIds.length > 0
-      ? (admin.from("profiles") as any).select("id, full_name, email").in("id", profileIds)
-      : Promise.resolve({ data: [] }),
-    facilityIds.length > 0
-      ? (admin.from("facilities_verify") as any).select("id, facility_name").in("id", facilityIds)
-      : Promise.resolve({ data: [] }),
-    productIds.length > 0
-      ? (admin.from("products_verify") as any).select("id, product_name").in("id", productIds)
-      : Promise.resolve({ data: [] }),
+  const [suppliers, items, profiles, facilities, products, importers] = await Promise.all([
+    lookupIn<{ id: string; company_name: string }>(
+      admin, "suppliers", "id, company_name", supplierIds),
+    lookupIn<{ id: string; item_name: string; is_critical_blocker: boolean | null }>(
+      admin, "requirement_items", "id, item_name, is_critical_blocker", itemIds),
+    lookupIn<{ id: string; full_name: string | null; email: string }>(
+      admin, "profiles", "id, full_name, email", profileIds),
+    lookupIn<{ id: string; facility_name: string }>(
+      admin, "facilities_verify", "id, facility_name", facilityIds),
+    lookupIn<{ id: string; product_name: string }>(
+      admin, "products_verify", "id, product_name", productIds),
     // importers has legal_name / display_name — there is no company_name column,
     // so the previous select errored and every importer_name came back null.
-    importerIds.length > 0
-      ? (admin.from("importers") as any).select("id, display_name").in("id", importerIds)
-      : Promise.resolve({ data: [] }),
+    lookupIn<{ id: string; display_name: string }>(
+      admin, "importers", "id, display_name", importerIds),
   ]);
 
-  const supplierMap = new Map(
-    ((suppliersRes.data ?? []) as Array<{ id: string; company_name: string }>).map((s) => [s.id, s.company_name])
-  );
+  const supplierMap = new Map(suppliers.map((s) => [s.id, s.company_name]));
   const itemMap = new Map(
-    ((itemsRes.data ?? []) as Array<{ id: string; item_name: string; is_critical_blocker: boolean | null }>)
-      .map((i) => [i.id, { name: i.item_name, critical: !!i.is_critical_blocker }])
+    items.map((i) => [i.id, { name: i.item_name, critical: !!i.is_critical_blocker }])
   );
-  const profileMap = new Map(
-    ((profilesRes.data ?? []) as Array<{ id: string; full_name: string | null; email: string }>)
-      .map((p) => [p.id, p.full_name || p.email])
-  );
-  const facilityMap = new Map(
-    ((facilitiesRes.data ?? []) as Array<{ id: string; facility_name: string }>).map((f) => [f.id, f.facility_name])
-  );
-  const productMap = new Map(
-    ((productsRes.data ?? []) as Array<{ id: string; product_name: string }>).map((p) => [p.id, p.product_name])
-  );
-  const importerMap = new Map(
-    ((importersRes.data ?? []) as Array<{ id: string; display_name: string }>).map((i) => [i.id, i.display_name])
-  );
+  const profileMap = new Map(profiles.map((p) => [p.id, p.full_name || p.email]));
+  const facilityMap = new Map(facilities.map((f) => [f.id, f.facility_name]));
+  const productMap = new Map(products.map((p) => [p.id, p.product_name]));
+  const importerMap = new Map(importers.map((i) => [i.id, i.display_name]));
 
   return docs.map((d) => {
     const reqItem = d.requirement_item_id ? itemMap.get(d.requirement_item_id) : null;
