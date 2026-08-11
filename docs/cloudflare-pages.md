@@ -18,15 +18,49 @@ Dependency note: `@cloudflare/next-on-pages` is pinned to `1.13.15` so Cloudflar
 
 ## Environment Variables
 
-Set these in Cloudflare Pages:
+Cloudflare splits these into two scopes, and putting one in the wrong place fails
+in a way that is genuinely hard to read. This cost an afternoon on 2026-08-10.
+
+### Build scope — Settings → Variables and secrets
+
+Values Next inlines into the bundle at compile time:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+### Runtime scope — Settings → Bindings (type: Secret)
+
+Values read by server code **when a request arrives**. A build-scope variable is
+NOT visible here — `process.env.X` is simply undefined in the Pages Function:
+
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN`
+- `FDA_DATADASHBOARD_USER`
+- `FDA_DATADASHBOARD_KEY`
+- `OPENFDA_API_KEY`
+
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` are for local Wrangler use and
+belong in `.env.local`, not in the deployed project at all.
 
 Only server-side code may read the service role key.
+
+### How this fails, so it is recognisable next time
+
+`createAdminSupabaseClient()` throws `SUPABASE_SERVICE_ROLE_KEY is not configured`
+when the key is missing **or** when its value contains `xxxxx`, which the config
+treats as a placeholder. Thirteen pages construct that client unconditionally and
+all break together, showing only Next's opaque digest.
+
+Two things that look like evidence and are not:
+
+- **`/dashboard` loading proves nothing.** It only constructs the admin client
+  when an administrator is previewing a supplier account. `/account` proves
+  nothing either — it never uses it.
+- **A stable digest across deploys does not mean the deploy is stale.** Next
+  hashes the error message, so an unchanged message yields an unchanged digest
+  no matter how many times you rebuild.
+
+The reliable check is any page in the unconditional list — `/suppliers`,
+`/reviewer`, `/readiness`, `/compliance-history`. They fail together or not at all.
 
 ### FDA regulatory intelligence (migration 009)
 
