@@ -103,33 +103,51 @@ describe("fetchDataset", () => {
     ).rejects.toThrow(/FDA_DATADASHBOARD_USER/);
   });
 
-  it("accepts a statuscode FDA sends as a string", async () => {
-    // FDA returns "200", not 200. Comparing strictly against the number
-    // rejected every successful response with "refused the query: Success" —
-    // the API working and the client calling it a refusal.
+  it("accepts data even when FDA calls a good response status 400", async () => {
+    // Not hypothetical. This is a real production response, trimmed: status
+    // 400, the word "Success", and a hundred rows of valid data in the same
+    // envelope. FDA's statuscode is not an error signal and cannot be treated
+    // as one — two attempts to validate against it rejected real records.
     const impl = (async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ statuscode: "200", message: "Success", result: [{ a: 1 }] }),
+      json: async () => ({
+        statuscode: 400,
+        message: "Success.",
+        totalrecordcount: 7848,
+        resultcount: 1,
+        result: [{ FEINumber: "3012015812", FirmName: "CAPITAL FOODS PRIVATE LIMITED" }],
+      }),
     })) as unknown as typeof fetch;
 
     const rows = await fetchDataset("import_refusals", CREDS, { sort: "RefusalDate" }, { fetchImpl: impl });
     expect(rows).toHaveLength(1);
   });
 
-  it("treats a non-200 statuscode in a 200 body as a failure", async () => {
-    // The API answers HTTP 200 with an error status inside the envelope. An
-    // HTTP-only check would read a rejected query as an empty dataset — which
-    // is the same shape as "this supplier is clean".
+  it("fails when there is no result set at all", async () => {
+    // The original worry, handled by the right signal: a genuinely rejected
+    // query must not read as an empty dataset, because that is
+    // indistinguishable from a supplier having no findings.
     const impl = (async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ statuscode: "400", message: "Invalid sort column", result: [] }),
+      json: async () => ({ statuscode: 400, message: "Invalid sort column" }),
     })) as unknown as typeof fetch;
 
     await expect(
       fetchDataset("import_refusals", CREDS, { sort: "Nope" }, { fetchImpl: impl })
     ).rejects.toThrow(DataDashboardError);
+  });
+
+  it("treats an empty result array as a real empty page, not an error", async () => {
+    const impl = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ statuscode: 400, message: "Success.", result: [] }),
+    })) as unknown as typeof fetch;
+
+    const rows = await fetchDataset("import_refusals", CREDS, { sort: "RefusalDate" }, { fetchImpl: impl });
+    expect(rows).toEqual([]);
   });
 });
 

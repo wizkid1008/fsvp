@@ -71,6 +71,23 @@ const OVERLAP_DAYS = 14;
 const MAX_WINDOW_DAYS = 120;
 
 /**
+ * Per-source overrides, because the sources differ in density by an order of
+ * magnitude.
+ *
+ * Import refusals reported 7,848 records for a single four-month window — at a
+ * hundred rows per page that is 79 round trips before a single row is stored,
+ * which walks straight back into the budget that caused Error 1102. Refusals
+ * also cannot be narrowed by product type the way inspections and compliance
+ * actions can, since the dataset has no such column, so the window is the only
+ * lever available.
+ *
+ * Measured rather than guessed: the number came from a live response.
+ */
+const WINDOW_DAYS_BY_SOURCE: Partial<Record<RegulatorySourceId, number>> = {
+  fda_import_refusals: 30,
+};
+
+/**
  * PostgREST puts `.in(...)` filters in the query string, so a first-ever ingest
  * — two years of recalls, several thousand rows — would build a URL long enough
  * to be rejected by the gateway before it reached Postgres. Every batched read
@@ -214,7 +231,8 @@ async function runIngest(
   // several runs to reach the present, each one bounded and resumable, rather
   // than one run that exhausts the Worker and leaves nothing.
   const todayIso = isoDate(new Date());
-  const capped = isoDate(new Date(new Date(from).getTime() + MAX_WINDOW_DAYS * 86_400_000));
+  const windowDays = WINDOW_DAYS_BY_SOURCE[source] ?? MAX_WINDOW_DAYS;
+  const capped = isoDate(new Date(new Date(from).getTime() + windowDays * 86_400_000));
   const to = capped < todayIso ? capped : todayIso;
   const caughtUp = to >= todayIso;
 
