@@ -107,7 +107,8 @@ export async function POST(req: NextRequest) {
       "id, commodity_id, origin_country, origin_region, intended_use, processing_state, " +
       "admissibility, permit_required, phyto_required, treatment_required, peq_required, " +
       "additional_declarations, designated_ports, conditions_text, citation, source_url, " +
-      "reviewed_at, review_due_at, effective_from, effective_to, superseded_at"
+      "reviewed_at, review_due_at, effective_from, effective_to, superseded_at, " +
+      "verification_status, source_changed_at"
     )
     .eq("commodity_id", product.commodity_id);
 

@@ -758,6 +758,18 @@ export type CountryCommodityRule = {
   conditions_text: string | null;
   citation: string;
   source_url: string;
+  /** Only a verified rule may support a determination — migration 014. */
+  verification_status: "draft" | "verified";
+  verified_by_profile_id: string | null;
+  verified_at: string | null;
+  /** What was actually consulted, e.g. "ACIR, mango from Mexico, 2026-08-11". */
+  verified_against: string | null;
+  /** The CFR part, for eCFR change detection. Coarser than `citation`. */
+  cfr_part: string | null;
+  source_checksum: string | null;
+  source_checked_at: string | null;
+  /** Set when detection sees the source move: "the ground shifted". */
+  source_changed_at: string | null;
   reviewed_at: string;
   reviewed_by_profile_id: string | null;
   review_due_at: string;
@@ -769,12 +781,16 @@ export type CountryCommodityRule = {
   updated_at: string;
 };
 
-/** country_commodity_rules with currency computed — see the view in 012. */
+/** country_commodity_rules with currency computed — see the view in 012/014. */
 export type CountryCommodityRuleStatus = CountryCommodityRule & {
-  /** False once superseded, outside its effective window, OR past review. */
+  /** Verified, unsuperseded, in window, in review, and unmoved at source. */
   is_current: boolean;
   /** Still in force, but nobody has re-checked it. Readable, not authoritative. */
   is_overdue: boolean;
+  /** Written but never confirmed by a second person. Forces manual review. */
+  is_draft: boolean;
+  /** Change detection saw the underlying text move since verification. */
+  source_moved: boolean;
   days_until_review: number;
 };
 

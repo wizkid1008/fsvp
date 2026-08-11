@@ -29,6 +29,10 @@ export type Admissibility = "permitted" | "restricted" | "prohibited";
 export type RuleRow = {
   id: string;
   commodity_id: string;
+  /** Only a verified rule may support a determination — migration 014. */
+  verification_status: "draft" | "verified";
+  /** Set when change detection sees the underlying text move. */
+  source_changed_at: string | null;
   origin_country: string | null;
   origin_region: string | null;
   intended_use: IntendedUse;
@@ -78,9 +82,12 @@ function isInForce(rule: RuleRow, on: string): boolean {
   return true;
 }
 
-/** In force, and re-checked against the agency recently enough to be asserted. */
+/** In force, verified, unmoved at source, and re-checked recently enough. */
 export function isCurrent(rule: RuleRow, on: string = today()): boolean {
-  return isInForce(rule, on) && rule.review_due_at >= on;
+  return rule.verification_status === "verified"
+    && rule.source_changed_at === null
+    && isInForce(rule, on)
+    && rule.review_due_at >= on;
 }
 
 /**
@@ -167,11 +174,45 @@ export function resolveRule(rules: RuleRow[], q: ResolutionQuery): Resolution {
     };
   }
 
+  // A draft is not the same as nothing. Somebody has written a rule here and
+  // it has not been checked — and it may be a prohibition. Treating drafts as
+  // absent would let a drafted prohibition be stepped over by silence, which
+  // is the same error as ignoring an unevaluable region rule.
+  const drafts = inForce.filter((r) => r.verification_status !== "verified");
+  if (drafts.length > 0) {
+    return {
+      status: "manual_review",
+      reasons: [
+        `${drafts.length} rule${drafts.length === 1 ? " covering" : "s covering"} this movement ` +
+        `${drafts.length === 1 ? "is" : "are"} still a draft. A rule is not usable because somebody ` +
+        `typed it — it has to be confirmed against the source by someone other than its author ` +
+        `before a determination can rest on it.`,
+      ],
+      candidates: inForce,
+    };
+  }
+
+  // Change detection has seen the underlying text move since this was verified.
+  // Different from expiry: the ground shifted rather than time passing.
+  const moved = inForce.filter((r) => r.source_changed_at !== null);
+  if (moved.length > 0 && moved.length === inForce.length) {
+    return {
+      status: "manual_review",
+      reasons: [
+        `The source behind every rule covering this movement has changed since it was verified ` +
+        `(first seen ${moved[0].source_changed_at?.slice(0, 10)}). Re-read ${moved[0].citation} and ` +
+        `verify again before determining admissibility.`,
+      ],
+      candidates: inForce,
+    };
+  }
+
   // Overdue is the case this whole module exists for. The rule is in force and
   // may well be right; what has lapsed is the review that lets us assert it.
-  const current = inForce.filter((r) => r.review_due_at >= on);
+  const usable = inForce.filter((r) => r.source_changed_at === null);
+  const current = usable.filter((r) => r.review_due_at >= on);
   if (current.length === 0) {
-    const worst = [...inForce].sort((a, b) => a.review_due_at.localeCompare(b.review_due_at))[0];
+    const worst = [...usable].sort((a, b) => a.review_due_at.localeCompare(b.review_due_at))[0];
     return {
       status: "manual_review",
       reasons: [
@@ -183,6 +224,8 @@ export function resolveRule(rules: RuleRow[], q: ResolutionQuery): Resolution {
     };
   }
 
+  // Ranking only ever sees verified, unmoved, in-force, in-review rules. Every
+  // other state has already returned above with a reason a person can act on.
   const ranked = [...current].sort((a, b) => {
     const bySpecificity = specificity(b) - specificity(a);
     if (bySpecificity !== 0) return bySpecificity;

@@ -16,6 +16,10 @@ function rule(over: Partial<RuleRow> = {}): RuleRow {
   return {
     id: "r1",
     commodity_id: "c-mango",
+    // Verified by default so each test can break exactly one thing; the draft
+    // and source-moved paths get their own cases below.
+    verification_status: "verified",
+    source_changed_at: null,
     origin_country: "MX",
     origin_region: null,
     intended_use: "any",
@@ -159,6 +163,42 @@ describe("resolveRule — what it refuses to do", () => {
     expect(resolveRule([superseded], query()).status).toBe("manual_review");
   });
 
+  it("refuses to resolve against a draft rule", () => {
+    // A draft is not the same as nothing: somebody wrote a rule here and
+    // nobody has checked it.
+    const draft = rule({ verification_status: "draft" });
+    const r = resolveRule([draft], query());
+    expect(r.status).toBe("manual_review");
+    if (r.status === "manual_review") expect(r.reasons[0]).toContain("draft");
+  });
+
+  it("lets a draft prohibition block rather than being stepped over by silence", () => {
+    // The same error as ignoring an unevaluable region rule: treating a draft
+    // as absent would let a drafted prohibition quietly fail to apply.
+    const draftProhibition = rule({
+      id: "draft", verification_status: "draft", admissibility: "prohibited",
+      intended_use: "consumption", processing_state: "fresh",
+    });
+    const verifiedGeneral = rule({ id: "general", admissibility: "permitted" });
+    const r = resolveRule([draftProhibition, verifiedGeneral], query());
+    expect(r.status).toBe("manual_review");
+  });
+
+  it("refuses when the source behind every covering rule has moved", () => {
+    const moved = rule({ source_changed_at: "2026-07-02T00:00:00Z" });
+    const r = resolveRule([moved], query());
+    expect(r.status).toBe("manual_review");
+    if (r.status === "manual_review") expect(r.reasons[0]).toContain("2026-07-02");
+  });
+
+  it("still resolves when one covering rule has moved and another has not", () => {
+    const moved = rule({ id: "moved", source_changed_at: "2026-07-02T00:00:00Z" });
+    const intact = rule({ id: "intact" });
+    const r = resolveRule([moved, intact], query());
+    expect(r.status).toBe("resolved");
+    if (r.status === "resolved") expect(r.rule.id).toBe("intact");
+  });
+
   it("refuses when two equally specific rules disagree", () => {
     const a = rule({ id: "a", admissibility: "permitted", citation: "7 CFR 319.56" });
     const b = rule({ id: "b", admissibility: "prohibited", citation: "7 CFR 319.37" });
@@ -175,6 +215,14 @@ describe("resolveRule — what it refuses to do", () => {
 });
 
 describe("isCurrent", () => {
+  it("is false for a draft, however recently reviewed", () => {
+    expect(isCurrent(rule({ verification_status: "draft" }), TODAY)).toBe(false);
+  });
+
+  it("is false once change detection has seen the source move", () => {
+    expect(isCurrent(rule({ source_changed_at: "2026-07-02T00:00:00Z" }), TODAY)).toBe(false);
+  });
+
   it("is false once overdue, even while in force", () => {
     expect(isCurrent(rule({ review_due_at: "2026-06-01" }), TODAY)).toBe(false);
     expect(isCurrent(rule({ review_due_at: FUTURE }), TODAY)).toBe(true);
