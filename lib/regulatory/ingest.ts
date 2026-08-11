@@ -85,7 +85,24 @@ const MAX_WINDOW_DAYS = 120;
  */
 const WINDOW_DAYS_BY_SOURCE: Partial<Record<RegulatorySourceId, number>> = {
   fda_import_refusals: 30,
+  // Inspections died mid-run on a 120-day window — the Worker was killed before
+  // the catch block could record a failure, leaving the run stuck at 'running'
+  // forever. 30 days is the size refusals demonstrably survives at, so the
+  // other Dashboard sources adopt it rather than each discovering its own
+  // ceiling by being killed.
+  fda_inspections_classifications: 30,
+  fda_compliance_actions: 30,
 };
+
+/**
+ * A run still 'running' after this long was killed, not slow.
+ *
+ * Nothing can update the row from inside a Worker that has been terminated, so
+ * the only way an abandoned run is ever resolved is by a later run noticing it.
+ * Without this the source reads "Running" indefinitely, which is worse than
+ * "failed": it suggests work is in progress when nothing is happening.
+ */
+const ABANDONED_AFTER_MINUTES = 15;
 
 /**
  * PostgREST puts `.in(...)` filters in the query string, so a first-ever ingest
@@ -215,6 +232,21 @@ async function runIngest(
   fetcher: Fetcher,
   opts: { triggeredByProfileId?: string | null } = {}
 ): Promise<IngestResult> {
+  // Close out any run abandoned by a killed Worker before starting a new one.
+  // A terminated Worker cannot update its own row, so this is the only moment
+  // an interrupted run is ever resolved.
+  await (admin.from("regulatory_ingest_runs") as any)
+    .update({
+      status: "failed",
+      error_message:
+        "Interrupted — the worker stopped before the run finished, so nothing was recorded for " +
+        "this window. Usually the request budget: try a smaller window.",
+      completed_at: new Date().toISOString(),
+    })
+    .eq("source", source)
+    .eq("status", "running")
+    .lt("started_at", new Date(Date.now() - ABANDONED_AFTER_MINUTES * 60_000).toISOString());
+
   const { data: lastRun } = await (admin.from("regulatory_ingest_runs") as any)
     .select("window_to")
     .eq("source", source)
