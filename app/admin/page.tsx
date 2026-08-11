@@ -175,6 +175,14 @@ export default async function AdminPage() {
           <Settings2 className="h-4 w-4" />
           Rules Engine
         </a>
+        {/* Distinct from the Rules Engine above, which versions the FSVP
+            requirement set. This is the commodity admissibility reference
+            layer — different data, different cadence, different authority. */}
+        <a href="/admin/reference-rules"
+          className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 shadow-soft hover:bg-slate-50">
+          <BookOpenCheck className="h-4 w-4" />
+          Country-Commodity Rules
+        </a>
       </div>
 
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">

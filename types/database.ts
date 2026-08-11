@@ -709,6 +709,91 @@ export type QiAttestation = {
   created_at: string;
 };
 
+// ── Reference layer (migration 012) ─────────────────────────────────────────
+
+/** Global commodity taxonomy. A fact about the world, not about one importer. */
+export type Commodity = {
+  id: string;
+  common_name: string;
+  scientific_name: string | null;
+  commodity_class:
+    | "fruit" | "vegetable" | "nut" | "grain" | "herb_spice"
+    | "seafood" | "meat_poultry" | "dairy" | "egg"
+    | "beverage" | "processed_food" | "supplement" | "other";
+  /** Which part enters — APHIS rules differ sharply between fruit and leaf. */
+  plant_part:
+    | "fruit" | "leaf" | "root" | "seed" | "stem" | "flower"
+    | "whole_plant" | "bulb" | "tuber" | "not_applicable" | null;
+  /** Propagative material is regulated far more strictly than the same species as food. */
+  is_propagative: boolean;
+  fda_product_code: string | null;
+  notes: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * A curated claim about what an agency currently requires.
+ *
+ * `citation`, `source_url`, `reviewed_at` and `review_due_at` are all NOT NULL
+ * by design: APHIS publishes no usable API, so this table is maintained by hand
+ * and staleness — not absence — is the primary risk. See migration 012.
+ */
+export type CountryCommodityRule = {
+  id: string;
+  commodity_id: string;
+  /** Exactly one of these two is set. */
+  origin_country: string | null;
+  origin_region: string | null;
+  intended_use: "any" | "consumption" | "processing" | "propagation" | "research";
+  processing_state: "any" | "fresh" | "frozen" | "dried" | "cooked" | "canned" | "other";
+  admissibility: "permitted" | "restricted" | "prohibited";
+  permit_required: boolean;
+  phyto_required: boolean;
+  treatment_required: boolean;
+  peq_required: boolean;
+  additional_declarations: string[] | null;
+  designated_ports: string[] | null;
+  conditions_text: string | null;
+  citation: string;
+  source_url: string;
+  /** Only a verified rule may support a determination — migration 014. */
+  verification_status: "draft" | "verified";
+  verified_by_profile_id: string | null;
+  verified_at: string | null;
+  /** What was actually consulted, e.g. "ACIR, mango from Mexico, 2026-08-11". */
+  verified_against: string | null;
+  /** The CFR part, for eCFR change detection. Coarser than `citation`. */
+  cfr_part: string | null;
+  source_checksum: string | null;
+  source_checked_at: string | null;
+  /** Set when detection sees the source move: "the ground shifted". */
+  source_changed_at: string | null;
+  reviewed_at: string;
+  reviewed_by_profile_id: string | null;
+  review_due_at: string;
+  effective_from: string;
+  effective_to: string | null;
+  superseded_at: string | null;
+  created_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** country_commodity_rules with currency computed — see the view in 012/014. */
+export type CountryCommodityRuleStatus = CountryCommodityRule & {
+  /** Verified, unsuperseded, in window, in review, and unmoved at source. */
+  is_current: boolean;
+  /** Still in force, but nobody has re-checked it. Readable, not authoritative. */
+  is_overdue: boolean;
+  /** Written but never confirmed by a second person. Forces manual review. */
+  is_draft: boolean;
+  /** Change detection saw the underlying text move since verification. */
+  source_moved: boolean;
+  days_until_review: number;
+};
+
 // ── Suspension, assurances, verification (migration 010) ────────────────────
 
 /** Per importer, never per supplier: `suppliers` is a shared global entity. */
