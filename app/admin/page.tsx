@@ -132,7 +132,7 @@ export default async function AdminPage() {
   // Most recent run per FDA source, including failures — an admin needs to see
   // that a refresh broke, not just that it has been a while.
   const { data: rawRuns } = await (supabase.from("regulatory_ingest_runs") as any)
-    .select("source, status, completed_at, records_seen, records_new, candidates_created, error_message")
+    .select("source, status, started_at, completed_at, records_seen, records_new, candidates_created, error_message")
     .order("started_at", { ascending: false })
     .limit(50);
 
@@ -149,6 +149,7 @@ export default async function AdminPage() {
         source:            s.id,
         label:             s.label,
         status:            run?.status ?? null,
+        startedAt:         run?.started_at ?? null,
         completedAt:       run?.completed_at ?? null,
         recordsSeen:       run?.records_seen ?? null,
         recordsNew:        run?.records_new ?? null,

@@ -10,11 +10,27 @@ export type RunSummary = {
   label: string;
   status: "running" | "succeeded" | "failed" | null;
   completedAt: string | null;
+  /** When the run began — used to tell "running" from "abandoned". */
+  startedAt: string | null;
   recordsSeen: number | null;
   recordsNew: number | null;
   candidatesCreated: number | null;
   errorMessage: string | null;
 };
+
+/**
+ * A Worker killed mid-run cannot mark its own row failed, so a stuck 'running'
+ * is indistinguishable from a live one by status alone. Age separates them.
+ * Reporting "running" for work that stopped an hour ago is worse than
+ * reporting a failure: it implies something is still happening.
+ */
+const ABANDONED_AFTER_MS = 15 * 60_000;
+
+function isAbandoned(r: RunSummary): boolean {
+  return r.status === "running"
+    && r.startedAt !== null
+    && Date.now() - new Date(r.startedAt).getTime() > ABANDONED_AFTER_MS;
+}
 
 /**
  * Refreshes the FDA data for the whole platform.
@@ -88,6 +104,7 @@ export function RegulatoryRefresh({ runs }: { runs: RunSummary[] }) {
               <span className="ml-2 text-xs text-slate-500">
                 {r.status === null ? "Never refreshed"
                   : r.status === "failed" ? "Last run failed"
+                  : isAbandoned(r) ? "Interrupted — nothing recorded for that window"
                   : r.status === "running" ? "Running"
                   : r.completedAt
                     ? `${new Date(r.completedAt).toLocaleDateString()}${r.recordsNew !== null ? ` · ${r.recordsNew} new` : ""}`
@@ -97,6 +114,7 @@ export function RegulatoryRefresh({ runs }: { runs: RunSummary[] }) {
 
             <div className="flex items-center gap-2">
               {r.status === "failed" && <StatusBadge tone="danger">Failed</StatusBadge>}
+              {isAbandoned(r) && <StatusBadge tone="warning">Interrupted</StatusBadge>}
               {r.status === null && <StatusBadge tone="neutral">Never run</StatusBadge>}
               <button
                 onClick={() => refresh(r.source)}
