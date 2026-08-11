@@ -21,8 +21,15 @@ import { shorten, toIsoDate, type NormalisedEvent } from "./events";
 
 const BASE = "https://api-datadashboard.fda.gov/v1";
 
-/** FDA has not published a page ceiling; 1000 is the largest that behaves. */
-const PAGE_SIZE = 1000;
+/**
+ * FDA does not document a page ceiling. 1000 was a guess and the API answered
+ * every request with statuscode 400, so it is now 100 — the largest value that
+ * appears in FDA's own published examples, which use 10 and 100.
+ *
+ * The cost is more round trips per window; the alternative was an integration
+ * that never returned a row.
+ */
+const PAGE_SIZE = 100;
 /** Stops a first-ever pull from running until the request budget is gone. */
 const DEFAULT_MAX_RECORDS = 20_000;
 
@@ -138,9 +145,14 @@ export async function fetchDataset<T>(
     // bug it was guarding against: a real refusal fails loudly either way,
     // whereas this made a working API look permanently broken.
     if (json.statuscode !== undefined && Number(json.statuscode) !== 200) {
+      // FDA answers a 400 with message "Success", which says nothing, so the
+      // whole envelope is reported instead. Diagnosing a rejected query from a
+      // one-word message that contradicts the status is not possible, and the
+      // request is echoed back so the two can be compared side by side.
+      const envelope = JSON.stringify(json).slice(0, 600);
       throw new DataDashboardError(
-        `FDA Data Dashboard refused the query (status ${json.statuscode}): ` +
-        `${json.message ?? "no message given"}`
+        `FDA Data Dashboard rejected the query with status ${json.statuscode}. ` +
+        `Response: ${envelope} — Request: ${JSON.stringify(body).slice(0, 400)}`
       );
     }
 

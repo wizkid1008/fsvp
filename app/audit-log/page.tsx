@@ -2,6 +2,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { RecordTypeFilter } from "@/components/audit/RecordTypeFilter";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -133,16 +134,16 @@ export default async function AuditLogPage({
           </a>
         ))}
 
-        <select
+        {/* A client component: an onChange handler here would not survive the
+            server boundary, and took the whole page down with it. */}
+        <RecordTypeFilter
           value={filterRecordType}
-          onChange={(e) => { window.location.href = buildUrl({ record_type: e.target.value }); }}
-          className="h-8 rounded-md border border-line bg-white px-2 text-xs text-slate-700 focus:border-forest focus:outline-none"
-        >
-          <option value="">All record types</option>
-          {RECORD_TYPE_OPTIONS.map((rt) => (
-            <option key={rt} value={rt}>{rt.replace(/_/g, " ")}</option>
-          ))}
-        </select>
+          options={RECORD_TYPE_OPTIONS}
+          urlFor={Object.fromEntries([
+            ["", buildUrl({ record_type: "" })],
+            ...RECORD_TYPE_OPTIONS.map((rt) => [rt, buildUrl({ record_type: rt })]),
+          ])}
+        />
 
         {(filterAction || filterRecordType) && (
           <a href="/audit-log" className="text-xs font-semibold text-slate-400 hover:text-red-600">
