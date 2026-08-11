@@ -22,7 +22,13 @@ import {
   DataDashboardError,
 } from "./datadashboard";
 import type { NormalisedEvent } from "./events";
-import { proposeMatches, type CountryLookup, type MatchableEntity } from "./matching";
+import {
+  normaliseFirmName,
+  prepareEntities,
+  proposeMatches,
+  type CountryLookup,
+  type MatchableEntity,
+} from "./matching";
 import { findingSeverity, type RegulatorySourceId } from "./sources";
 import { notify } from "@/lib/notifications/notify";
 
@@ -34,16 +40,35 @@ export type IngestResult = {
   recordsSeen: number;
   recordsNew: number;
   candidatesCreated: number;
+  /** The slice this run actually covered. */
+  windowFrom: string;
+  windowTo: string;
+  /** False when the window stopped short of today — run again to continue. */
+  caughtUp: boolean;
   error?: string;
 };
 
 /** Fetches one window's worth of a source, already normalised. */
 type Fetcher = (window: { from: string; to: string }) => Promise<NormalisedEvent[]>;
 
-/** How far back a first-ever ingest reaches. */
+/** How far back a first-ever ingest reaches, in total. */
 const INITIAL_LOOKBACK_DAYS = 730;
 /** Overlap re-fetched on every incremental run, since FDA amends past records. */
 const OVERLAP_DAYS = 14;
+
+/**
+ * The most calendar time one run will cover.
+ *
+ * A Cloudflare Worker has a bounded CPU and subrequest budget per request, and
+ * the first attempt at a full two-year, four-source ingest exceeded it —
+ * Error 1102. Rather than make the work cheaper and hope, each run now covers
+ * a bounded slice and advances the window. Repeated runs walk forward until
+ * caught up, which is also what makes the ingest resumable after any failure.
+ *
+ * The run row records the window it actually covered, so "how far has this got"
+ * is answerable from the data rather than inferred.
+ */
+const MAX_WINDOW_DAYS = 120;
 
 /**
  * PostgREST puts `.in(...)` filters in the query string, so a first-ever ingest
@@ -184,7 +209,14 @@ async function runIngest(
   const from = lastRun?.window_to
     ? isoDate(new Date(new Date(lastRun.window_to).getTime() - OVERLAP_DAYS * 86_400_000))
     : isoDate(daysAgo(INITIAL_LOOKBACK_DAYS));
-  const to = isoDate(new Date());
+
+  // Advance by at most MAX_WINDOW_DAYS. A first-ever ingest therefore takes
+  // several runs to reach the present, each one bounded and resumable, rather
+  // than one run that exhausts the Worker and leaves nothing.
+  const todayIso = isoDate(new Date());
+  const capped = isoDate(new Date(new Date(from).getTime() + MAX_WINDOW_DAYS * 86_400_000));
+  const to = capped < todayIso ? capped : todayIso;
+  const caughtUp = to >= todayIso;
 
   const { data: run } = await (admin.from("regulatory_ingest_runs") as any)
     .insert({
@@ -215,7 +247,10 @@ async function runIngest(
       })
       .eq("id", runId);
 
-    return { source, runId, recordsSeen: events.length, recordsNew, candidatesCreated };
+    return {
+      source, runId, recordsSeen: events.length, recordsNew, candidatesCreated,
+      windowFrom: from, windowTo: to, caughtUp,
+    };
   } catch (err) {
     const message =
       err instanceof OpenFdaError || err instanceof DataDashboardError ? err.message
@@ -226,7 +261,10 @@ async function runIngest(
       .update({ status: "failed", error_message: message, completed_at: new Date().toISOString() })
       .eq("id", runId);
 
-    return { source, runId, recordsSeen: 0, recordsNew: 0, candidatesCreated: 0, error: message };
+    return {
+      source, runId, recordsSeen: 0, recordsNew: 0, candidatesCreated: 0,
+      windowFrom: from, windowTo: to, caughtUp: false, error: message,
+    };
   }
 }
 
@@ -282,39 +320,43 @@ export async function runDataDashboardIngest(
   );
 }
 
-/**
- * Every source this deployment can actually reach, in one pass.
- *
- * Sources are run in sequence, not in parallel: they share the matching pass
- * and the candidate table, and three concurrent writers racing on the same
- * dedupe read would produce duplicate candidates. Regulatory data refreshes
- * weekly at best — there is nothing to gain by hurrying.
- *
- * A failing source does not stop the others. Its run row records the error and
- * the freshness banner shows it as stale, which is the honest outcome.
- */
-export async function runAllIngests(
-  admin: AdminClient,
-  opts: { triggeredByProfileId?: string | null; fetchImpl?: typeof fetch } = {}
-): Promise<IngestResult[]> {
-  const results: IngestResult[] = [
-    await runFoodEnforcementIngest(admin, {
-      apiKey: process.env.OPENFDA_API_KEY?.trim() || undefined,
-      ...opts,
-    }),
-  ];
-
+/** Every source this deployment holds credentials for. */
+export function configuredSources(): RegulatorySourceId[] {
+  const sources: RegulatorySourceId[] = ["fda_food_enforcement"];
   if (credentialsFromEnv()) {
-    for (const source of [
+    sources.push(
       "fda_import_refusals",
       "fda_inspections_classifications",
-      "fda_compliance_actions",
-    ] as const) {
-      results.push(await runDataDashboardIngest(admin, source, opts));
-    }
+      "fda_compliance_actions"
+    );
   }
+  return sources;
+}
 
-  return results;
+/**
+ * Runs ONE source.
+ *
+ * Deliberately not all of them. The first attempt refreshed four sources across
+ * two years in a single request and Cloudflare killed it — Error 1102, worker
+ * exceeded resource limits. Splitting the work per source keeps each request
+ * inside the budget, and combined with the windowing above means the caller
+ * repeats until every source reports caughtUp.
+ *
+ * The alternative — one request doing everything, made cheaper and hoped for —
+ * fails again the moment the dataset grows, and fails by leaving nothing behind.
+ */
+export async function runSourceIngest(
+  admin: AdminClient,
+  source: RegulatorySourceId,
+  opts: { triggeredByProfileId?: string | null; fetchImpl?: typeof fetch } = {}
+): Promise<IngestResult> {
+  if (source === "fda_food_enforcement") {
+    return runFoodEnforcementIngest(admin, {
+      apiKey: process.env.OPENFDA_API_KEY?.trim() || undefined,
+      ...opts,
+    });
+  }
+  return runDataDashboardIngest(admin, source, opts);
 }
 
 /**
@@ -394,6 +436,13 @@ async function proposeCandidates(
   const { supplierTargets, facilityTargets, importersBySupplier, supplierIdForFacility } =
     await loadMatchTargets(admin);
 
+  // Normalise every entity name once for the whole batch. Left to proposeMatch
+  // this happens per entity PER EVENT, which on a full ingest is tens of
+  // thousands of redundant regex passes and was a large part of what exhausted
+  // the Worker CPU budget.
+  const suppliers = prepareEntities(supplierTargets);
+  const facilities = prepareEntities(facilityTargets);
+
   type Row = {
     importer_id: string;
     regulatory_event_id: string;
@@ -417,9 +466,11 @@ async function proposeCandidates(
       firmName: event.firm_name,
       firmCountry: event.firm_country,
       firmFei: event.firm_fei,
+      // Once per event rather than once per event × entity.
+      normalisedFirmName: normaliseFirmName(event.firm_name),
     };
 
-    for (const { entity, candidate } of proposeMatches(supplierTargets, shaped, lookup)) {
+    for (const { entity, candidate } of proposeMatches(suppliers, shaped, lookup)) {
       for (const importerId of importersBySupplier.get(entity.id) ?? []) {
         rows.push({
           importer_id: importerId,
@@ -434,7 +485,7 @@ async function proposeCandidates(
       }
     }
 
-    for (const { entity, candidate } of proposeMatches(facilityTargets, shaped, lookup)) {
+    for (const { entity, candidate } of proposeMatches(facilities, shaped, lookup)) {
       const parentSupplier = supplierIdForFacility.get(entity.id);
       if (!parentSupplier) continue;
       for (const importerId of importersBySupplier.get(parentSupplier) ?? []) {

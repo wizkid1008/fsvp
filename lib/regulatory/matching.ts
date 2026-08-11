@@ -48,6 +48,8 @@ export type MatchableEntity = {
   /** ISO 3166-1 alpha-2, as stored on suppliers.country. */
   countryCode: string | null;
   feiNumber?: string | null;
+  /** Cached normaliseFirmName(name). Set by prepareEntities; never required. */
+  normalisedName?: string;
 };
 
 /** The fields of FDA's a match is made against. */
@@ -56,7 +58,20 @@ export type MatchableEvent = {
   /** As FDA publishes it: usually a full country name. */
   firmCountry: string | null;
   firmFei?: string | null;
+  /** Cached normaliseFirmName(firmName). Optional, same as above. */
+  normalisedFirmName?: string;
 };
+
+/**
+ * Normalises entity names once, ahead of matching.
+ *
+ * Without this the same supplier name is re-normalised for every FDA event in
+ * the batch — tens of thousands of redundant regex passes on a full ingest,
+ * which is precisely what exhausted the Cloudflare Worker CPU budget.
+ */
+export function prepareEntities(entities: MatchableEntity[]): MatchableEntity[] {
+  return entities.map((e) => ({ ...e, normalisedName: normaliseFirmName(e.name) }));
+}
 
 /** Resolves between our country codes and FDA's country names. */
 export type CountryLookup = {
@@ -249,12 +264,20 @@ export function proposeMatch(
     };
   }
 
-  const ourName = normaliseFirmName(entity.name);
-  const theirName = normaliseFirmName(event.firmName);
-  if (!ourName || !theirName) return null;
-
   // ── Country is a gate, not a factor ──────────────────────────────────────
+  // Checked BEFORE normalising names, not after. Normalisation strips
+  // diacritics, uppercases, and walks ~30 corporate-suffix regexes; doing that
+  // for every entity against every event before discarding most of them on
+  // country is what made a full ingest exceed the Worker CPU limit. The gate is
+  // a handful of string compares and eliminates the overwhelming majority.
   if (!countryMatches(entity.countryCode, event.firmCountry, lookup)) return null;
+
+  // Precomputed by proposeMatches where available — normalising one entity name
+  // once per ingest rather than once per event is the difference between O(n)
+  // and O(n × m) normalisations.
+  const ourName = entity.normalisedName ?? normaliseFirmName(entity.name);
+  const theirName = event.normalisedFirmName ?? normaliseFirmName(event.firmName);
+  if (!ourName || !theirName) return null;
 
   const countryName = entity.countryCode ? lookup.nameForCode(entity.countryCode) : null;
   const where = countryName ?? entity.countryCode ?? "the same country";

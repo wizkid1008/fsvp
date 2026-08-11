@@ -13,11 +13,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { runAllIngests } from "@/lib/regulatory/ingest";
+import { configuredSources, runSourceIngest } from "@/lib/regulatory/ingest";
+import type { RegulatorySourceId } from "@/lib/regulatory/sources";
 
 export const runtime = "edge";
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
@@ -36,37 +37,53 @@ export async function POST(_req: NextRequest) {
 
   const admin = createAdminSupabaseClient();
 
-  // Every source this deployment can reach. Sources without credentials are
-  // skipped rather than attempted, so they stay visibly "never refreshed"
-  // instead of accumulating failed runs that look like an outage.
-  const results = await runAllIngests(admin, { triggeredByProfileId: user.id });
+  // ONE source per request, and one bounded window within it.
+  //
+  // The first version refreshed all four sources across two years in a single
+  // request and Cloudflare killed it — Error 1102, worker exceeded resource
+  // limits, nothing written. A Worker has a fixed CPU and subrequest budget, so
+  // the work has to be divided rather than merely made faster: dividing fails
+  // gracefully as the dataset grows, optimising only postpones the same wall.
+  const body = await req.json().catch(() => ({})) as { source?: string };
+  const available = configuredSources();
 
-  const failed = results.filter((r) => r.error);
+  const source = available.includes(body.source as RegulatorySourceId)
+    ? (body.source as RegulatorySourceId)
+    : null;
 
-  return NextResponse.json(
-    {
-      // Partial success is the normal case while only some sources are
-      // configured, so `ok` means "nothing failed", not "everything ran".
-      ok: failed.length === 0,
-      sources: results.map((r) => ({
-        source:             r.source,
-        run_id:             r.runId,
-        records_seen:       r.recordsSeen,
-        records_new:        r.recordsNew,
-        candidates_created: r.candidatesCreated,
-        error:              r.error ?? null,
-      })),
-      records_seen:       results.reduce((n, r) => n + r.recordsSeen, 0),
-      records_new:        results.reduce((n, r) => n + r.recordsNew, 0),
-      candidates_created: results.reduce((n, r) => n + r.candidatesCreated, 0),
-      error: failed.length > 0
-        ? `${failed.length} of ${results.length} sources failed: ` +
-          failed.map((f) => `${f.source} — ${f.error}`).join("; ")
-        : null,
-    },
-    // 207-style semantics without the ceremony: a failure is reported with the
-    // successes beside it, because "recalls refreshed, refusals did not" is
-    // more useful than a bare 502.
-    { status: failed.length === results.length ? 502 : 200 }
-  );
+  if (!source) {
+    return NextResponse.json(
+      {
+        error: body.source
+          ? `${body.source} is not a configured source. Available: ${available.join(", ")}.`
+          : "Name the source to refresh.",
+        available,
+      },
+      { status: 400 }
+    );
+  }
+
+  const result = await runSourceIngest(admin, source, { triggeredByProfileId: user.id });
+
+  if (result.error) {
+    return NextResponse.json(
+      { ok: false, source, run_id: result.runId, error: result.error },
+      { status: 502 }
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    source,
+    run_id:             result.runId,
+    records_seen:       result.recordsSeen,
+    records_new:        result.recordsNew,
+    candidates_created: result.candidatesCreated,
+    window_from:        result.windowFrom,
+    window_to:          result.windowTo,
+    // False means the window stopped short of today. The caller repeats until
+    // this is true — that is what makes a two-year backfill possible inside a
+    // request budget that cannot hold it in one go.
+    caught_up:          result.caughtUp,
+  });
 }
