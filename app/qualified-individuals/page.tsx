@@ -3,7 +3,8 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { QualifiedIndividualsClient, type QiRow, type TenantMember } from "@/components/qi/QualifiedIndividualsClient";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { tryAdminClient } from "@/lib/supabase/admin-guard";
+import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 
 export const runtime = "edge";
@@ -13,7 +14,17 @@ export default async function QualifiedIndividualsPage() {
     "us_importer", "reviewer", "administrator",
   ]);
   const supabase = createServerSupabaseClient();
-  const admin = createAdminSupabaseClient();
+
+  const adminResult = tryAdminClient();
+  if (!adminResult.ok) {
+    return (
+      <AppShell role={role} realRole={realRole}>
+        <SectionHeader title="Qualified Individuals" description="" />
+        <ConfigurationNotice message={adminResult.message} />
+      </AppShell>
+    );
+  }
+  const admin = adminResult.client;
 
   const { data: profile } = await (supabase.from("profiles") as any)
     .select("importer_id")

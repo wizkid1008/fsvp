@@ -3,7 +3,8 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ApplicabilityClient, type PairRow, type EntitySizeRow } from "@/components/applicability/ApplicabilityClient";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { tryAdminClient } from "@/lib/supabase/admin-guard";
+import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 
@@ -14,7 +15,17 @@ export default async function ApplicabilityPage() {
     "us_importer", "reviewer", "administrator",
   ]);
   const supabase = createServerSupabaseClient();
-  const admin = createAdminSupabaseClient();
+
+  const adminResult = tryAdminClient();
+  if (!adminResult.ok) {
+    return (
+      <AppShell role={role} realRole={realRole}>
+        <SectionHeader title="FSVP Applicability" description="" />
+        <ConfigurationNotice message={adminResult.message} />
+      </AppShell>
+    );
+  }
+  const admin = adminResult.client;
 
   const { data: profile } = await (supabase.from("profiles") as any)
     .select("importer_id")
