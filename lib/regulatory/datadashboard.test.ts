@@ -103,6 +103,20 @@ describe("fetchDataset", () => {
     ).rejects.toThrow(/FDA_DATADASHBOARD_USER/);
   });
 
+  it("accepts a statuscode FDA sends as a string", async () => {
+    // FDA returns "200", not 200. Comparing strictly against the number
+    // rejected every successful response with "refused the query: Success" —
+    // the API working and the client calling it a refusal.
+    const impl = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ statuscode: "200", message: "Success", result: [{ a: 1 }] }),
+    })) as unknown as typeof fetch;
+
+    const rows = await fetchDataset("import_refusals", CREDS, { sort: "RefusalDate" }, { fetchImpl: impl });
+    expect(rows).toHaveLength(1);
+  });
+
   it("treats a non-200 statuscode in a 200 body as a failure", async () => {
     // The API answers HTTP 200 with an error status inside the envelope. An
     // HTTP-only check would read a rejected query as an empty dataset — which
@@ -110,7 +124,7 @@ describe("fetchDataset", () => {
     const impl = (async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ statuscode: 400, message: "Invalid sort column", result: [] }),
+      json: async () => ({ statuscode: "400", message: "Invalid sort column", result: [] }),
     })) as unknown as typeof fetch;
 
     await expect(

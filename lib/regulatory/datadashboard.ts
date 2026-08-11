@@ -36,9 +36,15 @@ export class DataDashboardError extends Error {
 }
 
 type DashboardResponse<T> = {
-  statuscode?: number;
+  /**
+   * FDA returns this as a STRING ("200"), not a number. A strict `!== 200`
+   * rejected every successful response with the message "Success", which
+   * surfaced as "FDA Data Dashboard refused the query: Success" — the API
+   * working perfectly and the client calling it a refusal.
+   */
+  statuscode?: number | string;
   message?: string;
-  resultcount?: number;
+  resultcount?: number | string;
   result?: T[];
 };
 
@@ -123,11 +129,18 @@ export async function fetchDataset<T>(
 
     const json = (await res.json()) as DashboardResponse<T>;
 
-    // The API answers 200 with a statuscode in the body, so an HTTP-only check
-    // would treat a rejected query as an empty dataset.
-    if (json.statuscode !== undefined && json.statuscode !== 200) {
+    // The API answers HTTP 200 with its own status in the body, so an HTTP-only
+    // check would read a rejected query as an empty dataset — the same shape as
+    // a supplier having no findings.
+    //
+    // Coerced, because FDA sends "200" as a string. Comparing strictly against
+    // the number rejected every SUCCESSFUL response, which is worse than the
+    // bug it was guarding against: a real refusal fails loudly either way,
+    // whereas this made a working API look permanently broken.
+    if (json.statuscode !== undefined && Number(json.statuscode) !== 200) {
       throw new DataDashboardError(
-        `FDA Data Dashboard refused the query: ${json.message ?? `status ${json.statuscode}`}`
+        `FDA Data Dashboard refused the query (status ${json.statuscode}): ` +
+        `${json.message ?? "no message given"}`
       );
     }
 
