@@ -62,13 +62,24 @@ comment on column country_commodity_rules.source_changed_at is
   'unusable until re-verified.';
 
 -- A verified rule must name who verified it, when, and against what.
-alter table country_commodity_rules
-  add constraint ccr_verification_complete check (
-    verification_status = 'draft'
-    or (verified_by_profile_id is not null
-        and verified_at is not null
-        and length(btrim(coalesce(verified_against, ''))) >= 3)
-  );
+-- Guarded so the migration can be re-run after a failure part way through;
+-- Postgres has no `add constraint if not exists`.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'country_commodity_rules'::regclass
+      and conname = 'ccr_verification_complete'
+  ) then
+    alter table country_commodity_rules
+      add constraint ccr_verification_complete check (
+        verification_status = 'draft'
+        or (verified_by_profile_id is not null
+            and verified_at is not null
+            and length(btrim(coalesce(verified_against, ''))) >= 3)
+      );
+  end if;
+end $$;
 
 -- ── The two-person rule ────────────────────────────────────────────────────
 -- Not because anyone is suspected. Because the person who mistyped a treatment
@@ -126,6 +137,14 @@ create trigger trg_rule_verification
 -- Replaces the 012 definition. A draft rule, or one whose source has been seen
 -- to change, is not something the platform will assert.
 
+-- Dropped rather than replaced. `create or replace view` cannot reorder or
+-- rename columns, and the 012 view was `select r.*, is_current, …` — `r.*` is
+-- expanded and FROZEN at creation time, so the columns added above land before
+-- is_current and Postgres reads that as renaming a column. Worth remembering:
+-- any view over `table.*` has to be dropped and recreated whenever the table
+-- gains a column, not replaced.
+drop view if exists country_commodity_rules_status;
+
 create or replace function public.rule_is_current(
   p_rule country_commodity_rules,
   p_on date default current_date
@@ -142,7 +161,7 @@ as $$
      and p_rule.review_due_at >= p_on;
 $$;
 
-create or replace view country_commodity_rules_status
+create view country_commodity_rules_status
 with (security_invoker = true)
 as
 select
