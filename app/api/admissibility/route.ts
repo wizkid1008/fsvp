@@ -75,8 +75,29 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (!product) return NextResponse.json({ error: "That product does not exist." }, { status: 404 });
-  if (product.importer_id && product.importer_id !== importerId) {
-    return NextResponse.json({ error: "That product belongs to another organization." }, { status: 403 });
+
+  // Tenancy is resolved through the supplier relationship, NOT through
+  // products_verify.importer_id.
+  //
+  // That column is nullable — a supplier-created product carries no importer —
+  // so `product.importer_id && product.importer_id !== importerId` skips the
+  // check entirely whenever it is null, letting any signed-in importer write a
+  // determination against another tenant's product. The relationship is the
+  // authoritative link (see the applicability route, which does the same), and
+  // it cannot be null by construction.
+  const { data: link } = await (admin.from("supplier_relationships") as any)
+    .select("id")
+    .eq("relationship_type", "importer_supplier")
+    .eq("importer_id", importerId)
+    .eq("supplier_id", product.supplier_id)
+    .in("status", ["active", "pending_invite"])
+    .maybeSingle();
+
+  if (!link) {
+    return NextResponse.json(
+      { error: "That product belongs to a supplier your organization is not linked to." },
+      { status: 403 }
+    );
   }
 
   if (!product.commodity_id) {
