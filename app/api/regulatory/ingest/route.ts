@@ -18,7 +18,7 @@ import type { RegulatorySourceId } from "@/lib/regulatory/sources";
 
 export const runtime = "edge";
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
