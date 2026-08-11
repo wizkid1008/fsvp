@@ -30,8 +30,19 @@ const HANDLER_PROPS = [
   "onKeyDown", "onKeyUp", "onMouseEnter", "onMouseLeave", "onScroll",
 ];
 
-/** Browser-only globals, which also cannot appear in server render paths. */
-const BROWSER_GLOBALS = ["window.", "document.", "localStorage.", "sessionStorage."];
+/**
+ * Browser-only globals, which cannot appear in a server render path.
+ *
+ * `document.` is deliberately NOT here. This is a compliance platform: half the
+ * codebase iterates over documents, and `documents.forEach((document) => …)` or
+ * the prose "signed policy document." both match a naive check. Two legitimate
+ * files failed on exactly that. A test that cries wolf gets switched off, and
+ * then it protects nothing — so the check keeps only the globals whose names
+ * are not also domain vocabulary.
+ *
+ * Matched with a lookbehind so `myWindow.` and `props.window.` do not count.
+ */
+const BROWSER_GLOBALS = ["window", "localStorage", "sessionStorage"];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -99,7 +110,7 @@ describe("server/client boundary", () => {
 
       const body = stripComments(source);
       for (const g of BROWSER_GLOBALS) {
-        if (body.includes(g)) {
+        if (new RegExp(`(?<![\\w.])${g}\\.`).test(body)) {
           offenders.push(`${relative(file)} touches ${g} without "use client"`);
         }
       }
