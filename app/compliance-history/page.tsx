@@ -9,7 +9,8 @@ import {
 } from "@/components/regulatory/ComplianceHistoryClient";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { tryAdminClient } from "@/lib/supabase/admin-guard";
+import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 import { REGULATORY_SOURCES } from "@/lib/regulatory/sources";
@@ -21,14 +22,6 @@ export default async function ComplianceHistoryPage() {
     "us_importer", "reviewer", "administrator",
   ]);
   const supabase = createServerSupabaseClient();
-  const admin = createAdminSupabaseClient();
-
-  const { data: profile } = await (supabase.from("profiles") as any)
-    .select("importer_id")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const importerId: string | null = resolvePreviewedAccountId(realRole, profile?.importer_id ?? null);
 
   const description =
     "21 CFR 1.505(a)(1)(iv) requires you to consider a supplier's FDA compliance history when you " +
@@ -36,6 +29,24 @@ export default async function ComplianceHistoryPage() {
     "and because FDA identifies firms by an establishment identifier we mostly do not hold, a " +
     "resemblance is not an identification. Nothing counts as a supplier's history until someone here " +
     "confirms it is actually them.";
+
+  const adminResult = tryAdminClient();
+  if (!adminResult.ok) {
+    return (
+      <AppShell role={role} realRole={realRole}>
+        <SectionHeader title="Compliance History" description={description} />
+        <ConfigurationNotice message={adminResult.message} />
+      </AppShell>
+    );
+  }
+  const admin = adminResult.client;
+
+  const { data: profile } = await (supabase.from("profiles") as any)
+    .select("importer_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const importerId: string | null = resolvePreviewedAccountId(realRole, profile?.importer_id ?? null);
 
   if (!importerId) {
     return (

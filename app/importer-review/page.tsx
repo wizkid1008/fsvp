@@ -4,7 +4,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EvidenceReviewPanel } from "@/components/evidence/EvidenceReviewPanel";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { tryAdminClient } from "@/lib/supabase/admin-guard";
+import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { fetchReviewQueue, reviewQueueTotals } from "@/lib/evidence/review-queue";
 import type { StatusTone } from "@/types/platform";
@@ -14,7 +15,17 @@ export const runtime = "edge";
 export default async function ImporterReviewPage() {
   const { role, realRole, user } = await requireProfileRole("/importer-review", ["us_importer", "administrator"]);
   const supabase = createServerSupabaseClient();
-  const admin = createAdminSupabaseClient();
+
+  const adminResult = tryAdminClient();
+  if (!adminResult.ok) {
+    return (
+      <AppShell role={role} realRole={realRole}>
+        <SectionHeader title="Supplier Submissions" description="" />
+        <ConfigurationNotice message={adminResult.message} />
+      </AppShell>
+    );
+  }
+  const admin = adminResult.client;
 
   // Get the importer's own ID so we can scope everything to their suppliers
   const { data: profile } = await (supabase.from("profiles") as any)

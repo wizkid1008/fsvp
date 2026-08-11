@@ -2,7 +2,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { tryAdminClient } from "@/lib/supabase/admin-guard";
+import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { ReadinessPageClient } from "@/components/readiness/ReadinessPageClient";
 import { SectionReadinessList } from "@/components/readiness/SectionReadinessList";
@@ -16,7 +17,17 @@ export default async function ReadinessPage({
 }) {
   const { role, realRole, user } = await requireProfileRole("/readiness");
   const supabase = createServerSupabaseClient();
-  const admin = createAdminSupabaseClient();
+
+  const adminResult = tryAdminClient();
+  if (!adminResult.ok) {
+    return (
+      <AppShell role={role} realRole={realRole}>
+        <SectionHeader title="Readiness" description="" />
+        <ConfigurationNotice message={adminResult.message} />
+      </AppShell>
+    );
+  }
+  const admin = adminResult.client;
 
   const { data: profile } = await (supabase.from("profiles") as any)
     .select("importer_id")
