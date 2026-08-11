@@ -38,5 +38,12 @@ jobs:
       # Supabase config falls back to hardcoded public values when the env vars
       # are absent (lib/supabase/config.ts), and the service-role key is only
       # read inside a function at request time, so a build needs no secrets.
-      - name: Build
-        run: npm run build
+      #
+      # `pages:build` rather than `build`: @cloudflare/next-on-pages runs
+      # `next build` itself and THEN transforms the output into the Pages
+      # Function that actually ships. Checking `next build` alone verified a
+      # build nobody deploys — a change that broke the Cloudflare transform
+      # would pass here and only surface as a failed deployment, leaving
+      # production silently pinned to the last bundle that worked.
+      - name: Build (as Cloudflare deploys it)
+        run: npm run pages:build
