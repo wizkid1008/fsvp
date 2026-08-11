@@ -23,6 +23,7 @@ import { join } from "node:path";
  */
 
 const APP_DIR = join(process.cwd(), "app");
+const COMPONENTS_DIR = join(process.cwd(), "components");
 
 function walk(dir: string): string[] {
   const out: string[] = [];
@@ -49,6 +50,16 @@ const PAGES = ALL_FILES.filter((f) => /[\\/]page\.tsx$/.test(f));
 const ROUTES = ALL_FILES.filter((f) => /[\\/]route\.ts$/.test(f));
 
 /**
+ * The server-component check covers components/ as well as app/. A page is not
+ * the only place that renders on the server: a shared component imported by one
+ * takes the whole page down with it, and there are three times as many of them.
+ */
+const RENDERABLE = [
+  ...ALL_FILES.filter((f) => f.endsWith(".tsx")),
+  ...walk(COMPONENTS_DIR).filter((f) => f.endsWith(".tsx") && !/\.test\.tsx$/.test(f)),
+];
+
+/**
  * Pages that legitimately serve signed-out visitors. Anything not listed must
  * authenticate — a new page that forgets to is a data leak, and this list is
  * the only place that decision is recorded.
@@ -68,6 +79,32 @@ const PUBLIC_PAGES = new Set([
   "app/products-facilities/page.tsx", // redirect only
 ]);
 
+/**
+ * Pages that are CLIENT components and therefore cannot call a server-side
+ * guard at all. Deliberately a separate list from PUBLIC_PAGES: these are not
+ * public, and recording them as such would be a dangerous lie in the one place
+ * that documents which pages are open.
+ *
+ * Their protection is middleware plus the APIs they call, both of which
+ * authenticate. That is weaker than a server guard — it is worth converting
+ * them rather than growing this list.
+ */
+const CLIENT_GUARDED_PAGES = new Set([
+  "app/fsvp-records/new/page.tsx",
+]);
+
+/**
+ * Routes that cannot identify a caller because they are what CREATES the
+ * session. The auth callback exchanges a one-time code for a session; requiring
+ * a session to reach it would make signing in impossible.
+ *
+ * This is the only acceptable reason for a route to skip authentication, and
+ * anything added here needs one just as specific.
+ */
+const PUBLIC_ROUTES = new Set([
+  "app/auth/callback/route.ts",
+]);
+
 describe("server components", () => {
   // The /audit-log failure exactly: a <select onChange={…}> in a Server
   // Component. React throws at render, the boundary shows a digest, and the
@@ -75,13 +112,18 @@ describe("server components", () => {
   const CLIENT_ONLY = [
     { name: "an event handler prop", re: /\son[A-Z]\w*=\{/ },
     { name: "a React hook", re: /\buse(State|Effect|Ref|Memo|Callback|Transition|Reducer|Context|Router|SearchParams|Pathname)\s*\(/ },
-    { name: "a browser global", re: /\b(window|document|localStorage|sessionStorage)\s*\./ },
+    // `document` is deliberately absent. This is a compliance platform: the
+    // codebase is full of `documents.forEach((document) => …)` and prose like
+    // "signed policy document.", both of which match. Two legitimate files
+    // failed on exactly that when components/ came into scope. A check that
+    // cries wolf gets switched off, after which it protects nothing.
+    { name: "a browser global", re: /(?<![\w.])(window|localStorage|sessionStorage)\s*\./ },
   ];
 
   it("never use client-only constructs without the 'use client' directive", () => {
     const violations: string[] = [];
 
-    for (const file of ALL_FILES.filter((f) => f.endsWith(".tsx"))) {
+    for (const file of RENDERABLE) {
       const src = readFileSync(file, "utf8");
       if (/^\s*["']use client["']/m.test(src)) continue;
 
@@ -116,7 +158,7 @@ describe("pages", () => {
     // so adding one is a deliberate act rather than an omission.
     const unguarded = PAGES
       .map(rel)
-      .filter((p) => !PUBLIC_PAGES.has(p))
+      .filter((p) => !PUBLIC_PAGES.has(p) && !CLIENT_GUARDED_PAGES.has(p))
       .filter((p) => {
         const src = readFileSync(join(process.cwd(), p), "utf8");
         return !/requireProfileRole|requireUser/.test(src);
@@ -130,12 +172,20 @@ describe("pages", () => {
     ).toEqual([]);
   });
 
-  it("keeps the public list honest — every entry still exists", () => {
+  it("keeps the exemption lists honest — every entry still exists", () => {
     // A renamed page would otherwise leave a stale exemption behind, and the
-    // replacement would be unguarded with nothing complaining.
-    const actual = new Set(PAGES.map(rel));
-    const stale = [...PUBLIC_PAGES].filter((p) => !actual.has(p));
-    expect(stale, `Public-page exemptions for files that no longer exist:\n${stale.join("\n")}`).toEqual([]);
+    // replacement would be unguarded with nothing complaining. The same applies
+    // to routes: a dead exemption is a hole waiting for a file to fall into it.
+    const pages = new Set(PAGES.map(rel));
+    const routes = new Set(ROUTES.map(rel));
+
+    const stale = [
+      ...[...PUBLIC_PAGES].filter((p) => !pages.has(p)),
+      ...[...CLIENT_GUARDED_PAGES].filter((p) => !pages.has(p)),
+      ...[...PUBLIC_ROUTES].filter((p) => !routes.has(p)),
+    ];
+
+    expect(stale, `Exemptions for files that no longer exist:\n${stale.join("\n")}`).toEqual([]);
   });
 });
 
@@ -146,8 +196,9 @@ describe("API routes", () => {
     // therefore the only thing standing between a caller and other tenants'
     // data — RLS will not catch a mistake here.
     const unguarded = ROUTES
-      .filter((f) => !/auth\.getUser\(\)/.test(readFileSync(f, "utf8")))
-      .map(rel);
+      .map(rel)
+      .filter((p) => !PUBLIC_ROUTES.has(p))
+      .filter((p) => !/auth\.getUser\(\)/.test(readFileSync(join(process.cwd(), p), "utf8")));
 
     expect(
       unguarded,
