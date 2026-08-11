@@ -44,14 +44,21 @@ export class DataDashboardError extends Error {
 
 type DashboardResponse<T> = {
   /**
-   * FDA returns this as a STRING ("200"), not a number. A strict `!== 200`
-   * rejected every successful response with the message "Success", which
-   * surfaced as "FDA Data Dashboard refused the query: Success" — the API
-   * working perfectly and the client calling it a refusal.
+   * NOT a reliable error signal, and not an HTTP status. Observed in production:
+   *
+   *   {"statuscode":400,"message":"Success.","totalrecordcount":7848,
+   *    "resultcount":100,"result":[ …100 real records… ]}
+   *
+   * Status 400, the word "Success", and a hundred rows of valid data in the
+   * same envelope. Two successive attempts to validate against this field
+   * rejected perfectly good responses, so it is now read for diagnostics only.
    */
   statuscode?: number | string;
   message?: string;
+  /** Rows in THIS page. */
   resultcount?: number | string;
+  /** Rows matching the query overall — the real total. */
+  totalrecordcount?: number | string;
   result?: T[];
 };
 
@@ -136,23 +143,23 @@ export async function fetchDataset<T>(
 
     const json = (await res.json()) as DashboardResponse<T>;
 
-    // The API answers HTTP 200 with its own status in the body, so an HTTP-only
-    // check would read a rejected query as an empty dataset — the same shape as
-    // a supplier having no findings.
+    // Success is judged by whether FDA returned rows, NOT by its statuscode.
     //
-    // Coerced, because FDA sends "200" as a string. Comparing strictly against
-    // the number rejected every SUCCESSFUL response, which is worse than the
-    // bug it was guarding against: a real refusal fails loudly either way,
-    // whereas this made a working API look permanently broken.
-    if (json.statuscode !== undefined && Number(json.statuscode) !== 200) {
-      // FDA answers a 400 with message "Success", which says nothing, so the
-      // whole envelope is reported instead. Diagnosing a rejected query from a
-      // one-word message that contradicts the status is not possible, and the
-      // request is echoed back so the two can be compared side by side.
-      const envelope = JSON.stringify(json).slice(0, 600);
+    // The field cannot carry that weight: a live response arrived as status
+    // 400, message "Success.", with 7,848 matching records and 100 of them in
+    // the body. Validating against it rejected real data twice — first on a
+    // type mismatch, then on the value itself.
+    //
+    // The original worry stands and is handled differently: a rejected query
+    // must not read as an empty dataset, because that is indistinguishable from
+    // a supplier having no findings. So a MISSING result array is the error
+    // condition, and the diagnostic echoes both sides.
+    if (!Array.isArray(json.result)) {
       throw new DataDashboardError(
-        `FDA Data Dashboard rejected the query with status ${json.statuscode}. ` +
-        `Response: ${envelope} — Request: ${JSON.stringify(body).slice(0, 400)}`
+        `FDA Data Dashboard returned no result set (status ${json.statuscode ?? "none"}, ` +
+        `message ${JSON.stringify(json.message ?? null)}). ` +
+        `Response: ${JSON.stringify(json).slice(0, 600)} — ` +
+        `Request: ${JSON.stringify(body).slice(0, 400)}`
       );
     }
 
