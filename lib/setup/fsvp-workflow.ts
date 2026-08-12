@@ -3,6 +3,9 @@ import { fetchDetermination, isDeterminationLive, type LiveDetermination } from 
 import { evaluateGates, type GateBlock } from "@/lib/fsvp/gates";
 import { evaluateAttestations, type AttestationEvaluation, type AttestationInput } from "@/lib/fsvp/qi-attestation";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
+import { FSVP_SETUP_STEP_COPY as STEP_COPY } from "./fsvp-steps";
+
+export { FSVP_SETUP_STEPS, type FsvpSetupStepId } from "./fsvp-steps";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -13,6 +16,20 @@ export type SetupBlocker = {
   actionLabel: string;
 };
 
+/**
+ * How much of a step is done, in the units that step actually works in —
+ * exporters with a facility, products classified, records signed.
+ *
+ * Progress used to be "steps with zero blockers / total steps", which meant one
+ * unclassified product among twenty zeroed out the whole classification step.
+ * An importer could clear nineteen products and watch the bar not move, so the
+ * bar taught them their work did not count.
+ */
+export type SetupProgress = {
+  done: number;
+  total: number;
+};
+
 export type SetupStep = {
   id: string;
   title: string;
@@ -20,6 +37,7 @@ export type SetupStep = {
   href: string;
   actionLabel: string;
   blockers: SetupBlocker[];
+  progress: SetupProgress;
 };
 
 export type SetupSummary = {
@@ -34,6 +52,8 @@ export type SetupSummary = {
 export type CompleteFsvpSetupPlan = {
   steps: SetupStep[];
   summary: SetupSummary;
+  /** Whole-plan completion, 0–100, weighted by each step's own unit count. */
+  progressPercent: number;
 };
 
 type SupplierRow = { id: string; company_name: string; country: string | null };
@@ -114,20 +134,28 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
 
   const steps: SetupStep[] = [];
 
+  /**
+   * A step that has nothing to iterate over yet is 0 of 1, not 0 of 0 — an
+   * importer with no products has not finished classification, and 0/0 would
+   * otherwise read as complete.
+   */
+  const progress = (done: number, total: number): SetupProgress =>
+    total === 0 ? { done: 0, total: 1 } : { done, total };
+
+  const countWhere = <T,>(items: T[], predicate: (item: T) => boolean): number =>
+    items.filter(predicate).length;
+
   steps.push({
-    id: "exporter",
-    title: "Create exporter",
-    description: "Start with the foreign supplier/exporter your organization imports from.",
-    href: "/suppliers",
-    actionLabel: "Open exporters",
+    ...STEP_COPY.exporter,
     blockers: input.suppliers.length === 0
       ? [blocker(
           "exporter-none",
           "No exporter is linked or managed yet. Create an exporter record, or link one who already has an account.",
-          "/suppliers",
+          "/exporters",
           "Create or link exporter"
         )]
       : [],
+    progress: progress(input.suppliers.length > 0 ? 1 : 0, 1),
   });
 
   const facilityBlockers: SetupBlocker[] = [];
@@ -135,7 +163,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     facilityBlockers.push(blocker(
       "facility-needs-exporter",
       "Create or link an exporter before adding a facility.",
-      "/suppliers",
+      "/exporters",
       "Create exporter first"
     ));
   } else {
@@ -151,12 +179,12 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     }
   }
   steps.push({
-    id: "facility",
-    title: "Add facility",
-    description: "Identify the facility that manufactures, packs, holds, or handles the food.",
-    href: "/facilities",
-    actionLabel: "Open facilities",
+    ...STEP_COPY.facility,
     blockers: facilityBlockers,
+    progress: progress(
+      countWhere(input.suppliers, (s) => hasFacilityForSupplier(s.id, input.facilities, input.facilityAccess)),
+      input.suppliers.length
+    ),
   });
 
   const productBlockers: SetupBlocker[] = [];
@@ -187,12 +215,12 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     }
   }
   steps.push({
-    id: "product",
-    title: "Create product",
-    description: "Create the food item and tie it to the correct exporter and facility.",
-    href: "/products",
-    actionLabel: "Open products",
+    ...STEP_COPY.product,
     blockers: productBlockers,
+    progress: progress(
+      countWhere(input.products, (p) => Boolean(p.supplier_id && p.facility_id)),
+      input.products.length
+    ),
   });
 
   const classificationBlockers = input.products.flatMap((product) => {
@@ -218,12 +246,12 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ));
   }
   steps.push({
-    id: "classification",
-    title: "Classify product",
-    description: "Record commodity taxonomy and origin so admissibility can be determined.",
-    href: "/products",
-    actionLabel: "Review classifications",
+    ...STEP_COPY.classification,
     blockers: classificationBlockers,
+    progress: progress(
+      countWhere(input.products, (p) => Boolean(p.commodity_id && p.country_of_origin)),
+      input.products.length
+    ),
   });
 
   const admissibilityBlockers: SetupBlocker[] = [];
@@ -247,12 +275,12 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ));
   }
   steps.push({
-    id: "admissibility",
-    title: "Determine admissibility",
-    description: "Snapshot whether the commodity may enter from its recorded origin.",
-    href: "/products",
-    actionLabel: "Open products",
+    ...STEP_COPY.admissibility,
     blockers: admissibilityBlockers,
+    progress: progress(
+      countWhere(input.products, (p) => (input.admissibilityByProductId.get(p.id) ?? []).length === 0),
+      input.products.length
+    ),
   });
 
   const recordBlockers: SetupBlocker[] = [];
@@ -294,12 +322,18 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ));
   }
   steps.push({
-    id: "record",
-    title: "Open FSVP record",
-    description: "Determine whether FSVP applies, then open the importer-owned record when it does.",
-    href: "/fsvp-records",
-    actionLabel: "Open records",
+    ...STEP_COPY.record,
     blockers: recordBlockers,
+    // An exempt product is finished at this step: FSVP does not apply, so no
+    // record is owed and none will ever be opened.
+    progress: progress(
+      countWhere(input.products, (p) => {
+        const determination = input.determinationsByProductId.get(p.id) ?? null;
+        if (!determination || !isDeterminationLive(determination)) return false;
+        return determination.outcome === "exempt" || (recordsByProductId.get(p.id) ?? []).length > 0;
+      }),
+      input.products.length
+    ),
   });
 
   const screeningBlockers: SetupBlocker[] = [];
@@ -323,12 +357,14 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ));
   }
   steps.push({
-    id: "screening",
-    title: "Screen compliance history",
-    description: "A qualified individual records consideration of FDA compliance history.",
-    href: "/compliance-history",
-    actionLabel: "Open compliance history",
+    ...STEP_COPY.screening,
     blockers: screeningBlockers,
+    progress: progress(
+      countWhere(input.records, (r) =>
+        (input.gateBlocksByRecordId.get(r.id) ?? []).every((b) => !b.code.startsWith("compliance_screening"))
+      ),
+      input.records.length
+    ),
   });
 
   const evidenceBlockers: SetupBlocker[] = [];
@@ -351,12 +387,12 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ));
   }
   steps.push({
-    id: "evidence",
-    title: "Review evidence",
-    description: "Attach accepted supplier documents to the record so the basis for approval is inspectable.",
-    href: "/importer-review",
-    actionLabel: "Review submissions",
+    ...STEP_COPY.evidence,
     blockers: evidenceBlockers,
+    progress: progress(
+      countWhere(input.records, (r) => (input.evidenceByRecordId.get(r.id) ?? 0) > 0),
+      input.records.length
+    ),
   });
 
   const qiBlockers: SetupBlocker[] = [];
@@ -388,12 +424,16 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ));
   }
   steps.push({
-    id: "qi",
-    title: "Complete QI attestations",
-    description: "Current qualified individual signatures must cover the required determinations.",
-    href: "/qualified-individuals",
-    actionLabel: "Open QI register",
+    ...STEP_COPY.qi,
     blockers: qiBlockers,
+    // The register itself counts as one unit alongside each record's signatures
+    // — an importer with no QI on the register has not started this step even if
+    // it has no records to sign yet.
+    progress: progress(
+      (input.activeQiCount > 0 ? 1 : 0) +
+        countWhere(input.records, (r) => (input.attestationsByRecordId.get(r.id)?.reasons ?? []).length === 0),
+      1 + input.records.length
+    ),
   });
 
   const approvalBlockers: SetupBlocker[] = [];
@@ -427,12 +467,12 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ));
   }
   steps.push({
-    id: "approval",
-    title: "Approve FSVP record",
-    description: "Record the importer's approval decision only after the gates are clear.",
-    href: "/fsvp-records",
-    actionLabel: "Open records",
+    ...STEP_COPY.approval,
     blockers: approvalBlockers,
+    progress: progress(
+      countWhere(input.records, (r) => r.status === "importer_approved"),
+      input.records.length
+    ),
   });
 
   const packageBlockers: SetupBlocker[] = [];
@@ -456,16 +496,20 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ));
   }
   steps.push({
-    id: "package",
-    title: "Generate inspection package",
-    description: "Assemble the printable record package used during an FDA records request.",
-    href: "/reports",
-    actionLabel: "Open reports",
+    ...STEP_COPY.package,
     blockers: packageBlockers,
+    progress: progress(
+      countWhere(approvedRecords, (r) => input.packagesByRecordId.has(r.id)),
+      approvedRecords.length
+    ),
   });
+
+  const unitsDone = steps.reduce((sum, step) => sum + step.progress.done, 0);
+  const unitsTotal = steps.reduce((sum, step) => sum + step.progress.total, 0);
 
   return {
     steps,
+    progressPercent: unitsTotal === 0 ? 0 : Math.round((unitsDone / unitsTotal) * 100),
     summary: {
       exporters: input.suppliers.length,
       facilities: input.facilities.length,

@@ -275,7 +275,7 @@ export default async function ProductsPage({
           countries={countryOptions}
           facilities={facilityOptions}
           products={products}
-          supplierHref={isSupplier ? "/my-suppliers" : "/suppliers"}
+          supplierHref={isSupplier ? "/my-suppliers" : "/exporters"}
           suppliers={viewingLinkedSupplier
             ? [viewingLinkedSupplier]
             : [

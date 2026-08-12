@@ -87,6 +87,7 @@ const PUBLIC_PAGES = new Set([
   "app/claim-exporter/page.tsx",  // token-scoped, guarded inside
   "app/pending-approval/page.tsx",
   "app/products-facilities/page.tsx", // redirect only
+  "app/suppliers/page.tsx",           // redirect only, to /exporters
 ]);
 
 /**

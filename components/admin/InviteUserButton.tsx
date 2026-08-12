@@ -68,9 +68,9 @@ export function InviteUserButton() {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-4" role="dialog" aria-modal="true">
           <button className="absolute inset-0 cursor-default" type="button" aria-label="Close invite dialog" onClick={close} />
-          <form onSubmit={submit} className="relative w-full max-w-lg rounded-lg border border-line bg-white p-6 shadow-xl">
+          <form onSubmit={submit} className="relative my-auto w-full max-w-lg rounded-lg border border-line bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold text-ink">Invite user</h2>

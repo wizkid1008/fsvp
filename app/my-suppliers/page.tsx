@@ -122,7 +122,7 @@ export default async function MySuppliersPage() {
   return (
     <AppShell role={role} realRole={realRole} supplierType={supplierType}>
       <SectionHeader
-        title="My Suppliers"
+        title="Upstream Vendors"
         description="Add and manage the manufacturers or processors that produce goods you export. Link them here, then add their facilities and products."
       />
 

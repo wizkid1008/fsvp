@@ -21,6 +21,11 @@ function stepLabel(step: SetupStep): string {
   return step.blockers.length === 0 ? "Complete" : `${step.blockers.length} blocker${step.blockers.length === 1 ? "" : "s"}`;
 }
 
+/** "3 of 12 products classified" beats a bare "9 blockers" for knowing where you are. */
+function stepProgressLabel(step: SetupStep): string {
+  return `${step.progress.done} of ${step.progress.total} done`;
+}
+
 export default async function CompleteFsvpSetupPage() {
   const { role, realRole, user } = await requireProfileRole("/setup/fsvp", [
     "us_importer",
@@ -64,9 +69,9 @@ export default async function CompleteFsvpSetupPage() {
   const plan = await loadCompleteFsvpSetupPlan(adminResult.client as any, importerId);
   const completeSteps = plan.steps.filter((step) => step.blockers.length === 0).length;
   const totalBlockers = plan.steps.reduce((sum, step) => sum + step.blockers.length, 0);
-  const progress = plan.steps.length === 0
-    ? 0
-    : Math.round((completeSteps / plan.steps.length) * 100);
+  // Weighted by each step's own units rather than by whole steps, so clearing
+  // nineteen of twenty products moves the bar. See SetupProgress.
+  const progress = plan.progressPercent;
 
   return (
     <AppShell role={role} realRole={realRole}>
@@ -104,7 +109,7 @@ export default async function CompleteFsvpSetupPage() {
             <div>
               <h2 className="text-base font-semibold text-ink">Setup Path</h2>
               <p className="mt-1 text-sm text-slate-500">
-                {completeSteps} of {plan.steps.length} steps complete.
+                {progress}% complete — {completeSteps} of {plan.steps.length} steps fully clear.
               </p>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 md:w-64">
@@ -133,9 +138,16 @@ export default async function CompleteFsvpSetupPage() {
                     <p className="mt-1 text-sm leading-6 text-slate-600">{step.description}</p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <StatusBadge tone={stepTone(step)}>{stepLabel(step)}</StatusBadge>
+                      <span className="text-xs font-medium text-slate-500">{stepProgressLabel(step)}</span>
                       <Link href={step.href} className="text-sm font-semibold text-forest hover:underline">
                         {step.actionLabel}
                       </Link>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={`h-full rounded-full ${complete ? "bg-emerald-500" : "bg-amber-400"}`}
+                        style={{ width: `${Math.round((step.progress.done / step.progress.total) * 100)}%` }}
+                      />
                     </div>
                   </div>
                 </div>

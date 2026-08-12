@@ -66,16 +66,29 @@ export const navItems: NavItem[] = [
 
   // ── Exporter / supplier nav ──────────────────────────────────
   { href: "/corporate",    label: "Company Overview", icon: "Building2", roles: ["exporter", "supplier"], matches: ["/corporate"], tKey: "nav.companyOverview" },
-  { href: "/my-suppliers", label: "Suppliers",    icon: "UsersRound",    roles: ["exporter"],              matches: ["/my-suppliers"], tKey: "nav.suppliers" },
+  // "Upstream Vendors", not "Suppliers". This page is the exporter's OWN
+  // suppliers, while the importer's sidebar uses "Exporters" for the companies
+  // it buys from — one word meaning two different companies depending on who is
+  // signed in was the single biggest source of confusion in the nav.
+  { href: "/my-suppliers", label: "Upstream Vendors", icon: "UsersRound",    roles: ["exporter"],              matches: ["/my-suppliers"], tKey: "nav.upstreamVendors" },
   { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier"], tKey: "nav.facilities" },
   { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier"], tKey: "nav.products" },
   { href: "/my-evidence",  label: "My Evidence",  icon: "FileArchive",   roles: ["exporter", "supplier"], tKey: "nav.myEvidence" },
+  // /my-readiness existed, was role-gated to exporter/supplier, and was linked
+  // from nowhere — the only readiness signal an exporter had was a dashboard
+  // tile pointing at /corporate.
+  { href: "/my-readiness", label: "My Readiness", icon: "Gauge",         roles: ["exporter", "supplier"], matches: ["/my-readiness"], tKey: "nav.myReadiness" },
 
   // ── Importer: supply chain ───────────────────────────────────
   // The importer owns Facilities and Products too — a managed exporter has no
   // account of its own, so someone has to create them, and that someone is the
   // importer.
-  { href: "/suppliers",    label: "Exporters",    icon: "Building2",     roles: ["us_importer"], tKey: "nav.exporters",  group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
+  // Administrators are included deliberately. Facilities and Products already
+  // listed them, so an admin got a "Supply Chain" heading with the middle of
+  // the supply chain under it and no way to reach the companies themselves —
+  // no exporter list, no supplier list, from any screen.
+  { href: "/exporters",    label: "Exporters",    icon: "Building2",     roles: ["us_importer", "administrator", "reviewer"], matches: ["/exporters", "/suppliers"], tKey: "nav.exporters",  group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
+  { href: "/importers",    label: "Importers",    icon: "UsersRound",    roles: ["administrator", "reviewer"], matches: ["/importers"], tKey: "nav.importers", group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
   { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["us_importer", "administrator"], tKey: "nav.facilities", group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
   { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["us_importer", "administrator"], tKey: "nav.products",   group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
 
@@ -92,7 +105,7 @@ export const navItems: NavItem[] = [
   // history is qualified-individual work under § 1.505(b).
   { href: "/compliance-history",     label: "Compliance History",     icon: "ShieldAlert",    roles: ["us_importer", "reviewer"], matches: ["/compliance-history"], tKey: "nav.complianceHistory", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/qualified-individuals", label: "Qualified Individuals",  icon: "BadgeCheck",     roles: ["us_importer", "reviewer"], matches: ["/qualified-individuals"], tKey: "nav.qualifiedIndividuals", group: "Compliance", groupTKey: "nav.groupCompliance" },
-  { href: "/importer-review",       label: "Supplier Submissions",   icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview", group: "Compliance", groupTKey: "nav.groupCompliance" },
+  { href: "/importer-review",       label: "Exporter Submissions",   icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/evidence",              label: "Document Library",       icon: "FileArchive",    roles: ["us_importer"], tKey: "nav.evidence",       group: "Compliance", groupTKey: "nav.groupCompliance" },
 
   // ── Importer: monitoring ─────────────────────────────────────

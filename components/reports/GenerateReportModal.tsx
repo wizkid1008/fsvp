@@ -63,8 +63,8 @@ export function GenerateReportModal({ onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl border border-line bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
+      <div className="my-auto w-full max-w-md rounded-xl border border-line bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="text-base font-semibold text-ink">Generate Report</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>

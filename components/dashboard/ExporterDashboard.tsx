@@ -3,6 +3,7 @@ import { CheckCircle2, AlertCircle, Clock, ArrowRight, Building2, Package, Wareh
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ActionItemsSection } from "./ActionItemsSection";
 import { FsvpProcessFlow, type FsvpProcessRecord } from "./FsvpProcessFlow";
+import { computeSupplierReadiness, readinessLabel } from "@/lib/readiness/supplier-score";
 import type { StatusTone } from "@/types/platform";
 
 type SupabaseLike = { from: (table: string) => any };
@@ -36,8 +37,7 @@ export async function ExporterDashboard({
     facilitiesRes,
     productsRes,
     upstreamRes,
-    gapRes,
-    pubVersionRes,
+    readiness,
     fsvpRecordsRes,
   ] = await Promise.all([
     // Corporate documents submitted
@@ -70,18 +70,9 @@ export async function ExporterDashboard({
           .eq("status", "active")
       : Promise.resolve({ data: [] }),
 
-    // Open action items (corrective actions)
-    (supabase.from("corrective_actions") as any)
-      .select("id", { count: "exact", head: true })
-      .eq("status", "open"),
-
-    // Published rule version for score
-    (supabase.from("rule_versions") as any)
-      .select("id")
-      .eq("status", "published")
-      .order("version_number", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    // Shared with /my-readiness — see lib/readiness/supplier-score.ts for why
+    // this is no longer computed here.
+    computeSupplierReadiness(supabase, supplierId),
 
     supplierId
       ? (supabase.from("fsvp_records") as any)
@@ -111,51 +102,7 @@ export async function ExporterDashboard({
   const corpAccepted  = corpDocs.filter((d) => d.evidence_status === "accepted").length;
   const corpSubmitted = corpDocs.filter((d) => d.evidence_status === "submitted" || d.evidence_status === "under_review").length;
 
-  // Readiness score from scoring engine
-  let readinessScore = 0;
-  if (pubVersionRes.data?.id && supplierId) {
-    const [sectionsRes, weightsRes, itemsRes, docsRes] = await Promise.all([
-      (supabase.from("requirement_sections") as any)
-        .select("id, section_key")
-        .eq("rule_version_id", pubVersionRes.data.id)
-        .eq("applies_to", "supplier"),
-      (supabase.from("scoring_category_weights") as any)
-        .select("section_id, weight_percent")
-        .eq("rule_version_id", pubVersionRes.data.id),
-      (supabase.from("requirement_sections") as any)
-        .select("id, requirement_items(id, is_required, is_critical_blocker)")
-        .eq("rule_version_id", pubVersionRes.data.id)
-        .eq("applies_to", "supplier"),
-      (supabase.from("documents") as any)
-        .select("requirement_item_id, evidence_status")
-        .eq("supplier_id", supplierId)
-        .is("soft_deleted_at", null)
-        .not("requirement_item_id", "is", null),
-    ]);
-
-    const weightMap = new Map(
-      ((weightsRes.data ?? []) as Array<{ section_id: string; weight_percent: number }>)
-        .map((w) => [w.section_id, Number(w.weight_percent)])
-    );
-    const docByItem = new Map<string, string[]>();
-    for (const d of (docsRes.data ?? []) as Array<{ requirement_item_id: string; evidence_status: string }>) {
-      const arr = docByItem.get(d.requirement_item_id) ?? [];
-      arr.push(d.evidence_status);
-      docByItem.set(d.requirement_item_id, arr);
-    }
-    for (const sec of (itemsRes.data ?? []) as Array<{ id: string; requirement_items: Array<{ id: string; is_required: boolean }> }>) {
-      const items = (sec.requirement_items ?? []).filter((i) => i.is_required);
-      const weight = weightMap.get(sec.id) ?? 0;
-      if (items.length === 0) continue;
-      const accepted = items.filter((item) =>
-        (docByItem.get(item.id) ?? []).includes("accepted")
-      ).length;
-      readinessScore += (accepted / items.length) * weight;
-    }
-    readinessScore = Math.round(readinessScore);
-  }
-
-  const openActions = 0; // gap query above
+  const readinessScore = readiness.score;
 
   // Next steps checklist
   const steps = [
@@ -209,11 +156,13 @@ export async function ExporterDashboard({
           )}
         </section>
 
-        <Link href="/corporate" className="group flex flex-col items-center justify-center rounded-lg border border-line bg-white p-5 shadow-soft hover:border-forest transition">
+        {/* Links to /my-readiness, which shows the same number broken down by
+            requirement. It used to link to /corporate, which shows neither. */}
+        <Link href="/my-readiness" className="group flex flex-col items-center justify-center rounded-lg border border-line bg-white p-5 shadow-soft hover:border-forest transition">
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 group-hover:text-forest">Readiness</p>
           <p className={`mt-2 text-4xl font-bold tabular-nums ${scoreColor(readinessScore)}`}>{readinessScore}%</p>
           <StatusBadge tone={scoreTone(readinessScore)} className="mt-2">
-            {readinessScore >= 90 ? "Ready" : readinessScore >= 50 ? "In Progress" : "Not Started"}
+            {readinessLabel(readiness)}
           </StatusBadge>
         </Link>
       </div>

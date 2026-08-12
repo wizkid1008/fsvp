@@ -129,10 +129,15 @@ async function ImporterDashboard({
       {signals && (
         <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="flex flex-wrap items-start justify-between gap-3">
+            {/* Not "FSVP journey" — the journey is the eleven-step path on
+                /setup/fsvp, and a second thing wearing that name taught a
+                different, shorter story about what FSVP requires. This is a
+                grouping of what is currently gating approvals. */}
             <div>
-              <h2 className="text-sm font-semibold text-ink">FSVP journey</h2>
+              <h2 className="text-sm font-semibold text-ink">What&apos;s gating approvals</h2>
               <p className="mt-1 text-sm text-slate-500">
-                The next controls that most directly affect whether a product can be approved and shipped.
+                The open controls that most directly affect whether a product can be approved and
+                shipped. For the full path, see <Link href="/setup/fsvp" className="font-semibold text-forest hover:underline">Complete FSVP Setup</Link>.
               </p>
             </div>
             <Link

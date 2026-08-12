@@ -10,16 +10,31 @@ export type FsvpProcessRecord = {
   product_name: string | null;
 };
 
+/**
+ * Stage names track the canonical setup path in lib/setup/fsvp-steps.ts, so a
+ * record's position here means the same thing it means on /setup/fsvp.
+ *
+ * "Approved & Monitoring" previously also contained `rejected` and `expired`.
+ * A rejected record therefore sat in the column headed Approved — tinted red,
+ * but filed under the opposite of what had happened to it. Blocked states now
+ * have their own column, and it is first, because it is the one that needs
+ * someone to act.
+ */
 const STAGES = [
+  { key: "blocked", label: "Blocked", statuses: ["needs_corrective_action", "rejected", "expired"] },
   { key: "evidence", label: "Evidence Collection", statuses: ["draft", "awaiting_supplier_evidence"] },
   { key: "submitted", label: "Submitted for Review", statuses: ["supplier_evidence_submitted", "supplier_evidence_accepted"] },
-  { key: "review", label: "Importer Review", statuses: ["importer_review_pending", "needs_corrective_action"] },
-  { key: "decision", label: "Approved & Monitoring", statuses: ["importer_approved", "conditionally_approved", "rejected", "reassessment_due", "expired"] },
+  { key: "review", label: "Importer Review", statuses: ["importer_review_pending"] },
+  { key: "decision", label: "Approved & Monitoring", statuses: ["importer_approved", "conditionally_approved", "reassessment_due"] },
 ] as const;
+
+/** Unrecognised statuses fall into Evidence Collection, not into Blocked. */
+const DEFAULT_STAGE_INDEX = STAGES.findIndex((s) => s.key === "evidence");
+const BLOCKED_STAGE_INDEX = STAGES.findIndex((s) => s.key === "blocked");
 
 function stageIndexFor(status: FsvpRecordStatus): number {
   const idx = STAGES.findIndex((s) => (s.statuses as readonly string[]).includes(status));
-  return idx === -1 ? 0 : idx;
+  return idx === -1 ? DEFAULT_STAGE_INDEX : idx;
 }
 
 type CardTone = "neutral" | "info" | "warning" | "success" | "danger";
@@ -51,7 +66,7 @@ function cardTone(status: FsvpRecordStatus): CardTone {
 
 function cardSubtitle(record: FsvpProcessRecord): string {
   if (record.status === "needs_corrective_action") return "Corrective action needed";
-  if (record.status === "rejected") return "Rejected";
+  if (record.status === "rejected") return "Rejected — cannot be imported";
   if (record.status === "reassessment_due" || record.status === "expired") {
     return record.reassessment_due_at
       ? `Reassessment due ${new Date(record.reassessment_due_at).toLocaleDateString(undefined, { month: "short", year: "numeric" })}`
@@ -73,7 +88,7 @@ export function FsvpProcessFlow({ records }: { records: FsvpProcessRecord[] }) {
   }
 
   const byStage = STAGES.map((stage, i) => records.filter((r) => stageIndexFor(r.status) === i));
-  const blockedCount = records.filter((r) => r.status === "needs_corrective_action" || r.status === "rejected").length;
+  const blockedCount = byStage[BLOCKED_STAGE_INDEX].length;
 
   return (
     <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -92,7 +107,7 @@ export function FsvpProcessFlow({ records }: { records: FsvpProcessRecord[] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {STAGES.map((stage, i) => {
           const items = byStage[i];
           return (
