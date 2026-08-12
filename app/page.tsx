@@ -66,9 +66,16 @@ export default function HomePage() {
               ))}
             </div>
 
+            {/* Points at /signup, not /dashboard. A signed-out visitor clicking
+                the hero CTA was bounced to a login form for an account they do
+                not have yet — the primary call to action on the site led to a
+                dead end for exactly the people it was written for. */}
             <div className="mt-10 flex flex-wrap items-center gap-5">
-              <Link href="/dashboard" className="inline-flex h-16 items-center bg-black px-8 text-sm font-black uppercase tracking-[0.04em] text-white hover:bg-neutral-800">
-                Start review
+              <Link href="/signup" className="inline-flex h-16 items-center bg-black px-8 text-sm font-black uppercase tracking-[0.04em] text-white hover:bg-neutral-800">
+                Create an account
+              </Link>
+              <Link href="/login" className="inline-flex h-16 items-center border border-black px-8 text-sm font-black uppercase tracking-[0.04em] text-black hover:bg-black hover:text-white">
+                Log in
               </Link>
               <p className="max-w-[220px] text-xs font-medium leading-5 text-black/55">
                 No public data sharing. Supabase Auth and role-based access keep records private.

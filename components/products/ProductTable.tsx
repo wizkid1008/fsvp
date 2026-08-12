@@ -364,7 +364,7 @@ export function ProductTable({
   countries,
   facilities,
   products,
-  supplierHref = "/suppliers",
+  supplierHref = "/exporters",
   suppliers
 }: {
   countries: CountryOption[];

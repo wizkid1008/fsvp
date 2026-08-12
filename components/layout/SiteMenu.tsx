@@ -11,11 +11,14 @@ import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { NotificationBell } from "./NotificationBell";
 
-type MenuKey = "platform" | "suppliers" | "importers";
+type MenuKey = "platform" | "exporters" | "importers";
 
+// Both audience links go to /dashboard: each role lands on its own dashboard,
+// and the previous "Suppliers" entry pointed at /suppliers — the importer's
+// exporter list, which a foreign supplier has no permission to open.
 const menuItems: Array<{ href: string; activeHref: string; label: string; key: MenuKey }> = [
   { href: "/about", activeHref: "/about", label: "Platform", key: "platform" },
-  { href: "/login?next=%2Fsuppliers", activeHref: "/suppliers", label: "Suppliers", key: "suppliers" },
+  { href: "/login?next=%2Fdashboard", activeHref: "/exporters", label: "Exporters", key: "exporters" },
   { href: "/login?next=%2Fdashboard", activeHref: "/dashboard", label: "Importers", key: "importers" }
 ];
 
@@ -25,13 +28,13 @@ const megaMenus: Record<MenuKey, Array<{ heading: string; links: Array<{ label: 
     { heading: "TEAMS", links: [{ label: "Foreign suppliers" }, { label: "U.S. importers" }, { label: "Reviewers" }, { label: "Administrators" }] },
     { heading: "SYSTEM", links: [{ label: "Supabase Auth" }, { label: "Private document storage" }, { label: "RLS policies" }, { label: "Cloudflare Pages" }] }
   ],
-  suppliers: [
-    { heading: "SUPPLIER PROFILE", links: [{ label: "Legal entity" }, { label: "Contacts" }, { label: "Export markets" }, { label: "FDA registration" }] },
-    { heading: "COMPLIANCE STATUS", links: [{ label: "Certifications" }, { label: "Supplier questionnaire" }, { label: "Importer relationship" }, { label: "Ownership attestation" }] },
+  exporters: [
+    { heading: "EXPORTER PROFILE", links: [{ label: "Legal entity" }, { label: "Contacts" }, { label: "Export markets" }, { label: "FDA registration" }] },
+    { heading: "COMPLIANCE STATUS", links: [{ label: "Certifications" }, { label: "Exporter questionnaire" }, { label: "Importer relationship" }, { label: "Ownership attestation" }] },
     {
       heading: "NEXT STEPS",
       links: [
-        { label: "Create supplier", href: "/signup" },
+        { label: "Create exporter account", href: "/signup" },
         { label: "Attach evidence", href: "/signup" },
         { label: "Review readiness", href: "/signup" },
         { label: "Resolve gaps", href: "/signup" }
@@ -39,12 +42,12 @@ const megaMenus: Record<MenuKey, Array<{ heading: string; links: Array<{ label: 
     }
   ],
   importers: [
-    { heading: "IMPORTER PROFILE", links: [{ label: "Organization details" }, { label: "Contacts" }, { label: "Assigned suppliers" }, { label: "Role management" }] },
-    { heading: "FSVP OVERSIGHT", links: [{ label: "Supplier approvals" }, { label: "Verification activities" }, { label: "Evidence requests" }, { label: "Corrective actions" }] },
+    { heading: "IMPORTER PROFILE", links: [{ label: "Organization details" }, { label: "Contacts" }, { label: "Assigned exporters" }, { label: "Role management" }] },
+    { heading: "FSVP OVERSIGHT", links: [{ label: "Exporter approvals" }, { label: "Verification activities" }, { label: "Evidence requests" }, { label: "Corrective actions" }] },
     {
       heading: "NEXT STEPS",
       links: [
-        { label: "Invite supplier", href: "/signup" },
+        { label: "Invite exporter", href: "/signup" },
         { label: "Review submissions", href: "/signup" },
         { label: "Track readiness", href: "/signup" },
         { label: "Export audit packet", href: "/signup" }
@@ -95,10 +98,8 @@ export function SiteMenu() {
           </span>
         </Link>
         {/* Marketing navigation, signed out only. Once you are in the app this
-            bar is a place for app controls: the mega-menu's dropdowns are mostly
-            non-clickable copy, and its "Suppliers" link points at /suppliers —
-            the page the importer sidebar calls Exporters. Two names for one
-            destination, in two different navs. */}
+            bar is a place for app controls rather than audience landing pages.
+            The mega-menu's dropdowns are still mostly non-clickable copy. */}
         {!loggedIn && (
         <nav className="group hidden items-center gap-8 md:flex" aria-label="Primary navigation">
           {menuItems.map((item) => {

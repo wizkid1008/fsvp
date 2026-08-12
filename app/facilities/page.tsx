@@ -217,7 +217,7 @@ export default async function FacilitiesPage({
         <FacilityTable
           countries={countryOptions}
           facilities={facilities}
-          supplierHref={isSupplier ? "/my-suppliers" : "/suppliers"}
+          supplierHref={isSupplier ? "/my-suppliers" : "/exporters"}
           suppliers={formSupplierOptions}
         />
       </div>

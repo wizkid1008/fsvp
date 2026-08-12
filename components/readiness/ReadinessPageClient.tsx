@@ -84,7 +84,7 @@ export function ReadinessPageClient({ assessments, suppliers, selectedSupplierId
           icon={Gauge}
           title="No exporters linked yet"
           description="Readiness is assessed per exporter. Link or add one first, then run an assessment against them."
-          action={{ label: "Go to Exporters", href: "/suppliers" }}
+          action={{ label: "Go to Exporters", href: "/exporters" }}
         />
       </div>
     );

@@ -108,4 +108,51 @@ describe("buildCompleteFsvpSetupPlan", () => {
       actionLabel: "Determine applicability",
     });
   });
+
+  it("reports 100% when every gate is satisfied", () => {
+    expect(buildCompleteFsvpSetupPlan(cleanInput()).progressPercent).toBe(100);
+  });
+
+  it("credits partly-finished steps instead of zeroing them", () => {
+    // Three products, one unclassified. The old whole-step progress scored the
+    // classification step 0 — the two finished products counted for nothing.
+    const input = cleanInput();
+    input.products = [
+      input.products[0],
+      { ...input.products[0], id: "product-2", product_name: "Papaya" },
+      { ...input.products[0], id: "product-3", product_name: "Guava", commodity_id: null },
+    ];
+    for (const id of ["product-2", "product-3"]) {
+      input.determinationsByProductId.set(id, liveDetermination);
+      input.admissibilityByProductId.set(id, []);
+    }
+
+    const plan = buildCompleteFsvpSetupPlan(input);
+    const classification = plan.steps.find((step) => step.id === "classification")!;
+
+    expect(classification.blockers).toHaveLength(1);
+    expect(classification.progress).toEqual({ done: 2, total: 3 });
+    expect(plan.progressPercent).toBeGreaterThan(0);
+    expect(plan.progressPercent).toBeLessThan(100);
+  });
+
+  it("treats a step with nothing to iterate over as unstarted, not complete", () => {
+    const input = cleanInput();
+    input.suppliers = [];
+    input.facilities = [];
+    input.products = [];
+    input.records = [];
+    input.activeQiCount = 0;
+    input.packagesByRecordId = new Set();
+    input.evidenceByRecordId = new Map();
+    input.determinationsByProductId = new Map();
+    input.admissibilityByProductId = new Map();
+    input.gateBlocksByRecordId = new Map();
+    input.attestationsByRecordId = new Map();
+
+    const plan = buildCompleteFsvpSetupPlan(input);
+
+    expect(plan.progressPercent).toBe(0);
+    expect(plan.steps.every((step) => step.progress.total > 0)).toBe(true);
+  });
 });

@@ -150,8 +150,12 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
           <legend className="text-sm font-bold text-black">Account type</legend>
           <div className="mt-2 grid grid-cols-2 gap-3">
             {([
-              { value: "supplier" as const, label: "Supplier", helper: "Foreign supplier / exporter" },
-              { value: "us_importer" as const, label: "Importer", helper: "Requires admin approval" }
+              // "Exporter", not "Supplier": the app calls this company an
+              // exporter everywhere after signup, and choosing "Supplier" here
+              // then landing in an Exporters UI meant rebuilding the mental
+              // model on the first screen. The stored role value is unchanged.
+              { value: "supplier" as const, label: "Exporter", helper: "You ship food to a U.S. importer" },
+              { value: "us_importer" as const, label: "Importer", helper: "You import food into the U.S. — requires admin approval" }
             ]).map((option) => (
               <label
                 key={option.value}
@@ -189,7 +193,7 @@ export function AuthForm({ mode, nextPath = "/dashboard" }: { mode: AuthMode; ne
           <span className="mt-1 block text-xs font-normal text-black/50">
             {accountType === "us_importer"
               ? "Your U.S. importing entity. An administrator confirms this when approving your account."
-              : "The company you export from. This becomes your company profile."}
+              : "The company you export from. This becomes your exporter profile."}
           </span>
         </label>
       ) : null}

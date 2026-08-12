@@ -337,7 +337,7 @@ function AddFacilityForm({
 export function FacilityTable({
   countries,
   facilities,
-  supplierHref = "/suppliers",
+  supplierHref = "/exporters",
   suppliers
 }: {
   countries: CountryOption[];
