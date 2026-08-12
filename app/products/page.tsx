@@ -75,7 +75,7 @@ export default async function ProductsPage({
   }
 
   let productsQuery = (supabase.from("products_verify") as any)
-    .select("id, product_name, product_description, country_of_origin, raw_or_processed, intended_use, ingredient_list, allergen_information, supplier_id, facility_id, approval_status, suppliers(company_name), facilities_verify(facility_name)")
+    .select("id, product_name, product_description, country_of_origin, raw_or_processed, intended_use, ingredient_list, allergen_information, supplier_id, facility_id, commodity_id, approval_status, suppliers(company_name), facilities_verify(facility_name), commodities(common_name, plant_part)")
     .order("created_at", { ascending: false });
   let suppliersQuery = (supabase.from("suppliers") as any)
     .select("id, company_name")
@@ -129,6 +129,40 @@ export default async function ProductsPage({
     evidence_count: evidenceCountByProduct.get(product.id) ?? 0,
   }));
 
+  const productIds = productsBeforeStatus.map((product) => product.id);
+  const { data: rawDeterminations, error: determinationsError } = productIds.length > 0 && !isSupplier
+    ? await (supabase.from("admissibility_determinations_status") as any)
+        .select("product_id, outcome, is_current, rule_superseded")
+        .in("product_id", productIds)
+        .is("superseded_at", null)
+    : { data: [] };
+
+  type DeterminationSummaryRow = {
+    product_id: string;
+    outcome: "permitted" | "restricted" | "prohibited";
+    is_current: boolean;
+    rule_superseded: boolean;
+  };
+  const determinationsByProduct = new Map<string, DeterminationSummaryRow[]>();
+  for (const row of (rawDeterminations ?? []) as DeterminationSummaryRow[]) {
+    const existing = determinationsByProduct.get(row.product_id) ?? [];
+    existing.push(row);
+    determinationsByProduct.set(row.product_id, existing);
+  }
+
+  function admissibilityStatus(product: ProductRow): ProductRow["admissibility_status"] {
+    if (isSupplier) return "importer_review";
+    if (!product.commodity_id) return "unclassified";
+    if (!product.country_of_origin) return "action_required";
+    if (determinationsError) return "action_required";
+    const rows = determinationsByProduct.get(product.id) ?? [];
+    if (rows.length === 0) return "not_determined";
+    if (rows.some((row) => row.outcome === "prohibited")) return "prohibited";
+    if (rows.some((row) => !row.is_current || row.rule_superseded)) return "action_required";
+    if (rows.some((row) => row.outcome === "restricted")) return "restricted";
+    return "permitted";
+  }
+
   // products_verify.approval_status is never written by the app — the real
   // readiness state lives in scoring_results, resolved against approval_thresholds.
   const approvalStatusByProduct = await fetchApprovalStatusMap(
@@ -136,10 +170,20 @@ export default async function ProductsPage({
     "product",
     productsBeforeStatus.map((p) => p.id)
   );
-  const products = productsBeforeStatus.map((p) => ({
-    ...p,
-    approval_status: approvalStatusByProduct.get(p.id) ?? p.approval_status,
-  }));
+  const products = productsBeforeStatus.map((p) => {
+    const status = admissibilityStatus(p);
+    const scoreStatus = approvalStatusByProduct.get(p.id) ?? p.approval_status;
+    return {
+      ...p,
+      admissibility_status: status,
+      // Suppliers cannot read importer-owned determinations. Preserve the
+      // evidence status in their view rather than turning hidden data into a
+      // false "not approved" assertion.
+      approval_status: isSupplier || ["permitted", "restricted"].includes(status ?? "")
+        ? scoreStatus
+        : "not_approved",
+    };
+  });
 
   let supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
 

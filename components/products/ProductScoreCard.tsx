@@ -1,5 +1,6 @@
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
+import type { AdmissibilityBlock } from "@/lib/admissibility/gate";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -20,9 +21,11 @@ function thresholdLabel(label: string | null, hasDocs: boolean): string {
 export async function ProductScoreCard({
   productId,
   supabase,
+  admissibilityBlocks = [],
 }: {
   productId: string;
   supabase: SupabaseLike;
+  admissibilityBlocks?: AdmissibilityBlock[];
 }) {
   const { data: pubVersion } = await (supabase.from("rule_versions") as any)
     .select("id")
@@ -123,8 +126,11 @@ export async function ProductScoreCard({
   }>;
   const matched = thresholds.find((t) => score >= t.min_score && score <= t.max_score) ?? null;
 
-  const displayLabel = thresholdLabel(matched?.label ?? null, hasDocs);
-  const tone = hasDocs ? thresholdTone(matched?.resulting_status ?? null) : "neutral";
+  const admissibilityBlocked = admissibilityBlocks.length > 0;
+  const displayLabel = admissibilityBlocked
+    ? "Not approvable"
+    : thresholdLabel(matched?.label ?? null, hasDocs);
+  const tone = admissibilityBlocked ? "danger" : hasDocs ? thresholdTone(matched?.resulting_status ?? null) : "neutral";
 
   const ringColor =
     score >= 90 ? "text-emerald-500" :
@@ -169,6 +175,11 @@ export async function ProductScoreCard({
               Critical blockers pending
             </p>
           )}
+          {admissibilityBlocked && (
+            <p className="mt-1.5 text-xs font-semibold text-red-600">
+              Admissibility blockers pending
+            </p>
+          )}
           <p className="mt-1.5 text-sm text-slate-600">
             <span className="font-semibold text-ink">{completeSections}</span> of{" "}
             <span className="font-semibold text-ink">{sections.length}</span> sections complete
@@ -187,7 +198,8 @@ export async function ProductScoreCard({
       </div>
 
       <p className="mt-3 text-xs text-slate-400">
-        Evidence must be tagged to this product and accepted by a reviewer to count toward this score.
+        The evidence score is only one input. Admissibility must also be current and non-prohibited
+        before this product can be treated as approvable.
       </p>
     </section>
   );

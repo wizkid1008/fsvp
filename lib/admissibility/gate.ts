@@ -18,6 +18,7 @@ export type AdmissibilityBlock = {
     | "not_classified"
     | "no_origin"
     | "determination_missing"
+    | "determination_unavailable"
     | "determination_expired"
     | "rule_superseded"
     | "prohibited";
@@ -61,10 +62,19 @@ export async function evaluateAdmissibility(
   }
   if (blocks.length > 0) return blocks;
 
-  const { data: rows } = await (supabase.from("admissibility_determinations_status") as any)
+  const { data: rows, error } = await (supabase.from("admissibility_determinations_status") as any)
     .select("id, outcome, expires_at, is_current, rule_superseded, citation, intended_use, processing_state")
     .eq("product_id", ctx.productId)
     .is("superseded_at", null);
+
+  if (error) {
+    return [{
+      code: "determination_unavailable",
+      message:
+        "The admissibility record could not be read, so this product cannot be treated as ready. " +
+        "Restore access to the determination data and check again.",
+    }];
+  }
 
   const determinations = (rows ?? []) as Array<{
     id: string;

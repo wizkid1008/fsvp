@@ -12,7 +12,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 
 export const runtime = "edge";
 
@@ -43,9 +42,6 @@ export async function POST(req: NextRequest) {
       { status: 403 }
     );
   }
-
-  const refusal = refusePreviewWrite(profile.role, "maintain the commodity taxonomy");
-  if (refusal) return refusal;
 
   const admin = createAdminSupabaseClient();
 

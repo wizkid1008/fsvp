@@ -2,6 +2,11 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { ReferenceRulesClient, type ReferenceRuleRow } from "@/components/admin/ReferenceRulesClient";
+import {
+  ReferenceEntryActions,
+  type CommodityOption,
+  type CountryOption,
+} from "@/components/admin/ReferenceEntryForms";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
 
@@ -28,17 +33,29 @@ export default async function ReferenceRulesPage() {
   }
   const admin = adminResult.client;
 
-  const { data: rawRules } = await (admin.from("country_commodity_rules_status") as any)
-    .select(`
-      id, origin_country, origin_region, intended_use, processing_state,
-      admissibility, citation, source_url,
-      verification_status, verified_at, verified_against, verified_by_profile_id,
-      created_by_profile_id, review_due_at, days_until_review,
-      is_current, is_draft, is_overdue, source_moved,
-      commodities(common_name, plant_part)
-    `)
-    .is("superseded_at", null)
-    .order("review_due_at");
+  const [rulesResult, commoditiesResult, countriesResult] = await Promise.all([
+    (admin.from("country_commodity_rules_status") as any)
+      .select(`
+        id, origin_country, origin_region, intended_use, processing_state,
+        admissibility, citation, source_url,
+        verification_status, verified_at, verified_against, verified_by_profile_id,
+        created_by_profile_id, review_due_at, days_until_review,
+        is_current, is_draft, is_overdue, source_moved,
+        commodities(common_name, plant_part)
+      `)
+      .is("superseded_at", null)
+      .order("review_due_at"),
+    (admin.from("commodities") as any)
+      .select("id, common_name, scientific_name, commodity_class, plant_part, is_propagative")
+      .eq("active", true)
+      .order("common_name"),
+    (admin.from("countries") as any)
+      .select("country_code, country_name")
+      .eq("is_active", true)
+      .order("country_name"),
+  ]);
+
+  const rawRules = rulesResult.data;
 
   const rules = (rawRules ?? []) as any[];
 
@@ -96,6 +113,12 @@ export default async function ReferenceRulesPage() {
           "Whether a commodity may enter from a given origin, and under what conditions. These rules " +
           "are curated by hand from agency publications, so this screen is where they are confirmed " +
           "against the source and re-checked before they go stale."
+        }
+        actionSlot={
+          <ReferenceEntryActions
+            commodities={(commoditiesResult.data ?? []) as CommodityOption[]}
+            countries={(countriesResult.data ?? []) as CountryOption[]}
+          />
         }
       />
       <ReferenceRulesClient rules={shaped} viewerProfileId={user.id} />

@@ -1,6 +1,7 @@
 # FSVP Platform — Development Handoff
 
-Current as of 2026-08-11. `main` at `dad4f9f`. No unmerged branches.
+Current as of 2026-08-12. The Phase 2 admissibility workflow was completed on
+`feat/admissibility-workflow`, branched from `main` at `cf6e679`.
 
 ---
 
@@ -137,9 +138,13 @@ lives in `lib/fsvp/gates.ts`, `lib/fsvp/qi-attestation.ts`,
 **Regulatory intelligence — working end to end.** Four FDA sources ingest,
 normalise, store, and propose candidate matches. See §6.
 
-**Phase 2 items 7–8 — built, no data.** Commodity taxonomy, country-commodity
-rules with verification, admissibility determinations with a blocking gate, and
-a rule-maintenance screen at `/admin/reference-rules`.
+**Phase 2 items 7–8 — complete workflow, no reference data.** Commodity taxonomy,
+country-commodity rules with two-person verification, admissibility snapshots,
+and the blocking gate are wired into the product journey. Administrators can add
+commodities and enter draft rules at `/admin/reference-rules`; importers can
+classify a product and determine admissibility from its product page. Product
+readiness now fails closed on missing, expired, superseded or prohibited
+determinations. Changing commodity or origin supersedes the affected snapshots.
 
 **Structural test suite** — `lib/quality/app-invariants.test.ts` checks that
 server components contain no client-only constructs, every page authenticates
@@ -200,28 +205,23 @@ firm name, manufacturer or country, and brand names are often redacted as
    nowhere as a journey. **This is the biggest product risk**: a tool that only
    says no gets routed around.
 
-3. **Half-built Phase 2 UI.** Rule entry has API routes
-   (`/api/reference-rules`, `/api/commodities`) and **no form**. Products cannot
-   be classified against the taxonomy, and nothing can be determined until
-   `commodity_id` is set.
-
-4. **Reference layer is empty.** Admissibility correctly answers "no rule on
+3. **Reference layer is empty.** Admissibility correctly answers "no rule on
    file" for everything. Seeding needs real APHIS citations, entered as drafts
    for human verification.
 
-5. **Invisible built features.** `fsvp_signature_ledger` (the § 1.510(a)(2)
+4. **Invisible built features.** `fsvp_signature_ledger` (the § 1.510(a)(2)
    evidence for an inspection package) has no UI. `documents.retention_until` is
    enforced but never displayed.
 
-6. **Suppliers have no FEI numbers**, so matching is permanently fuzzy. But
+5. **Suppliers have no FEI numbers**, so matching is permanently fuzzy. But
    ingested refusals and inspections *contain* `FEINumber` + `FirmName` +
    `CountryName` — a firm directory could be built from data already stored and
    used to propose exact identities.
 
-7. **Exporters cannot see findings about themselves** and so cannot correct a
+6. **Exporters cannot see findings about themselves** and so cannot correct a
    misattributed recall.
 
-8. **No daily-use surface.** Everything built is once-per-supplier
+7. **No daily-use surface.** Everything built is once-per-supplier
    qualification. The roadmap's own "shipment readiness — the screen an importer
    would open every morning" is Phase 3 and does not exist.
 
@@ -229,12 +229,11 @@ firm name, manufacturer or country, and brand names are often redacted as
 
 ## 8. Suggested next steps
 
-1. Finish the rule-entry form and product classification — half-built is the
-   worst state, and it makes Phase 2 usable end to end.
-2. Build the guided path to a first approved record.
+1. Build the guided path to a first approved record.
+2. Seed the reference layer narrowly with real APHIS rules for pilot movements;
+   enter each as a draft and have a second administrator verify it.
 3. Scheduled ingest and expiry alerting.
-4. Seed the reference layer with verified APHIS rules.
-5. Then Phase 3 (shipments), which is where daily value lives.
+4. Then Phase 3 (shipments), which is where daily value lives.
 
 **Defer** Phase 2 items 9–11 (permits, agency routing, facility registration).
 More compliance depth on an unusable base compounds the problem.

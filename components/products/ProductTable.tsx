@@ -32,16 +32,26 @@ export type ProductRow = {
   allergen_information: string | null;
   supplier_id: string | null;
   facility_id: string | null;
+  commodity_id: string | null;
+  commodities: { common_name: string; plant_part: string | null } | null;
   suppliers: { company_name: string } | null;
   facilities_verify: { facility_name: string } | null;
   evidence_count?: number;
   approval_status?: string;
+  admissibility_status?: "unclassified" | "not_determined" | "action_required" | "permitted" | "restricted" | "prohibited" | "importer_review";
 };
 
 function approvalTone(status?: string): "success" | "warning" | "danger" | "neutral" {
   if (status === "importer_approved") return "success";
   if (status === "conditionally_approved") return "warning";
   if (status === "needs_corrective_action" || status === "rejected" || status === "not_approved") return "danger";
+  return "neutral";
+}
+
+function admissibilityTone(status?: ProductRow["admissibility_status"]): "success" | "warning" | "danger" | "neutral" {
+  if (status === "permitted") return "success";
+  if (status === "restricted" || status === "action_required" || status === "not_determined" || status === "unclassified") return "warning";
+  if (status === "prohibited") return "danger";
   return "neutral";
 }
 
@@ -478,6 +488,7 @@ export function ProductTable({
               <tr className="border-b border-line bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Product</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Admissibility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Facility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Origin</th>
@@ -499,6 +510,21 @@ export function ProductTable({
                     <StatusBadge tone={approvalTone(product.approval_status)}>
                       {labelize(product.approval_status ?? "pending")}
                     </StatusBadge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <a href={`/products/${product.id}`}>
+                      <StatusBadge tone={admissibilityTone(product.admissibility_status)}>
+                        {labelize(product.admissibility_status ?? "importer_review")}
+                      </StatusBadge>
+                    </a>
+                    {product.commodities?.common_name && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        {product.commodities.common_name}
+                        {product.commodities.plant_part && product.commodities.plant_part !== "not_applicable"
+                          ? ` (${product.commodities.plant_part})`
+                          : ""}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{product.suppliers?.company_name ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{product.facilities_verify?.facility_name ?? "-"}</td>
