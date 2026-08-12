@@ -17,6 +17,7 @@ const ar: Messages = {
     upstreamVendors: "الموردون الأعلى في السلسلة",
     companyOverview: "نظرة عامة على الشركة",
     exporters: "المصدرون",
+    importers: "المستوردون",
     products: "المنتجات",
     facilities: "المرافق",
     evidence: "مكتبة المستندات",

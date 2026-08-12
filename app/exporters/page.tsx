@@ -61,20 +61,26 @@ export default async function ExportersPage() {
     id: string; supplier_id: string; basis: string; reason: string; suspended_at: string;
   }>;
 
-  // If importer has no linked suppliers yet, show empty state rather than all suppliers
   let suppliersQuery = (admin.from("suppliers") as any)
     .select("id, company_name, legal_entity_name, country, website, approval_status, certification_status, fda_registration_number, contact_json, supplier_type, updated_at, record_mode, managed_by_importer_id, duns_number")
-    .in("supplier_type", ["exporter", "exporter_manufacturer", "trader"])
     .order("updated_at", { ascending: false });
 
   if (role === "us_importer") {
+    // An importer's own list is about who it buys from, so it stays limited to
+    // export-eligible types and to the exporters actually linked to it.
+    suppliersQuery = suppliersQuery.in("supplier_type", ["exporter", "exporter_manufacturer", "trader"]);
+
     if (linkedSupplierIds && linkedSupplierIds.length > 0) {
       suppliersQuery = suppliersQuery.in("id", linkedSupplierIds);
     } else {
-      // No linked suppliers — return empty list, not the whole DB
+      // No linked exporters — return empty list, not the whole DB
       suppliersQuery = suppliersQuery.eq("id", "00000000-0000-0000-0000-000000000000");
     }
   }
+  // Administrators and platform reviewers get every supplier_type — exporters,
+  // manufacturers, traders and brokers alike. The export-eligible filter used
+  // to run for everyone, so `manufacturer` and `broker` rows were unreachable
+  // from any screen in the app, even by URL.
 
   const [{ data: rawSuppliers }, { data: countries }, { data: products }, { data: facilities }, { data: facilityAccess }, { data: documents }] = await Promise.all([
     suppliersQuery,
@@ -130,10 +136,10 @@ export default async function ExportersPage() {
   return (
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
-        title={role === "us_importer" ? "My Exporters" : "Exporters"}
+        title={role === "us_importer" ? "My Exporters" : "All Suppliers & Exporters"}
         description={role === "us_importer"
           ? "Exporters you import from. Link one who already has an account, or create a record yourself for an exporter who will not register."
-          : "All registered foreign exporters in the platform."}
+          : "Every registered foreign company across all tenants — exporters, manufacturers, traders and brokers. The badge under each name is its supplier type."}
       />
       <SupplierTable
         countries={countryOptions}

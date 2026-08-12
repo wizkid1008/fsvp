@@ -61,8 +61,8 @@ export function InviteSupplierForm({
   const labelClass = "block text-sm font-medium text-slate-700";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-xl rounded-lg border border-line bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
+      <div className="my-auto w-full max-w-xl rounded-lg border border-line bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <div className="flex items-center gap-2">
             <UserPlus className="h-4 w-4 text-forest" />

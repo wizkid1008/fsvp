@@ -17,6 +17,7 @@ const es: Messages = {
     upstreamVendors: "Proveedores upstream",
     companyOverview: "Resumen de la empresa",
     exporters: "Exportadores",
+    importers: "Importadores",
     products: "Productos",
     facilities: "Instalaciones",
     evidence: "Biblioteca de Documentos",

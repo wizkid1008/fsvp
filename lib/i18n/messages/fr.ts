@@ -17,6 +17,7 @@ const fr: Messages = {
     upstreamVendors: "Fournisseurs en amont",
     companyOverview: "Aperçu de l'entreprise",
     exporters: "Exportateurs",
+    importers: "Importateurs",
     products: "Produits",
     facilities: "Installations",
     evidence: "Bibliothèque de Documents",

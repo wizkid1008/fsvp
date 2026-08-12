@@ -83,7 +83,12 @@ export const navItems: NavItem[] = [
   // The importer owns Facilities and Products too — a managed exporter has no
   // account of its own, so someone has to create them, and that someone is the
   // importer.
-  { href: "/exporters",    label: "Exporters",    icon: "Building2",     roles: ["us_importer"], matches: ["/exporters", "/suppliers"], tKey: "nav.exporters",  group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
+  // Administrators are included deliberately. Facilities and Products already
+  // listed them, so an admin got a "Supply Chain" heading with the middle of
+  // the supply chain under it and no way to reach the companies themselves —
+  // no exporter list, no supplier list, from any screen.
+  { href: "/exporters",    label: "Exporters",    icon: "Building2",     roles: ["us_importer", "administrator", "reviewer"], matches: ["/exporters", "/suppliers"], tKey: "nav.exporters",  group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
+  { href: "/importers",    label: "Importers",    icon: "UsersRound",    roles: ["administrator", "reviewer"], matches: ["/importers"], tKey: "nav.importers", group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
   { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["us_importer", "administrator"], tKey: "nav.facilities", group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
   { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["us_importer", "administrator"], tKey: "nav.products",   group: "Supply Chain", groupTKey: "nav.groupSupplyChain" },
 

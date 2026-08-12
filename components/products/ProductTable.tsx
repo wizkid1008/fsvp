@@ -215,16 +215,22 @@ function AddProductForm({
   const labelClass = "block text-sm font-medium text-slate-700";
 
   return (
+    // The panel is capped at 90vh and scrolls internally. It used to grow to
+    // whatever the form needed inside a `fixed inset-0` overlay, so on any
+    // viewport shorter than the form the Cancel and Save buttons sat off-screen
+    // with nothing able to scroll them into view — the dialog could be filled
+    // in but not submitted or dismissed except by the X.
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl rounded-lg border border-line bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-line px-6 py-4">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg border border-line bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
           <h2 className="text-lg font-semibold text-ink">{product ? "Edit Product" : "Add Product"}</h2>
           <button type="button" onClick={onClose} className="rounded p-1 transition hover:bg-slate-100">
             <X className="h-4 w-4 text-slate-500" />
           </button>
         </div>
 
-        <form onSubmit={submit} className="space-y-4 p-6">
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={labelClass}>
               Product Name <span className="text-red-500">*</span>
@@ -343,16 +349,20 @@ function AddProductForm({
             Product Description
             <textarea name="product_description" defaultValue={product?.product_description ?? ""} className={textareaClass} placeholder="Optional product notes" />
           </label>
+          </div>
 
-          {error ? <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-
-          <div className="flex justify-end gap-3 border-t border-line pt-4">
-            <button type="button" onClick={onClose} className="h-10 rounded-md border border-line px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
-              Cancel
-            </button>
-            <button disabled={pending} className="h-10 rounded-md bg-forest px-5 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60">
-              {pending ? "Saving..." : product ? "Save product" : "Add product"}
-            </button>
+          {/* Outside the scroll region: a save error the user has to scroll to
+              find is an error they will not see. */}
+          <div className="shrink-0 space-y-3 border-t border-line px-6 py-4">
+            {error ? <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={onClose} className="h-10 rounded-md border border-line px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
+                Cancel
+              </button>
+              <button disabled={pending} className="h-10 rounded-md bg-forest px-5 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60">
+                {pending ? "Saving..." : product ? "Save product" : "Add product"}
+              </button>
+            </div>
           </div>
         </form>
       </div>

@@ -401,8 +401,8 @@ export function FormFillPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-line bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
+      <div className="my-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-line bg-white shadow-xl">
         <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-line bg-white px-6 py-4">
           <div className="flex items-start gap-2">
             <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-forest" />

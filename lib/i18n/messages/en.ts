@@ -18,6 +18,7 @@ const en = {
     upstreamVendors: "Upstream Vendors",
     companyOverview: "Company Overview",
     exporters: "Exporters",
+    importers: "Importers",
     products: "Products",
     facilities: "Facilities",
     evidence: "Document Library",
