@@ -32,6 +32,6 @@ export function isValidReassessmentMonths(months: number | undefined): boolean {
 // Adds `months` calendar months to an ISO date string, returning an ISO string.
 export function addMonths(dateStr: string, months: number): string {
   const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + months);
+  d.setUTCMonth(d.getUTCMonth() + months);
   return d.toISOString();
 }
