@@ -34,6 +34,7 @@ Values read by server code **when a request arrives**. A build-scope variable is
 NOT visible here — `process.env.X` is simply undefined in the Pages Function:
 
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `INGEST_TRIGGER_SECRET`
 - `FDA_DATADASHBOARD_USER`
 - `FDA_DATADASHBOARD_KEY`
 - `OPENFDA_API_KEY`
@@ -79,6 +80,24 @@ a 401 that looks like a supplier having no findings.
 
 None of these are `NEXT_PUBLIC_`. They are read server-side only, inside request handlers —
 an FDA credential in a client bundle is a published credential.
+
+### Scheduled compliance maintenance
+
+Cloudflare Pages does not provide cron triggers for this app. The repository
+uses `.github/workflows/scheduled-compliance.yml` to call
+`/api/cron/compliance` once per FDA source each day.
+
+Configure both places with the same secret:
+
+- Cloudflare Pages runtime Binding: `INGEST_TRIGGER_SECRET`
+- GitHub repository secret: `INGEST_TRIGGER_SECRET`
+
+Also add `FSVP_BASE_URL` as a GitHub repository secret, for example
+`https://fsvp.pages.dev`.
+
+When `INGEST_TRIGGER_SECRET` is unset in Cloudflare, `/api/cron/compliance`
+returns 404 and does no work. That keeps the machine-triggered path disabled
+until deployment is deliberately configured.
 
 ## Deployment Workflow
 
