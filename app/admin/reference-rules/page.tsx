@@ -104,6 +104,10 @@ export default async function ReferenceRulesPage() {
     is_overdue:          Boolean(r.is_overdue),
     source_moved:        Boolean(r.source_moved),
   }));
+  const currentCount = shaped.filter((rule) => rule.is_current).length;
+  const draftCount = shaped.filter((rule) => rule.is_draft).length;
+  const overdueCount = shaped.filter((rule) => rule.is_overdue).length;
+  const movedCount = shaped.filter((rule) => rule.source_moved).length;
 
   return (
     <AppShell role={role} realRole={realRole}>
@@ -121,6 +125,25 @@ export default async function ReferenceRulesPage() {
           />
         }
       />
+      <section className="mt-6 rounded-lg border border-line bg-white p-5 shadow-soft">
+        <h2 className="text-base font-semibold text-ink">Reference Coverage</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Start with the commodities and origins used by active importer products. Verified, current rules are the only ones that can support an admissibility determination.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {[
+            { label: "Current", value: currentCount, tone: "success" as const },
+            { label: "Draft", value: draftCount, tone: draftCount > 0 ? "warning" as const : "neutral" as const },
+            { label: "Overdue", value: overdueCount, tone: overdueCount > 0 ? "warning" as const : "neutral" as const },
+            { label: "Source Changed", value: movedCount, tone: movedCount > 0 ? "danger" as const : "neutral" as const },
+          ].map((item) => (
+            <div key={item.label} className="rounded-md border border-line bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-600">{item.label}</p>
+              <p className="mt-2 text-3xl font-semibold text-ink">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      </section>
       <ReferenceRulesClient rules={shaped} viewerProfileId={user.id} />
     </AppShell>
   );

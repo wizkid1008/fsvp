@@ -46,8 +46,14 @@ export type ImporterSignals = {
    * Supplier/product pairs with no live applicability determination — never
    * determined, or the determination has lapsed. No FSVP record can be opened
    * or approved for these.
-   */
+  */
   undeterminedPairs: number;
+  /** Products blocked from a clean shipment-readiness answer. */
+  shipmentReadinessBlocks: SignalRow[];
+  /** Linked suppliers missing a current compliance-history screening. */
+  screeningBlocks: SignalRow[];
+  /** Products needing classification, origin, or reference-rule coverage. */
+  referenceGaps: SignalRow[];
   /** True when nothing at all needs attention. */
   clear: boolean;
 };
@@ -73,6 +79,7 @@ export async function fetchImporterSignals(
   const [
     pendingRes, overdueRes, dueSoonRes, expiringRes, actionsRes, draftRes,
     signedRes, openRecordsRes, allProductsRes, determinationsRes,
+    productDetailRes, screeningsRes,
   ] = await Promise.all([
       // Importer-uploaded documents are accepted at upload, so they are not
       // pending anyone — excluding them keeps this from counting the importer's
@@ -149,6 +156,20 @@ export async function fetchImporterSignals(
         .select("product_id, expires_at")
         .eq("importer_id", importerId)
         .is("superseded_at", null),
+
+      supplierIds.length
+        ? (supabase.from("products_verify") as any)
+            .select("id, product_name, country_of_origin, commodity_id, supplier_id, suppliers(company_name)")
+            .in("supplier_id", supplierIds)
+            .limit(500)
+        : Promise.resolve({ data: [] }),
+
+      supplierIds.length
+        ? (supabase.from("supplier_compliance_screenings") as any)
+            .select("id, supplier_id, conclusion, expires_at, suppliers(company_name)")
+            .eq("importer_id", importerId)
+            .is("superseded_at", null)
+        : Promise.resolve({ data: [] }),
     ]);
 
   const signedIds = new Set(
@@ -166,6 +187,46 @@ export async function fetchImporterSignals(
   const undeterminedPairs = ((allProductsRes.data ?? []) as Array<{ id: string }>)
     .filter((p) => !liveDeterminedProducts.has(p.id)).length;
 
+  const productRows = (productDetailRes.data ?? []) as SignalRow[];
+  const { data: rawAdmissibility } = productRows.length > 0
+    ? await (supabase.from("admissibility_determinations_status") as any)
+        .select("product_id, outcome, expires_at, is_current")
+        .in("product_id", productRows.map((p) => p.id))
+        .is("superseded_at", null)
+    : { data: [] };
+
+  const currentAdmissibility = new Map(
+    ((rawAdmissibility ?? []) as Array<{ product_id: string; is_current: boolean; outcome: string }>)
+      .filter((d) => d.is_current)
+      .map((d) => [d.product_id, d])
+  );
+
+  const shipmentReadinessBlocks = productRows
+    .filter((p) => !currentAdmissibility.has(p.id) || currentAdmissibility.get(p.id)?.outcome === "prohibited")
+    .slice(0, 8);
+
+  const referenceGaps = productRows
+    .filter((p) => !p.commodity_id || !p.country_of_origin || !currentAdmissibility.has(p.id))
+    .slice(0, 8);
+
+  const currentScreenings = new Map(
+    ((screeningsRes.data ?? []) as Array<{ supplier_id: string; expires_at: string | null; conclusion: string; suppliers?: { company_name?: string } | null }>)
+      .filter((s) => !s.expires_at || s.expires_at >= today)
+      .map((s) => [s.supplier_id, s])
+  );
+  const supplierNameById = new Map(
+    productRows
+      .filter((p) => p.supplier_id)
+      .map((p) => [p.supplier_id, p.suppliers?.company_name ?? "Supplier"])
+  );
+  const screeningBlocks = supplierIds
+    .filter((supplierId) => {
+      const screening = currentScreenings.get(supplierId);
+      return !screening || screening.conclusion === "adverse_history_blocking";
+    })
+    .map((supplierId) => ({ id: supplierId, supplier_name: supplierNameById.get(supplierId) ?? "Supplier" }))
+    .slice(0, 8);
+
   const pendingReview = pendingRes.count ?? 0;
   const overdue  = (overdueRes.data ?? []) as SignalRow[];
   const dueSoon  = (dueSoonRes.data ?? []) as SignalRow[];
@@ -182,9 +243,14 @@ export async function fetchImporterSignals(
     drafts,
     unsignedRecords,
     undeterminedPairs,
+    shipmentReadinessBlocks,
+    screeningBlocks,
+    referenceGaps,
     clear:
       pendingReview === 0 && overdue.length === 0 && dueSoon.length === 0 &&
       expiring.length === 0 && actions.length === 0 && drafts.length === 0 &&
-      unsignedRecords === 0 && undeterminedPairs === 0,
+      unsignedRecords === 0 && undeterminedPairs === 0 &&
+      shipmentReadinessBlocks.length === 0 && screeningBlocks.length === 0 &&
+      referenceGaps.length === 0,
   };
 }

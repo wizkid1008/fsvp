@@ -9,6 +9,10 @@ import { HazardAnalysisPanel } from "@/components/fsvp/HazardAnalysisPanel";
 import { VerificationRecordsPanel } from "@/components/fsvp/VerificationRecordsPanel";
 import { PrintButton } from "@/components/fsvp/PrintButton";
 import { InspectionPackageButton } from "@/components/fsvp/InspectionPackageButton";
+import {
+  InspectionReadinessPanel,
+  type InspectionReadinessItem,
+} from "@/components/fsvp/InspectionReadinessPanel";
 import { ReassessmentSection } from "@/components/fsvp/ReassessmentSection";
 import { QiAttestationPanel, type SignedAttestation } from "@/components/fsvp/QiAttestationPanel";
 import {
@@ -17,7 +21,11 @@ import {
   type AssuranceView,
 } from "@/components/fsvp/ComplianceControlsPanel";
 import { evaluateGates } from "@/lib/fsvp/gates";
-import { evaluateAttestations, hashAttestationContent } from "@/lib/fsvp/qi-attestation";
+import {
+  ATTESTATION_LABEL,
+  evaluateAttestations,
+  hashAttestationContent,
+} from "@/lib/fsvp/qi-attestation";
 import { basisSpec, fetchDetermination, isDeterminationLive, OUTCOME_LABEL } from "@/lib/fsvp/applicability";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -50,6 +58,10 @@ function statusLabel(status: string): string {
     reassessment_due: "Reassessment Due",
   };
   return map[status] ?? status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function attestationLabel(type: string): string {
+  return ATTESTATION_LABEL[type as keyof typeof ATTESTATION_LABEL] ?? type.replace(/_/g, " ");
 }
 
 export default async function FsvpRecordPage({
@@ -94,7 +106,7 @@ export default async function FsvpRecordPage({
   const { data: rawAttached } = await (supabase.from("fsvp_record_evidence") as any)
     .select(`
       id, document_id, attached_at, notes,
-      documents!inner(title, document_kind),
+      documents!inner(title, document_kind, expiration_date, retention_until, retention_locked),
       requirement_items(item_name)
     `)
     .eq("fsvp_record_id", id)
@@ -105,7 +117,13 @@ export default async function FsvpRecordPage({
     document_id: string;
     attached_at: string;
     notes: string | null;
-    documents: { title: string; document_kind: string };
+    documents: {
+      title: string;
+      document_kind: string;
+      expiration_date: string | null;
+      retention_until: string | null;
+      retention_locked: boolean;
+    };
     requirement_items: { item_name: string } | null;
   };
 
@@ -117,6 +135,9 @@ export default async function FsvpRecordPage({
     requirement_item_name: r.requirement_items?.item_name ?? null,
     attached_at: r.attached_at,
     notes: r.notes,
+    expiration_date: r.documents.expiration_date,
+    retention_until: r.documents.retention_until,
+    retention_locked: r.documents.retention_locked,
   }));
 
   // Fetch all accepted documents for this supplier (available to attach)
@@ -292,6 +313,28 @@ export default async function FsvpRecordPage({
     current:             a.revoked_at === null && liveHash[a.attestation_type] === a.content_hash,
   }));
 
+  const { data: rawSignatureLedger } = await (admin.from("fsvp_signature_ledger") as any)
+    .select(`
+      id, attestation_type, signer_name, signer_email, statement, content_hash,
+      signed_at, revoked_at, revoked_reason, is_current
+    `)
+    .eq("target_type", "fsvp_record")
+    .eq("target_id", id)
+    .order("signed_at", { ascending: false });
+
+  const signatureLedger = (rawSignatureLedger ?? []) as Array<{
+    id: string;
+    attestation_type: string;
+    signer_name: string | null;
+    signer_email: string | null;
+    statement: string;
+    content_hash: string;
+    signed_at: string;
+    revoked_at: string | null;
+    revoked_reason: string | null;
+    is_current: boolean;
+  }>;
+
   const { data: viewerQi } = await (admin.from("qualified_individuals") as any)
     .select("id, active_from, active_to")
     .eq("profile_id", user.id)
@@ -363,6 +406,77 @@ export default async function FsvpRecordPage({
   ];
 
   const overdue = record.reassessment_due_at && new Date(record.reassessment_due_at) <= new Date();
+  const currentSignatures = attestations.filter((a) => a.current).length;
+  const expiredEvidence = attachedDocs.filter(
+    (doc) => doc.expiration_date && doc.expiration_date < new Date().toISOString().slice(0, 10)
+  ).length;
+  const retentionGaps = attachedDocs.filter((doc) => !doc.retention_until).length;
+  const blockingGateCount = gateBlocks.length + attestationEval.reasons.length + (applicabilityBlock ? 1 : 0);
+  const inspectionItems: InspectionReadinessItem[] = [
+    {
+      key: "approval",
+      label: "Importer approval",
+      detail: record.status === "importer_approved" || record.status === "conditionally_approved"
+        ? "The importer has recorded an approval decision for this record."
+        : "Approval is still pending; resolve the blockers below before relying on this package.",
+      ready: record.status === "importer_approved" || record.status === "conditionally_approved",
+      critical: true,
+      href: "#approval-decision",
+    },
+    {
+      key: "evidence",
+      label: "Evidence package",
+      detail: attachedDocs.length === 0
+        ? "No accepted evidence has been attached to this FSVP record."
+        : expiredEvidence > 0
+        ? `${expiredEvidence} attached document${expiredEvidence === 1 ? "" : "s"} expired and should be replaced.`
+        : `${attachedDocs.length} accepted document${attachedDocs.length === 1 ? "" : "s"} attached and current.`,
+      ready: attachedDocs.length > 0 && expiredEvidence === 0,
+      critical: true,
+      href: "#evidence-package",
+    },
+    {
+      key: "signatures",
+      label: "QI signatures",
+      detail: currentSignatures >= attestationEval.required.length
+        ? "Current qualified-individual signatures cover the required determinations."
+        : `${Math.max(attestationEval.required.length - currentSignatures, 0)} required signature${Math.max(attestationEval.required.length - currentSignatures, 0) === 1 ? "" : "s"} missing or stale.`,
+      ready: currentSignatures >= attestationEval.required.length && attestationEval.reasons.length === 0,
+      critical: true,
+      href: "#qi-attestations",
+    },
+    {
+      key: "gates",
+      label: "Approval gates",
+      detail: blockingGateCount === 0
+        ? "Applicability, suspension, assurance, and verification gates are clear."
+        : `${blockingGateCount} approval blocker${blockingGateCount === 1 ? "" : "s"} still need resolution.`,
+      ready: blockingGateCount === 0,
+      critical: true,
+    },
+    {
+      key: "retention",
+      label: "Retention record",
+      detail: retentionGaps === 0
+        ? "Attached evidence includes retention dates and active holds where applicable."
+        : `${retentionGaps} attached document${retentionGaps === 1 ? "" : "s"} lack retention dating.`,
+      ready: retentionGaps === 0,
+      critical: false,
+      href: "#evidence-package",
+    },
+    {
+      key: "monitoring",
+      label: "Monitoring date",
+      detail: overdue
+        ? "The reassessment date has passed; update the record before presenting it as current."
+        : record.reassessment_due_at
+        ? `Next reassessment is due ${new Date(record.reassessment_due_at).toLocaleDateString()}.`
+        : "No reassessment due date is recorded yet.",
+      ready: Boolean(record.reassessment_due_at) && !overdue,
+      critical: Boolean(overdue),
+      href: "#reassessment",
+    },
+  ];
 
   return (
     <AppShell role={role} realRole={realRole}>
@@ -423,6 +537,8 @@ export default async function FsvpRecordPage({
 
       <div className="mt-6 space-y-6">
 
+        <InspectionReadinessPanel items={inspectionItems} recordId={id} />
+
         {/* Summary cards */}
         <div className="grid gap-4 md:grid-cols-3">
           {[
@@ -466,7 +582,7 @@ export default async function FsvpRecordPage({
         </div>
 
         {/* Narrative sections */}
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+        <section id="evidence-package" className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="mb-5 border-b border-line pb-4">
             <h2 className="text-base font-semibold text-ink">Importer FSVP Documentation</h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -481,7 +597,7 @@ export default async function FsvpRecordPage({
         </section>
 
         {/* Hazard Analysis */}
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+        <section id="qi-attestations" className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="mb-5 border-b border-line pb-4">
             <h2 className="text-base font-semibold text-ink">Hazard Analysis</h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -613,6 +729,70 @@ export default async function FsvpRecordPage({
             viewerIsActiveQi={viewerIsActiveQi}
             viewerCanManageRegister={isImporter}
           />
+          <div className="mt-5 border-t border-line pt-5">
+            <h3 className="text-sm font-semibold text-ink">Signature Ledger</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Read-only § 1.510(a)(2) ledger for this record: signer, date, revocation state,
+              and the hash of the exact text signed.
+            </p>
+            {signatureLedger.length === 0 ? (
+              <div className="mt-3 rounded-md border border-dashed border-line bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                No signature ledger entries for this record yet.
+              </div>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-line bg-slate-50">
+                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Determination</th>
+                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Signer</th>
+                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Signed</th>
+                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Status</th>
+                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Content Hash</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {signatureLedger.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-ink">
+                          {attestationLabel(entry.attestation_type)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <p>{entry.signer_name ?? entry.signer_email ?? "Unknown"}</p>
+                          {entry.signer_name && entry.signer_email && (
+                            <p className="text-xs text-slate-400">{entry.signer_email}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {new Date(entry.signed_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          {entry.revoked_at ? (
+                            <div>
+                              <StatusBadge tone="danger">Withdrawn</StatusBadge>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {new Date(entry.revoked_at).toLocaleDateString()}
+                                {entry.revoked_reason ? ` · ${entry.revoked_reason}` : ""}
+                              </p>
+                            </div>
+                          ) : entry.is_current ? (
+                            <StatusBadge tone="success">Current</StatusBadge>
+                          ) : (
+                            <StatusBadge tone="neutral">Superseded</StatusBadge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <code className="break-all rounded bg-slate-100 px-1.5 py-1 text-[11px] text-slate-600">
+                            {entry.content_hash}
+                          </code>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </section>
 
         {/* § 1.506(d) determination and § 1.507 assurances */}
@@ -626,11 +806,13 @@ export default async function FsvpRecordPage({
         />
 
         {/* Reassessment schedule */}
-        <ReassessmentSection fsvpRecordId={id} schedule={schedule} />
+        <div id="reassessment">
+          <ReassessmentSection fsvpRecordId={id} schedule={schedule} />
+        </div>
 
         {/* Approval decision */}
         {isImporter && (
-          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <section id="approval-decision" className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <div className="mb-5 border-b border-line pb-4">
               <h2 className="text-base font-semibold text-ink">Approval Decision</h2>
               <p className="mt-1 text-sm text-slate-500">
