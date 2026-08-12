@@ -18,7 +18,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 
 export const runtime = "edge";
 
@@ -53,9 +52,6 @@ async function requireAdmin(req: NextRequest) {
       ),
     };
   }
-
-  const refusal = refusePreviewWrite(profile.role, "maintain the reference layer");
-  if (refusal) return { error: refusal };
 
   return { user, profile };
 }

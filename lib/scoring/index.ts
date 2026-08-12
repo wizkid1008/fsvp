@@ -10,6 +10,8 @@ import {
   upsertScoringResult,
 } from "./queries";
 import type { ScoreResult } from "./types";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { evaluateAdmissibility, type AdmissibilityBlock } from "@/lib/admissibility/gate";
 
 export type { ScoreResult, SectionScore, ApprovalStatus } from "./types";
 export { sectionCompletionPercent } from "./engine";
@@ -53,7 +55,38 @@ export async function scoreProduct(
   productId: string,
   ruleVersionId: string
 ): Promise<ScoreResult> {
-  return scoreEntity("product", productId, ruleVersionId);
+  const result = await scoreEntity("product", productId, ruleVersionId);
+  const admin = createAdminSupabaseClient();
+  const { data: product, error } = await (admin.from("products_verify") as any)
+    .select("id, commodity_id, country_of_origin")
+    .eq("id", productId)
+    .maybeSingle();
+
+  const blocks: AdmissibilityBlock[] = error || !product
+    ? [{
+        code: "determination_unavailable",
+        message: "The product classification could not be read, so it cannot be treated as approvable.",
+      }]
+    : await evaluateAdmissibility(admin as any, {
+        productId,
+        commodityId: product.commodity_id,
+        countryOfOrigin: product.country_of_origin,
+      });
+
+  return applyAdmissibilityGate(result, blocks);
+}
+
+/** Evidence can earn a score; it cannot override an entry prohibition. */
+export function applyAdmissibilityGate(
+  result: ScoreResult,
+  blocks: AdmissibilityBlock[]
+): ScoreResult {
+  if (blocks.length === 0) return result;
+  return {
+    ...result,
+    approval_status: "not_approved",
+    critical_blockers_present: true,
+  };
 }
 
 // FSVP record score = average of facility + product scores, subject to

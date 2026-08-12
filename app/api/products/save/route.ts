@@ -10,10 +10,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { isCrossTenant } from "@/lib/auth/tenancy";
 
 export const runtime = "edge";
-
-const NON_SUPPLIER_ROLES = new Set(["reviewer", "administrator", "us_importer"]);
 
 export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient();
@@ -37,12 +36,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "product_name, supplier_id, facility_id, and country_of_origin are required" }, { status: 400 });
   }
 
+  const admin = createAdminSupabaseClient();
   const isOwnSupplier = ["supplier", "exporter"].includes(profile.role) && profile.supplier_id === supplier_id;
 
   // Exporters can also save products for their linked upstream suppliers
   let isLinkedSupplier = false;
   if (!isOwnSupplier && profile.role === "exporter" && profile.supplier_id) {
-    const admin = createAdminSupabaseClient();
     const { data: link } = await (admin.from("supplier_relationships") as any)
       .select("id")
       .eq("exporter_id", profile.supplier_id)
@@ -53,11 +52,72 @@ export async function POST(req: NextRequest) {
     isLinkedSupplier = !!link;
   }
 
-  if (!isOwnSupplier && !isLinkedSupplier && !NON_SUPPLIER_ROLES.has(profile.role)) {
+  let isImporterSupplier = false;
+  if (profile.importer_id) {
+    const { data: link } = await (admin.from("supplier_relationships") as any)
+      .select("id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("importer_id", profile.importer_id)
+      .eq("supplier_id", supplier_id)
+      .in("status", ["active", "pending_invite"])
+      .maybeSingle();
+    isImporterSupplier = !!link;
+  }
+
+  const isPlatformWide = isCrossTenant(profile);
+  if (!isOwnSupplier && !isLinkedSupplier && !isImporterSupplier && !isPlatformWide) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const admin = createAdminSupabaseClient();
+  let existing: {
+    id: string;
+    supplier_id: string | null;
+    country_of_origin: string | null;
+  } | null = null;
+
+  if (id) {
+    const { data } = await (admin.from("products_verify") as any)
+      .select("id, supplier_id, country_of_origin")
+      .eq("id", id)
+      .maybeSingle();
+    existing = data;
+    if (!existing) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+
+    if (existing.supplier_id !== supplier_id && !isPlatformWide) {
+      return NextResponse.json(
+        { error: "A product cannot be moved from another supplier into this account." },
+        { status: 403 }
+      );
+    }
+
+    if (existing.country_of_origin !== country_of_origin && profile.importer_id) {
+      const { data: liveDeterminations, error: determinationCheckError } = await (
+        admin.from("admissibility_determinations") as any
+      )
+        .select("id, importer_id")
+        .eq("product_id", existing.id)
+        .is("superseded_at", null);
+      if (determinationCheckError) {
+        return NextResponse.json(
+          { error: `Existing determinations could not be checked, so the origin change was refused. ${determinationCheckError.message}` },
+          { status: 503 }
+        );
+      }
+      if ((liveDeterminations ?? []).some(
+        (row: { importer_id: string }) => row.importer_id !== profile.importer_id
+      )) {
+        return NextResponse.json(
+          {
+            error:
+              "Another importer has a live determination for this shared supplier product. " +
+              "Changing its origin would invalidate their record, so the shared product must be " +
+              "resolved before this edit can be saved.",
+          },
+          { status: 409 }
+        );
+      }
+    }
+  }
 
   const facility = await (admin.from("facilities_verify") as any)
     .select("id, supplier_id")
@@ -86,6 +146,38 @@ export async function POST(req: NextRequest) {
     : await (admin.from("products_verify") as any).insert(record).select("id").single();
 
   if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
+
+  // An origin change invalidates the question answered by every live
+  // admissibility snapshot. Preserve the history and require a fresh answer.
+  if (existing && existing.country_of_origin !== country_of_origin) {
+    const { error: supersedeError } = await (admin.from("admissibility_determinations") as any)
+      .update({ superseded_at: new Date().toISOString() })
+      .eq("product_id", existing.id)
+      .is("superseded_at", null);
+    if (supersedeError) {
+      await (admin.from("products_verify") as any)
+        .update({ country_of_origin: existing.country_of_origin })
+        .eq("id", existing.id);
+      return NextResponse.json(
+        { error: `The origin could not be changed safely. ${supersedeError.message}` },
+        { status: 500 }
+      );
+    }
+
+    await (admin.from("audit_logs") as any).insert({
+      importer_id: profile.importer_id ?? null,
+      actor_profile_id: user.id,
+      actor_role: profile.role,
+      action: "product_origin_changed",
+      record_type: "products_verify",
+      record_id: existing.id,
+      previous_value: { country_of_origin: existing.country_of_origin },
+      new_value: {
+        country_of_origin,
+        admissibility_determinations_superseded: true,
+      },
+    });
+  }
 
   return NextResponse.json({ id: result.data.id });
 }

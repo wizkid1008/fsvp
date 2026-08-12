@@ -20,7 +20,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 
 export const runtime = "edge";
 
@@ -45,9 +44,6 @@ export async function POST(req: NextRequest) {
       { status: 403 }
     );
   }
-
-  const refusal = refusePreviewWrite(profile.role, "verify reference rules");
-  if (refusal) return refusal;
 
   const body = await req.json().catch(() => ({})) as {
     rule_id?: string;
