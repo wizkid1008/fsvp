@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ClipboardCheck, Clock, CheckCircle2, AlertCircle, FileSignature, Scale, ShieldAlert } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { fetchAttestationQueue } from "@/lib/fsvp/attestation-queue";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -11,7 +12,17 @@ export async function ReviewerDashboard({
   displayName: string;
   supabase: SupabaseLike;
 }) {
-  const [pendingRes, recentRes, supplierRes, fsvpRes, productsRes, determinationsRes, historyRes, screeningRes] = await Promise.all([
+  const [
+    pendingRes,
+    recentRes,
+    supplierRes,
+    fsvpRes,
+    productsRes,
+    determinationsRes,
+    historyRes,
+    screeningRes,
+    attestationQueue,
+  ] = await Promise.all([
     (supabase.from("documents") as any)
       .select("id", { count: "exact", head: true })
       .eq("evidence_status", "submitted")
@@ -52,6 +63,10 @@ export async function ReviewerDashboard({
       .is("superseded_at", null)
       .lte("expires_at", new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10))
       .limit(10),
+
+    // Scoped by RLS: a tenant reviewer sees their own importer's records, a
+    // platform reviewer sees all of them.
+    fetchAttestationQueue(supabase),
   ]);
 
   const pendingCount = (pendingRes as any).count ?? 0;
@@ -107,7 +122,58 @@ export async function ReviewerDashboard({
         ) : (
           <p className="mt-2 text-sm text-emerald-700 font-semibold">Queue is clear — no documents pending review.</p>
         )}
+        {attestationQueue.length === 0 && (
+          <p className="mt-1 text-sm text-emerald-700">
+            Every open FSVP record carries current qualified-individual signatures.
+          </p>
+        )}
       </section>
+
+      {/* First, because it is the only thing on this page that nobody else can
+          do. The importer dashboard has counted "Records unsigned" all along;
+          the person who signs them had no such list anywhere. */}
+      {attestationQueue.length > 0 && (
+        <section className="rounded-lg border border-amber-200 bg-white shadow-soft">
+          <div className="border-b border-amber-200 bg-amber-50 px-5 py-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+              <FileSignature className="h-4 w-4" />
+              Awaiting your signature
+            </h2>
+            <p className="mt-0.5 text-xs leading-5 text-amber-800">
+              A qualified individual must sign the hazard analysis (§ 1.504), supplier evaluation
+              (§ 1.505) and verification determination (§ 1.506) before a record can be approved.
+            </p>
+          </div>
+          <div className="divide-y divide-line">
+            {attestationQueue.map((item) => (
+              <Link
+                key={item.recordId}
+                href={`/fsvp-records/${item.recordId}`}
+                className="flex items-start justify-between gap-3 px-5 py-3 transition hover:bg-amber-50/50"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-ink">
+                    {item.productName ?? "FSVP record"}
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {item.supplierName ?? "Supplier"} · {item.status.replace(/_/g, " ")}
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {item.reasons.map((reason) => (
+                      <li key={reason} className="text-xs leading-5 text-amber-800">
+                        {reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <StatusBadge tone="warning">
+                  {item.reasons.length} to sign
+                </StatusBadge>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-lg border border-line bg-white shadow-soft">
         <div className="border-b border-line px-5 py-4">

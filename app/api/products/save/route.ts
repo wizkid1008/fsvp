@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isCrossTenant } from "@/lib/auth/tenancy";
+import { ACTIVE_LINK_STATUSES, canWriteSupplierEntity } from "@/lib/auth/entity-access";
 
 export const runtime = "edge";
 
@@ -37,37 +38,21 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminSupabaseClient();
-  const isOwnSupplier = ["supplier", "exporter"].includes(profile.role) && profile.supplier_id === supplier_id;
 
-  // Exporters can also save products for their linked upstream suppliers
-  let isLinkedSupplier = false;
-  if (!isOwnSupplier && profile.role === "exporter" && profile.supplier_id) {
-    const { data: link } = await (admin.from("supplier_relationships") as any)
-      .select("id")
-      .eq("exporter_id", profile.supplier_id)
-      .eq("supplier_id", supplier_id)
-      .in("relationship_type", ["exporter_supplier", "self_supply"])
-      .in("status", ["active", "pending_invite"])
-      .maybeSingle();
-    isLinkedSupplier = !!link;
-  }
+  // Shared with /api/facilities via lib/auth/entity-access.ts. These two routes
+  // used to carry separate copies of this rule and they disagreed: the facility
+  // one had no importer branch at all, so an importer could never create the
+  // facility a product requires.
+  const { data: linkRows } = await (admin.from("supplier_relationships") as any)
+    .select("relationship_type, status, supplier_id, exporter_id, importer_id")
+    .eq("supplier_id", supplier_id)
+    .in("status", ACTIVE_LINK_STATUSES as unknown as string[]);
 
-  let isImporterSupplier = false;
-  if (profile.importer_id) {
-    const { data: link } = await (admin.from("supplier_relationships") as any)
-      .select("id")
-      .eq("relationship_type", "importer_supplier")
-      .eq("importer_id", profile.importer_id)
-      .eq("supplier_id", supplier_id)
-      .in("status", ["active", "pending_invite"])
-      .maybeSingle();
-    isImporterSupplier = !!link;
+  if (!canWriteSupplierEntity(profile, supplier_id, linkRows ?? [])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const isPlatformWide = isCrossTenant(profile);
-  if (!isOwnSupplier && !isLinkedSupplier && !isImporterSupplier && !isPlatformWide) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   let existing: {
     id: string;
