@@ -190,20 +190,19 @@ firm name, manufacturer or country, and brand names are often redacted as
 
 ## 7. Known gaps, roughly in priority order
 
-1. **Nothing runs on a schedule.** No cron anywhere. Ingest happens only when an
-   admin clicks. Assurances, screenings, determinations, rule reviews,
-   reassessments and document retention all carry expiry dates and **nothing
-   watches any of them**. Cloudflare Pages has no cron triggers; the workable
-   path is a scheduled GitHub Actions workflow calling the ingest endpoint,
-   which needs machine authentication (proposed: an `INGEST_TRIGGER_SECRET`
-   binding, constant-time compared, with the header path disabled entirely when
-   the variable is unset).
+1. **Scheduled maintenance exists, but must be configured in production.**
+   `.github/workflows/scheduled-compliance.yml` calls `/api/cron/compliance`
+   daily. The route runs one bounded FDA ingest window for the requested source
+   and calls `public.generate_compliance_alerts()` for reassessments, expiring
+   documents and long-open corrective actions. It is disabled unless
+   `INGEST_TRIGGER_SECRET` is present as a Cloudflare runtime binding, and the
+   GitHub workflow also needs repository secrets `INGEST_TRIGGER_SECRET` and
+   `FSVP_BASE_URL`.
 
-2. **No path to a first approved record.** Ten gates, each needing prior setup
-   on a different screen, in an order nobody is told. `evaluateGates` already
-   returns every blocker with an actionable message — that data is assembled
-   nowhere as a journey. **This is the biggest product risk**: a tool that only
-   says no gets routed around.
+2. **The first-approval path exists, but needs real-user proving.** Importers
+   now have `/setup/fsvp`, surfaced from the sidebar and dashboard, assembling
+   the blockers returned by the real gate logic into an ordered journey. The
+   remaining risk is whether the path is understandable with messy tenant data.
 
 3. **Reference layer is empty.** Admissibility correctly answers "no rule on
    file" for everything. Seeding needs real APHIS citations, entered as drafts
@@ -229,10 +228,12 @@ firm name, manufacturer or country, and brand names are often redacted as
 
 ## 8. Suggested next steps
 
-1. Build the guided path to a first approved record.
-2. Seed the reference layer narrowly with real APHIS rules for pilot movements;
+1. Configure scheduled maintenance in Cloudflare and GitHub, then confirm the
+   workflow advances each FDA source and creates alerts in production.
+2. Walk one real importer through `/setup/fsvp` and tighten any confusing copy
+   or dead-end links.
+3. Seed the reference layer narrowly with real APHIS rules for pilot movements;
    enter each as a draft and have a second administrator verify it.
-3. Scheduled ingest and expiry alerting.
 4. Then Phase 3 (shipments), which is where daily value lives.
 
 **Defer** Phase 2 items 9–11 (permits, agency routing, facility registration).

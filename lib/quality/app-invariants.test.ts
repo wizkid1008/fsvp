@@ -115,6 +115,15 @@ const PUBLIC_ROUTES = new Set([
   "app/auth/callback/route.ts",
 ]);
 
+/**
+ * Routes authenticated by a machine secret rather than a Supabase session.
+ * These are not public: they must verify a deliberately configured secret and
+ * stay disabled when that secret is absent.
+ */
+const MACHINE_AUTH_ROUTES = new Set([
+  "app/api/cron/compliance/route.ts",
+]);
+
 describe("server components", () => {
   // The /audit-log failure exactly: a <select onChange={…}> in a Server
   // Component. React throws at render, the boundary shows a digest, and the
@@ -224,6 +233,7 @@ describe("pages", () => {
       ...[...PUBLIC_PAGES].filter((p) => !pages.has(p)),
       ...[...CLIENT_GUARDED_PAGES].filter((p) => !pages.has(p)),
       ...[...PUBLIC_ROUTES].filter((p) => !routes.has(p)),
+      ...[...MACHINE_AUTH_ROUTES].filter((p) => !routes.has(p)),
     ];
 
     expect(stale, `Exemptions for files that no longer exist:\n${stale.join("\n")}`).toEqual([]);
@@ -239,6 +249,7 @@ describe("API routes", () => {
     const unguarded = ROUTES
       .map(rel)
       .filter((p) => !PUBLIC_ROUTES.has(p))
+      .filter((p) => !MACHINE_AUTH_ROUTES.has(p))
       .filter((p) => !/auth\.getUser\(\)/.test(readFileSync(join(process.cwd(), p), "utf8")));
 
     expect(
@@ -254,6 +265,17 @@ describe("API routes", () => {
       .map(rel);
 
     expect(missing).toEqual([]);
+  });
+
+  it("machine-authenticated routes verify a trigger secret", () => {
+    const missing = [...MACHINE_AUTH_ROUTES]
+      .filter((p) => !/verifyIngestTriggerSecret/.test(readFileSync(join(process.cwd(), p), "utf8")));
+
+    expect(
+      missing,
+      "These routes bypass Supabase user auth and must prove they check the " +
+      "machine trigger secret instead.\n" + missing.join("\n")
+    ).toEqual([]);
   });
 });
 

@@ -1,0 +1,62 @@
+name: Scheduled Compliance Maintenance
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    name: Generate alerts and advance FDA ingest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Call scheduled compliance endpoint
+        env:
+          FSVP_BASE_URL: ${{ secrets.FSVP_BASE_URL }}
+          INGEST_TRIGGER_SECRET: ${{ secrets.INGEST_TRIGGER_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${FSVP_BASE_URL:-}" ]]; then
+            echo "FSVP_BASE_URL secret is required, for example https://fsvp.pages.dev" >&2
+            exit 1
+          fi
+          if [[ -z "${INGEST_TRIGGER_SECRET:-}" ]]; then
+            echo "INGEST_TRIGGER_SECRET secret is required." >&2
+            exit 1
+          fi
+
+          endpoint="${FSVP_BASE_URL%/}/api/cron/compliance"
+          echo "::group::alerts"
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST "${endpoint}" \
+              --header "content-type: application/json" \
+              --header "x-ingest-trigger-secret: ${INGEST_TRIGGER_SECRET}" \
+              --data "{\"alerts\":true}"
+          )"
+          echo "${response}"
+          echo "::endgroup::"
+
+          sources=(
+            fda_food_enforcement
+            fda_import_refusals
+            fda_inspections_classifications
+            fda_compliance_actions
+          )
+
+          for source in "${sources[@]}"; do
+            echo "::group::${source}"
+            response="$(
+              curl --fail-with-body --silent --show-error \
+                --request POST "${endpoint}" \
+                --header "content-type: application/json" \
+                --header "x-ingest-trigger-secret: ${INGEST_TRIGGER_SECRET}" \
+                --data "{\"source\":\"${source}\",\"alerts\":false}"
+            )"
+            echo "${response}"
+            echo "::endgroup::"
+          done
