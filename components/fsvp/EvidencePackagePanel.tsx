@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, FileCheck2 } from "lucide-react";
+import { Plus, Trash2, FileCheck2, LockKeyhole } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 interface AttachedDoc {
@@ -13,6 +13,9 @@ interface AttachedDoc {
   requirement_item_name: string | null;
   attached_at: string;
   notes: string | null;
+  expiration_date: string | null;
+  retention_until: string | null;
+  retention_locked: boolean;
 }
 
 interface AvailableDoc {
@@ -21,6 +24,10 @@ interface AvailableDoc {
   document_kind: string;
   requirement_item_name: string | null;
   expiration_date: string | null;
+}
+
+function formatDate(value: string | null): string | null {
+  return value ? new Date(value).toLocaleDateString() : null;
 }
 
 export function EvidencePackagePanel({
@@ -88,6 +95,7 @@ export function EvidencePackagePanel({
             <tr className="border-b border-line bg-slate-50">
               <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Document</th>
               <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Requirement</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Retention</th>
               <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Attached</th>
               {!readonly && <th className="w-10 px-4 py-2.5" />}
             </tr>
@@ -98,10 +106,30 @@ export function EvidencePackagePanel({
                 <td className="px-4 py-3">
                   <p className="font-medium text-ink">{doc.title}</p>
                   <p className="text-xs text-slate-400 capitalize">{doc.document_kind.replace(/_/g, " ")}</p>
+                  {doc.expiration_date && (
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Expires {formatDate(doc.expiration_date)}
+                    </p>
+                  )}
                   {doc.notes && <p className="mt-0.5 text-xs text-slate-500">{doc.notes}</p>}
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-600">
                   {doc.requirement_item_name ?? <span className="text-slate-400">—</span>}
+                </td>
+                <td className="px-4 py-3 text-xs text-slate-600">
+                  <div className="flex flex-col gap-1">
+                    <span>
+                      {doc.retention_until
+                        ? `Until ${formatDate(doc.retention_until)}`
+                        : "Retention date not set"}
+                    </span>
+                    {doc.retention_locked && (
+                      <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
+                        <LockKeyhole className="h-3 w-3" />
+                        Hold active
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-500">
                   {new Date(doc.attached_at).toLocaleDateString()}

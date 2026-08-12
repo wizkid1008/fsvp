@@ -97,6 +97,7 @@ export const navItems: NavItem[] = [
 
   // ── Importer: monitoring ─────────────────────────────────────
   { href: "/readiness",    label: "Readiness",      icon: "Gauge",         roles: ["us_importer"], matches: ["/readiness"],    tKey: "nav.readiness",   group: "Monitoring", groupTKey: "nav.groupMonitoring" },
+  { href: "/shipment-readiness", label: "Shipment Readiness", icon: "PackageSearch", roles: ["us_importer"], matches: ["/shipment-readiness"], group: "Monitoring", groupTKey: "nav.groupMonitoring" },
   { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer"], matches: ["/gaps-actions"], tKey: "nav.gapsActions", group: "Monitoring", groupTKey: "nav.groupMonitoring" },
   { href: "/reports",      label: "Reports",        icon: "FileCheck2",    roles: ["us_importer"], matches: ["/reports"],      tKey: "nav.reports",     group: "Monitoring", groupTKey: "nav.groupMonitoring" },
 

@@ -231,12 +231,12 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: evidence } = await (admin.from("fsvp_record_evidence") as any)
-      .select("notes, documents!inner(title, document_kind, evidence_status, evidence_source, attested_by_name, attested_at, expiration_date)")
+      .select("notes, documents!inner(title, document_kind, evidence_status, evidence_source, attested_by_name, attested_at, expiration_date, retention_until, retention_locked)")
       .eq("fsvp_record_id", recordId);
 
     title = `FSVP Record — ${record.products_verify.product_name}`;
     subtitle = `${record.suppliers.company_name} · ${record.facilities_verify.facility_name} · Rule v${record.rule_versions.version_number}`;
-    headers = ["Document", "Kind", "Status", "Provenance", "Attested by", "Expires"];
+    headers = ["Document", "Kind", "Status", "Provenance", "Attested by", "Expires", "Retention"];
 
     rows = ((evidence ?? []) as any[]).map((e) => [
       e.documents.title,
@@ -245,6 +245,10 @@ export async function POST(req: NextRequest) {
       SOURCE_LABEL[e.documents.evidence_source] ?? e.documents.evidence_source ?? "",
       e.documents.attested_by_name ?? "",
       e.documents.expiration_date ? new Date(e.documents.expiration_date).toLocaleDateString() : "",
+      [
+        e.documents.retention_until ? `Retain until ${new Date(e.documents.retention_until).toLocaleDateString()}` : "Retention date not set",
+        e.documents.retention_locked ? "hold active" : null,
+      ].filter(Boolean).join("; "),
     ]);
 
     if (format === "html") {
@@ -399,7 +403,7 @@ ${attestationStatement ? `<p class="meta" style="margin-top:8px;">Statement sign
 <tbody>${
         rows.length
           ? rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")
-          : '<tr><td colspan="6" style="color:#94a3b8;">No evidence attached.</td></tr>'
+          : `<tr><td colspan="${headers.length}" style="color:#94a3b8;">No evidence attached.</td></tr>`
       }</tbody></table>
 
 ${importerUploaded > 0 ? `<div class="note"><strong>Provenance note.</strong> ${importerUploaded} of ${rows.length} documents in this package were provided by the importer on the supplier's behalf rather than submitted by the supplier directly. The "Attested by" column records who at the supplier furnished each one.</div>` : ""}

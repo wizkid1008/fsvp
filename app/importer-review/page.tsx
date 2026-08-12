@@ -38,6 +38,11 @@ export default async function ImporterReviewPage() {
   // Administrators can see everything; importers are scoped to their importer_id
   const items = await fetchReviewQueue(admin, role === "us_importer" ? importerId : null);
   const { pendingTotal, criticalTotal, acceptedTotal } = reviewQueueTotals(items);
+  const revisionTotal = items.filter((item) => item.evidence_status === "needs_revision").length;
+  const expiringTotal = items.filter((item) =>
+    item.expiration_date &&
+    item.expiration_date <= new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10)
+  ).length;
 
   const metricTone = (v: number, warnAbove = 0): StatusTone =>
     v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";
@@ -49,10 +54,12 @@ export default async function ImporterReviewPage() {
         description="Evidence your exporters have submitted and are waiting on you. Accept compliant documents, request revisions, or reject non-compliant submissions. Everything you have already accepted lives in the Document Library."
       />
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-5">
         {[
           { label: "Pending Review",    value: pendingTotal,  tone: metricTone(pendingTotal, 0) as StatusTone },
           { label: "Critical Blockers", value: criticalTotal, tone: criticalTotal > 0 ? ("danger" as StatusTone) : ("neutral" as StatusTone) },
+          { label: "Revision Requests", value: revisionTotal, tone: revisionTotal > 0 ? ("warning" as StatusTone) : ("neutral" as StatusTone) },
+          { label: "Expiring Soon",     value: expiringTotal, tone: expiringTotal > 0 ? ("warning" as StatusTone) : ("neutral" as StatusTone) },
           { label: "Accepted",          value: acceptedTotal, tone: "success" as StatusTone },
         ].map((m) => (
           <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">

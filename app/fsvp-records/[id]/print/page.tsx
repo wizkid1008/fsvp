@@ -73,6 +73,16 @@ export default async function FsvpRecordPrintPage({
   const ruleVer = record.rule_versions as { version_number: number };
   const approver = record.profiles as { full_name: string | null; email: string } | null;
   const attached = (rawAttached ?? []) as AttachedRow[];
+  const expiredEvidence = attached.filter(
+    (doc) => doc.documents.expiration_date && doc.documents.expiration_date < new Date().toISOString().slice(0, 10)
+  ).length;
+  const approved = record.status === "importer_approved" || record.status === "conditionally_approved";
+  const readinessRows = [
+    ["Importer approval", approved ? "Complete" : "Not complete"],
+    ["Accepted evidence attached", attached.length > 0 ? `${attached.length} document${attached.length === 1 ? "" : "s"}` : "None attached"],
+    ["Expired evidence", expiredEvidence === 0 ? "None" : `${expiredEvidence} expired document${expiredEvidence === 1 ? "" : "s"}`],
+    ["Reassessment", record.reassessment_due_at ? `Due ${new Date(record.reassessment_due_at).toLocaleDateString()}` : "No due date recorded"],
+  ];
 
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
@@ -169,12 +179,26 @@ export default async function FsvpRecordPrintPage({
           </div>
         ))}
 
+        <div className="mb-8">
+          <h3 className="border-b border-slate-300 pb-1 text-base font-bold">4. Inspection Readiness Summary</h3>
+          <table className="mt-3 w-full text-sm">
+            <tbody>
+              {readinessRows.map(([label, value]) => (
+                <tr key={label} className="border-b border-slate-100">
+                  <td className="py-1.5 pr-4 font-semibold text-slate-600 w-48">{label}</td>
+                  <td className="py-1.5">{value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         {/* Narrative sections */}
         {[
-          { title: "4. Hazard Analysis", content: record.hazard_analysis_notes },
-          { title: "5. Supplier Evaluation", content: record.supplier_evaluation_notes },
-          { title: "6. Facility Evaluation", content: record.facility_evaluation_notes },
-          { title: "7. Verification Determination", content: record.verification_determination },
+          { title: "5. Hazard Analysis", content: record.hazard_analysis_notes },
+          { title: "6. Supplier Evaluation", content: record.supplier_evaluation_notes },
+          { title: "7. Facility Evaluation", content: record.facility_evaluation_notes },
+          { title: "8. Verification Determination", content: record.verification_determination },
         ].map((s) => (
           <div key={s.title} className="mb-8">
             <h3 className="border-b border-slate-300 pb-1 text-base font-bold">{s.title}</h3>
@@ -186,7 +210,7 @@ export default async function FsvpRecordPrintPage({
 
         {/* Evidence package */}
         <div className="mb-8">
-          <h3 className="border-b border-slate-300 pb-1 text-base font-bold">8. Accepted Evidence Package</h3>
+          <h3 className="border-b border-slate-300 pb-1 text-base font-bold">9. Accepted Evidence Package</h3>
           {attached.length === 0 ? (
             <p className="mt-3 text-slate-400 italic">No evidence documents attached to this record.</p>
           ) : (
@@ -215,7 +239,7 @@ export default async function FsvpRecordPrintPage({
 
         {/* Approval decision */}
         <div className="mb-8">
-          <h3 className="border-b border-slate-300 pb-1 text-base font-bold">9. Importer Approval Decision</h3>
+          <h3 className="border-b border-slate-300 pb-1 text-base font-bold">10. Importer Approval Decision</h3>
           {latestDecision ? (
             <div className="mt-3 space-y-1 text-sm">
               <div><span className="font-semibold">Decision:</span> {latestDecision.decision.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</div>
@@ -236,7 +260,7 @@ export default async function FsvpRecordPrintPage({
         {/* Reassessment */}
         {schedule && (
           <div className="mb-8">
-            <h3 className="border-b border-slate-300 pb-1 text-base font-bold">10. Reassessment Schedule</h3>
+            <h3 className="border-b border-slate-300 pb-1 text-base font-bold">11. Reassessment Schedule</h3>
             <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
               <div><span className="font-semibold">Frequency:</span> Every {schedule.frequency_months} months</div>
               <div><span className="font-semibold">Last Assessed:</span> {schedule.last_assessed_at ? new Date(schedule.last_assessed_at).toLocaleDateString() : "—"}</div>

@@ -17,7 +17,7 @@ import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
 import { FsvpProcessFlow } from "@/components/dashboard/FsvpProcessFlow";
 import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
-import { ArrowRight, ClipboardList } from "lucide-react";
+import { ArrowRight, ClipboardList, PackageCheck, ShieldCheck } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 
 async function ImporterDashboard({
@@ -126,9 +126,74 @@ async function ImporterDashboard({
         </div>
       )}
 
+      {signals && (
+        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-ink">FSVP journey</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                The next controls that most directly affect whether a product can be approved and shipped.
+              </p>
+            </div>
+            <Link
+              href="/shipment-readiness"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
+            >
+              <PackageCheck className="h-4 w-4" />
+              Shipment readiness
+            </Link>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {[
+              {
+                label: "Supplier evidence",
+                value: signals.pendingReview + signals.expiring.length,
+                detail: signals.pendingReview > 0
+                  ? `${signals.pendingReview} submission${signals.pendingReview === 1 ? "" : "s"} awaiting review`
+                  : signals.expiring.length > 0
+                  ? `${signals.expiring.length} accepted document${signals.expiring.length === 1 ? "" : "s"} expiring`
+                  : "No supplier evidence tasks blocking you",
+                href: "/importer-review",
+              },
+              {
+                label: "QI and record gates",
+                value: signals.unsignedRecords + signals.undeterminedPairs,
+                detail: signals.unsignedRecords > 0
+                  ? `${signals.unsignedRecords} record${signals.unsignedRecords === 1 ? "" : "s"} missing signatures`
+                  : signals.undeterminedPairs > 0
+                  ? `${signals.undeterminedPairs} product${signals.undeterminedPairs === 1 ? "" : "s"} need applicability`
+                  : "Applicability and signatures are current",
+                href: "/fsvp-records",
+              },
+              {
+                label: "Entry and monitoring",
+                value: signals.shipmentReadinessBlocks.length + signals.screeningBlocks.length + signals.referenceGaps.length,
+                detail: signals.referenceGaps.length > 0
+                  ? `${signals.referenceGaps.length} product${signals.referenceGaps.length === 1 ? "" : "s"} need reference coverage`
+                  : signals.screeningBlocks.length > 0
+                  ? `${signals.screeningBlocks.length} supplier${signals.screeningBlocks.length === 1 ? "" : "s"} need screening`
+                  : "Shipment checks and compliance screening are clear",
+                href: "/shipment-readiness",
+              },
+            ].map((item) => (
+              <Link key={item.label} href={item.href} className="rounded-md border border-line bg-slate-50 p-4 transition hover:border-forest hover:bg-white">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-ink">{item.label}</p>
+                  <StatusBadge tone={item.value > 0 ? "warning" : "success"}>{item.value}</StatusBadge>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-600">{item.detail}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {signals?.clear && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4">
-          <p className="text-sm font-semibold text-emerald-900">Nothing needs your attention</p>
+          <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
+            <ShieldCheck className="h-4 w-4" />
+            Nothing needs your attention
+          </p>
           <p className="mt-0.5 text-sm text-emerald-800">
             No evidence waiting on you, nothing expiring in the next 60 days, no overdue
             reassessments, and every open record carries a qualified individual signature.

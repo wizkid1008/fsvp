@@ -1,4 +1,4 @@
-import { Activity, BookOpenCheck, LockKeyhole, Settings2 } from "lucide-react";
+import { Activity, BookOpenCheck, LockKeyhole, Settings2, ServerCog } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -56,7 +56,7 @@ export default async function AdminPage() {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  const [{ data: rawSettings }, { data: rawReferenceDocs }, { data: rawAuditLogs }, { data: rawNotifications }] = await Promise.all([
+  const [{ data: rawSettings }, { data: rawReferenceDocs }, { data: rawAuditLogs }, { data: rawNotifications }, ruleStatusCounts] = await Promise.all([
     (supabase.from("app_settings") as any)
       .select("setting_key, label, detail, boolean_value")
       .eq("category", "workflow")
@@ -74,6 +74,20 @@ export default async function AdminPage() {
       .select("id, title, body, target_url, created_at, read_at")
       .order("created_at", { ascending: false })
       .limit(5),
+    Promise.all([
+      (supabase.from("country_commodity_rules_status") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("is_current", true),
+      (supabase.from("country_commodity_rules_status") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("is_draft", true),
+      (supabase.from("country_commodity_rules_status") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("is_overdue", true),
+      (supabase.from("country_commodity_rules_status") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("source_moved", true),
+    ]),
   ]);
 
   const workflowSettings = ((rawSettings ?? []) as WorkflowSetting[]).length > 0
@@ -157,6 +171,12 @@ export default async function AdminPage() {
         errorMessage:      run?.error_message ?? null,
       };
     });
+  const failedRuns = regulatoryRuns.filter((run) => run.status === "failed").length;
+  const neverRun = regulatoryRuns.filter((run) => !run.status).length;
+  const currentRules = ruleStatusCounts[0].count ?? 0;
+  const draftRules = ruleStatusCounts[1].count ?? 0;
+  const overdueRules = ruleStatusCounts[2].count ?? 0;
+  const movedRules = ruleStatusCounts[3].count ?? 0;
 
   return (
     <AppShell role={role}>
@@ -204,6 +224,57 @@ export default async function AdminPage() {
       </section>
 
       <section className="mt-6">
+        <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-ink">System Health</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Operational checks that affect whether users can rely on daily compliance monitoring.
+              </p>
+            </div>
+            <ServerCog className="h-5 w-5 text-[#2DA8FF]" />
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            {[
+              {
+                label: "Regulatory refresh",
+                value: failedRuns > 0 ? `${failedRuns} failed` : neverRun > 0 ? `${neverRun} not run` : "Running",
+                tone: failedRuns > 0 ? "danger" as StatusTone : neverRun > 0 ? "warning" as StatusTone : "success" as StatusTone,
+                detail: "Latest FDA source runs",
+              },
+              {
+                label: "Current rules",
+                value: String(currentRules),
+                tone: currentRules > 0 ? "success" as StatusTone : "warning" as StatusTone,
+                detail: "Verified reference coverage",
+              },
+              {
+                label: "Draft / overdue",
+                value: String(draftRules + overdueRules),
+                tone: draftRules + overdueRules > 0 ? "warning" as StatusTone : "success" as StatusTone,
+                detail: "Rules needing curation",
+              },
+              {
+                label: "Source moved",
+                value: String(movedRules),
+                tone: movedRules > 0 ? "danger" as StatusTone : "success" as StatusTone,
+                detail: "Rules needing re-check",
+              },
+            ].map((item) => (
+              <a key={item.label} href={item.label === "Regulatory refresh" ? "#regulatory-refresh" : "/admin/reference-rules"}
+                className="rounded-md border border-line bg-slate-50 p-4 transition hover:border-forest hover:bg-white">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-700">{item.label}</p>
+                  <StatusBadge tone={item.tone}>{item.value}</StatusBadge>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">{item.detail}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="regulatory-refresh" className="mt-6">
         <RegulatoryRefresh runs={regulatoryRuns} />
       </section>
 
