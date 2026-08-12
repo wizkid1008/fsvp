@@ -17,6 +17,7 @@ import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
 import { FsvpProcessFlow } from "@/components/dashboard/FsvpProcessFlow";
 import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
+import { ArrowRight, ClipboardList } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 
 async function ImporterDashboard({
@@ -93,9 +94,19 @@ async function ImporterDashboard({
             </h1>
             <p className="mt-1 text-sm text-slate-500">Welcome back, {displayName}</p>
           </div>
-          <StatusBadge tone={profile?.user_status === "active" ? "success" : "warning"}>
-            {profile?.user_status ?? "pending"}
-          </StatusBadge>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge tone={profile?.user_status === "active" ? "success" : "warning"}>
+              {profile?.user_status ?? "pending"}
+            </StatusBadge>
+            <Link
+              href="/setup/fsvp"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Complete setup
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </section>
 

@@ -2,6 +2,7 @@
 .vercel/
 .wrangler/
 node_modules/
+.pnpm-store/
 dist/
 out/
 coverage/

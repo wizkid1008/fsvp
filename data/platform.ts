@@ -85,6 +85,7 @@ export const navItems: NavItem[] = [
   // They have to reach the record to sign it, and the register to see their scope.
   // Applicability comes before FSVP Records because it decides whether a record
   // is needed at all — an exempt food never gets one.
+  { href: "/setup/fsvp",           label: "Complete FSVP Setup",     icon: "ClipboardList",  roles: ["us_importer"], matches: ["/setup/fsvp"], group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/applicability",         label: "FSVP Applicability",     icon: "Scale",          roles: ["us_importer", "reviewer"], matches: ["/applicability"], tKey: "nav.applicability", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/fsvp-records",          label: "FSVP Records",           icon: "FolderCheck",    roles: ["us_importer", "reviewer"], matches: ["/fsvp-records"], tKey: "nav.fsvpRecords", group: "Compliance", groupTKey: "nav.groupCompliance" },
   // Reviewers included for the same reason: screening a supplier's compliance

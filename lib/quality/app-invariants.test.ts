@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { protectedRoutes, roleProtectedRoutes } from "@/lib/constants";
 
 /**
  * Structural checks over app/, aimed at the bugs that actually reach production
@@ -43,6 +44,15 @@ function rel(path: string): string {
 /** Crudely strips comments so prose about `window` is not read as code. */
 function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
+function routeForPage(page: string): string {
+  const withoutApp = page.replace(/^app/, "").replace(/\/page\.tsx$/, "");
+  return withoutApp === "" ? "/" : withoutApp;
+}
+
+function routeMatchesPrefix(route: string, prefix: string): boolean {
+  return route === prefix || route.startsWith(`${prefix}/`);
 }
 
 const ALL_FILES = walk(APP_DIR).filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f));
@@ -169,6 +179,37 @@ describe("pages", () => {
       "These pages read data without establishing who is asking. Either call " +
       "requireProfileRole/requireUser, or add them to PUBLIC_PAGES with a reason.\n" +
       unguarded.join("\n")
+    ).toEqual([]);
+  });
+
+  it("all private pages are covered by middleware route prefixes", () => {
+    const privatePages = PAGES
+      .map(rel)
+      .filter((p) => !PUBLIC_PAGES.has(p));
+
+    const unprotected = privatePages
+      .map(routeForPage)
+      .filter((route) => !protectedRoutes.some((prefix) => routeMatchesPrefix(route, prefix)));
+
+    expect(
+      unprotected,
+      "These private pages call server guards or rely on client/API guards, but " +
+      "middleware will not redirect anonymous users before rendering them.\n" +
+      unprotected.join("\n")
+    ).toEqual([]);
+  });
+
+  it("orders more-specific role prefixes before broader ones", () => {
+    const prefixes = Object.keys(roleProtectedRoutes);
+    const shadowed = prefixes.filter((prefix, index) =>
+      prefixes.slice(0, index).some((earlier) => routeMatchesPrefix(prefix, earlier))
+    );
+
+    expect(
+      shadowed,
+      "roleProtectedRoutes is checked with the first matching prefix. Put nested " +
+      "routes such as /fsvp-records/new before their broader parent.\n" +
+      shadowed.join("\n")
     ).toEqual([]);
   });
 
