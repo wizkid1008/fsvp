@@ -13,10 +13,16 @@ import { protectedRoutes, roleProtectedRoutes } from "@/lib/constants";
  * both were found by a person clicking, because nothing covers the 42 pages or
  * 57 routes at all.
  *
- * Rendering them properly would need jsdom and a mocked Supabase, which this
- * project has no setup for. These checks are cheaper and, for the specific
- * failures seen, sharper: every one below would have failed at push time on a
- * bug that instead reached users.
+ * UPDATE 2026-08-13: rendering IS now possible, and needed neither jsdom nor a
+ * new dependency — see lib/quality/render.ts. An App Router server component is
+ * an async function returning plain objects, so a test can call it and walk the
+ * result. lib/quality/supabase-mock.ts supplies the other half, and
+ * importers-page.test.ts is the first page covered.
+ *
+ * These structural checks still earn their place. They cover all 47 pages at
+ * once for a class of error a per-page test would have to be written to catch,
+ * and they are what fails when a NEW page forgets a guard — the page nobody has
+ * written a test for yet.
  *
  * They are deliberately about SHAPE, not behaviour. A check that needs updating
  * whenever a page changes would be abandoned; these only fire on a genuine
