@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       notification_type: "exporter_claim_declined",
       title:             `${supplier.company_name} declined the record invitation`,
       body:              "You keep full control of this record and remain responsible for uploading and attesting to its evidence.",
-      target_url:        "/suppliers",
+      target_url:        "/exporters",
       severity:          "info",
     });
 
@@ -112,65 +112,31 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Accept ───────────────────────────────────────────────────────────────
-  const { data: profile } = await (admin.from("profiles") as any)
-    .select("id, supplier_id, role")
-    .eq("id", user.id)
-    .maybeSingle();
+  //
+  // One RPC, through the USER-scoped client, because both matter.
+  //
+  // This used to be five sequential writes on the service-role client, and the
+  // three that touched profiles all silently did nothing:
+  // trg_profiles_prevent_role_escalation is a BEFORE UPDATE trigger, the
+  // service-role key bypasses RLS but not triggers, and its only escape hatch
+  // resolves auth.uid() — which is NULL for the service key. Every guarded
+  // column was reassigned back to its old value with no error raised, so the
+  // claim reported success while the account stayed unlinked from the record it
+  // had just claimed.
+  //
+  // claim_exporter_record is SECURITY DEFINER, so the trigger's
+  // session_user <> current_user carve-out lets it through, and it needs
+  // auth.uid() to identify the claimant — which the service-role client does
+  // not carry. Hence the user client. See migration 015.
+  const { data: claimedId, error: claimError } = await (supabase as any)
+    .rpc("claim_exporter_record", { p_token: token });
 
-  if (!profile) return NextResponse.json({ error: "Profile not found." }, { status: 404 });
-
-  // Signing up through the invite fires trg_auto_link_supplier_profile, which
-  // creates a fresh suppliers row and points the profile at it. That row is a
-  // duplicate of the record being claimed, so discard it — but only if nothing
-  // has been attached to it, otherwise we would silently destroy real data.
-  if (profile.supplier_id && profile.supplier_id !== supplier.id) {
-    const strayId = profile.supplier_id;
-
-    const [{ count: strayDocs }, { count: strayProducts }, { count: strayFacilities }, { count: strayLinks }] =
-      await Promise.all([
-        (admin.from("documents") as any).select("id", { count: "exact", head: true }).eq("supplier_id", strayId),
-        (admin.from("products_verify") as any).select("id", { count: "exact", head: true }).eq("supplier_id", strayId),
-        (admin.from("facilities_verify") as any).select("id", { count: "exact", head: true }).eq("supplier_id", strayId),
-        (admin.from("supplier_relationships") as any).select("id", { count: "exact", head: true }).eq("supplier_id", strayId),
-      ]);
-
-    const strayIsEmpty =
-      (strayDocs ?? 0) === 0 && (strayProducts ?? 0) === 0 &&
-      (strayFacilities ?? 0) === 0 && (strayLinks ?? 0) === 0;
-
-    if (!strayIsEmpty) {
-      return NextResponse.json(
-        {
-          error:
-            "Your account is already linked to a different company record that has data attached. " +
-            "Contact an administrator to merge the two rather than losing anything.",
-        },
-        { status: 409 }
-      );
-    }
-
-    await (admin.from("profiles") as any).update({ supplier_id: null }).eq("id", user.id);
-    await (admin.from("suppliers") as any).delete().eq("id", strayId);
+  if (claimError) {
+    // The function raises with messages written to be shown to a person, and
+    // distinguishes "already linked to a record with data" from a bad token.
+    const status = claimError.code === "23505" ? 409 : claimError.code === "P0002" ? 404 : 500;
+    return NextResponse.json({ error: claimError.message }, { status });
   }
-
-  // Transfer ownership. managed_by_importer_id must be cleared in the same
-  // statement — suppliers_managed_by_check requires it to be null when the
-  // record is self_managed.
-  const { error: claimError } = await (admin.from("suppliers") as any)
-    .update({
-      record_mode:            "self_managed",
-      managed_by_importer_id: null,
-      claim_invite_token:     null,
-      claimed_at:             now,
-      claim_declined_at:      null,
-    })
-    .eq("id", supplier.id);
-
-  if (claimError) return NextResponse.json({ error: claimError.message }, { status: 500 });
-
-  await (admin.from("profiles") as any)
-    .update({ supplier_id: supplier.id, role: "exporter", user_status: "active" })
-    .eq("id", user.id);
 
   await (admin.from("app_notifications") as any).insert({
     importer_id:       supplier.managed_by_importer_id,
@@ -178,7 +144,7 @@ export async function POST(req: NextRequest) {
     notification_type: "exporter_claim_accepted",
     title:             `${supplier.company_name} claimed their record`,
     body:              "They now maintain their own company profile and can upload evidence directly. Your relationship and all existing evidence are unchanged.",
-    target_url:        "/suppliers",
+    target_url:        "/exporters",
     severity:          "info",
   });
 
@@ -192,5 +158,5 @@ export async function POST(req: NextRequest) {
     new_value:        { claimed_by: user.email },
   });
 
-  return NextResponse.json({ ok: true, supplier_id: supplier.id });
+  return NextResponse.json({ ok: true, supplier_id: claimedId ?? supplier.id });
 }
