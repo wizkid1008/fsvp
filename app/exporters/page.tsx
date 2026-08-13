@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SupplierTable, type SupplierRow } from "@/components/suppliers/SupplierTable";
@@ -153,6 +154,32 @@ export default async function ExportersPage() {
           ? "Exporters you import from. Link one who already has an account, or create a record yourself for an exporter who will not register."
           : "Every registered foreign company across all tenants — exporters, manufacturers, traders and brokers. The badge under each name is its supplier type."}
       />
+      {/* Adding an exporter used to end here, with nothing saying what it was
+          for. The row's own actions are Suspend and Edit — both about the
+          exporter, neither about the journey it belongs to. */}
+      {scoped && suppliers.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-slate-50 px-5 py-4">
+          <p className="text-sm leading-6 text-slate-600">
+            <span className="font-semibold text-ink">Next:</span> every exporter needs at least one
+            facility before you can add the products you import from it.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/facilities"
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d]"
+            >
+              Add a facility
+            </Link>
+            <Link
+              href="/setup/fsvp"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
+            >
+              See all steps
+            </Link>
+          </div>
+        </div>
+      )}
+
       <SupplierTable
         countries={countryOptions}
         suppliers={suppliers}

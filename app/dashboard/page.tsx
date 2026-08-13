@@ -17,6 +17,7 @@ import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
 import { FsvpProcessFlow } from "@/components/dashboard/FsvpProcessFlow";
 import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
+import { FSVP_SETUP_STEPS } from "@/lib/setup/fsvp-steps";
 import { ArrowRight, ClipboardList, PackageCheck, ShieldCheck } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 
@@ -64,6 +65,36 @@ async function ImporterDashboard({
 
   const signals = importerId
     ? await fetchImporterSignals(supabase, importerId, supplierIds)
+    : null;
+
+  // `signals.clear` only measures whether EXISTING work is decaying — evidence
+  // expiring, reassessments overdue, signatures missing. On an account that has
+  // created nothing yet every one of those counts is zero, so a brand-new
+  // importer with ten of eleven setup steps outstanding was told "Nothing needs
+  // your attention". Two counts are enough to tell "not started" from "all
+  // clear".
+  const [{ count: facilityCount }, { count: productCount }] = supplierIds.length
+    ? await Promise.all([
+        (supabase.from("facilities_verify") as any)
+          .select("id", { count: "exact", head: true })
+          .in("supplier_id", supplierIds) as Promise<{ count: number | null }>,
+        (supabase.from("products_verify") as any)
+          .select("id", { count: "exact", head: true })
+          .in("supplier_id", supplierIds) as Promise<{ count: number | null }>,
+      ])
+    : [{ count: 0 }, { count: 0 }];
+
+  // The first canonical step that has nothing behind it yet, or null once the
+  // account is far enough along that "clear" means what it says.
+  const nextStepId =
+    supplierIds.length === 0 ? "exporter"
+    : (facilityCount ?? 0) === 0 ? "facility"
+    : (productCount ?? 0) === 0 ? "product"
+    : fsvpRows.length === 0 ? "record"
+    : null;
+
+  const nextStep = nextStepId
+    ? FSVP_SETUP_STEPS.find((step) => step.id === nextStepId) ?? null
     : null;
 
   // These used to be Exporters / Products / Facilities / Evidence / Open Actions
@@ -193,7 +224,39 @@ async function ImporterDashboard({
         </section>
       )}
 
-      {signals?.clear && (
+      {/* Setup first. An unstarted account is not "clear" — it has done nothing
+          yet, and saying otherwise is how a new importer ends up staring at a
+          green tick wondering what to do next. */}
+      {nextStep && (
+        <section className="rounded-lg border border-forest/30 bg-white p-5 shadow-soft">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-xl">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                Next step &middot; {FSVP_SETUP_STEPS.findIndex((s) => s.id === nextStep.id) + 1} of {FSVP_SETUP_STEPS.length}
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-ink">{nextStep.title}</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">{nextStep.description}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={nextStep.href}
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-forest px-5 text-sm font-semibold text-white transition hover:bg-[#195f4d]"
+              >
+                {nextStep.actionLabel}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/setup/fsvp"
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
+              >
+                See all steps
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {signals?.clear && !nextStep && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
             <ShieldCheck className="h-4 w-4" />
