@@ -123,18 +123,38 @@ comment on function public.generate_facility_registration_alerts() is
 -- Appended rather than inlined so the existing three branches keep their own
 -- shape and this one can be read, tested and changed on its own.
 
+-- generate_compliance_alerts() comes from migration 003, which is NOT
+-- guaranteed to have been applied — on 2026-08-13 this migration failed here
+-- with "function public.generate_compliance_alerts() does not exist", because
+-- 003 had never run against that database. A migration that assumes an earlier
+-- one landed is a migration that fails at the worst moment, so this checks.
+--
+-- to_regprocedure() returns NULL rather than raising when the function is
+-- absent, which is what makes the check possible at all; a direct call would
+-- fail to parse regardless of any IF guard around it.
 create or replace function public.generate_compliance_alerts_all()
 returns integer
-language sql
+language plpgsql
 security definer
 set search_path = public
 as $$
-  select public.generate_compliance_alerts()
-       + public.generate_facility_registration_alerts();
+declare
+  v_total int := 0;
+  v_base  int;
+begin
+  if to_regprocedure('public.generate_compliance_alerts()') is not null then
+    execute 'select public.generate_compliance_alerts()' into v_base;
+    v_total := v_total + coalesce(v_base, 0);
+  end if;
+
+  return v_total + public.generate_facility_registration_alerts();
+end;
 $$;
 
 comment on function public.generate_compliance_alerts_all() is
-  'Every alert sweep, summed. The cron calls this; generate_compliance_alerts() '
-  'is left untouched so migration 003 stays readable on its own terms.';
+  'Every alert sweep, summed. The cron calls this. Tolerates migration 003 not '
+  'having been applied — it contributes zero rather than failing the sweep, so '
+  'registration alerts still run and the cron (which also drives FDA ingest) '
+  'stays up.';
 
 commit;
