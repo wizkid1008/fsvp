@@ -4,13 +4,29 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EvidenceReviewPanel } from "@/components/evidence/EvidenceReviewPanel";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fetchReviewQueue, reviewQueueTotals } from "@/lib/evidence/review-queue";
+import { isTenantConfined } from "@/lib/auth/tenancy";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
 
 export default async function ReviewerPage() {
-  const { role, realRole } = await requireProfileRole("/reviewer", ["reviewer", "administrator"]);
+  const { role, realRole, user } = await requireProfileRole("/reviewer", ["reviewer", "administrator"]);
+
+  // fetchReviewQueue has taken an importerId scope all along; this page passed
+  // nothing, so it ran unscoped through the admin client. A reviewer holding an
+  // importer_id is one tenant's qualified individual, not a platform-wide
+  // reviewer (004_reviewer_tenancy.sql) — so every QI could read, and through
+  // EvidenceReviewPanel act on, every other tenant's submitted evidence.
+  const supabase = createServerSupabaseClient();
+  const { data: profile } = await (supabase.from("profiles") as any)
+    .select("importer_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const ownImporterId: string | null = profile?.importer_id ?? null;
+  const confined = isTenantConfined({ role: realRole, importer_id: ownImporterId });
 
   // The queue is an operational screen. When it fails, a reviewer needs to know
   // WHAT failed — Next strips `error.message` from server errors in production
@@ -27,7 +43,12 @@ export default async function ReviewerPage() {
 
   try {
     const admin = createAdminSupabaseClient();
-    items = await fetchReviewQueue(admin);
+    // A confined caller with no importer_id would otherwise fall through to the
+    // unscoped branch, so it resolves to a sentinel that matches nothing.
+    items = await fetchReviewQueue(
+      admin,
+      confined ? (ownImporterId ?? "00000000-0000-0000-0000-000000000000") : null
+    );
   } catch (err) {
     // redirect() and notFound() signal themselves by throwing. Swallowing them
     // would turn "send this user to the login page" into "show them an error".
@@ -48,7 +69,9 @@ export default async function ReviewerPage() {
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Evidence Review Queue"
-        description="Review submitted supplier evidence, accept documents that meet requirements, request revisions, or reject non-compliant submissions."
+        description={confined
+          ? "Evidence submitted by your organization's exporters. Accept documents that meet requirements, request revisions, or reject non-compliant submissions."
+          : "Review submitted exporter evidence across all tenants. Accept documents that meet requirements, request revisions, or reject non-compliant submissions."}
       />
 
       {loadError && (
