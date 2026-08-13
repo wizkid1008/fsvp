@@ -39,6 +39,22 @@ export function isTenantConfined(profile: TenancyProfile): boolean {
  * The standard guard: returns true when this caller must NOT touch this row.
  *
  *   if (deniesTenant(profile, row.importer_id)) return 403;
+ *
+ * NOT a drop-in replacement for the hand-rolled check that twelve API routes
+ * still use:
+ *
+ *   row.importer_id !== profile.importer_id && profile.role !== "administrator"
+ *
+ * That form denies a PLATFORM reviewer; this one admits it. Where a route is
+ * already gated to ["us_importer", "administrator"] the two agree and swapping
+ * is safe. Where a route also admits "reviewer" — fsvp/hazard-analyses and
+ * fsvp/verification-records — swapping would grant a platform-wide reviewer
+ * cross-tenant WRITE access, and because those routes use the admin client the
+ * route check is the only thing in the way. 004_reviewer_tenancy.sql moved
+ * write policies to current_importer_ids_write() precisely to exclude
+ * reviewers; do not undo that from the application side.
+ *
+ * ./tenancy.test.ts pins this difference.
  */
 export function deniesTenant(profile: TenancyProfile, rowImporterId: string | null): boolean {
   if (isCrossTenant(profile)) return false;
