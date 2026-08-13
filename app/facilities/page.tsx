@@ -1,4 +1,5 @@
 import { FacilityTable, type FacilityRow } from "@/components/facilities/FacilityTable";
+import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -212,6 +213,15 @@ export default async function FacilitiesPage({
           </div>
         ))}
       </div>
+
+      {!isSupplier && facilities.length > 0 && (
+        <NextStepBanner>
+          a product is imported from one facility, so add it from that facility&apos;s row — use{" "}
+          <span className="font-semibold text-ink">Add product</span> in the Products column. Each
+          product then needs a commodity classification and an origin before FSVP applicability can
+          be determined.
+        </NextStepBanner>
+      )}
 
       <div className="mt-6">
         {/* ?supplier=<id> arrives from "Add facility" on an exporter's row.

@@ -17,7 +17,7 @@ export const runtime = "edge";
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: { view?: string };
+  searchParams: { view?: string; facility?: string };
 }) {
   const { role, realRole, user } = await requireProfileRole("/products");
   const supabase = createServerSupabaseClient();
@@ -282,6 +282,18 @@ export default async function ProductsPage({
                 ...supplierOptions,
                 ...linkedSuppliers.filter((s) => !supplierOptions.some((o) => o.id === s.id)),
               ]}
+          // ?facility=<id> arrives from "Add product" on a facility's row.
+          // Resolved against the facilities this account can actually see, so a
+          // hand-edited URL cannot preselect another tenant's facility. The
+          // exporter comes from the facility itself rather than the URL, so the
+          // two cannot be made inconsistent.
+          presetFacility={(() => {
+            const match = searchParams.facility
+              ? facilityOptions.find((f) => f.id === searchParams.facility)
+              : null;
+            const supplierId = match?.supplier_id ?? match?.supplier_ids[0] ?? null;
+            return match && supplierId ? { facilityId: match.id, supplierId } : null;
+          })()}
         />
       </div>
     </AppShell>

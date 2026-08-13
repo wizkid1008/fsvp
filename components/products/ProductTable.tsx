@@ -111,18 +111,26 @@ function AddProductForm({
   product,
   onClose,
   facilities,
-  suppliers
+  suppliers,
+  presetFacility
 }: {
   countries: CountryOption[];
   facilities: FacilityOption[];
   product?: ProductRow | null;
   onClose: () => void;
   suppliers: SupplierOption[];
+  /** Arrived from a facility's row — start with it and its exporter chosen. */
+  presetFacility?: { facilityId: string; supplierId: string } | null;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [supplierId, setSupplierId] = useState(product?.supplier_id ?? (suppliers.length === 1 ? suppliers[0]?.id ?? "" : ""));
-  const [facilityId, setFacilityId] = useState(product?.facility_id ?? "");
+  // The exporter must be set before the facility list is enabled, so a preset
+  // has to fill both — otherwise the facility select renders disabled and the
+  // preselection looks broken.
+  const [supplierId, setSupplierId] = useState(
+    product?.supplier_id ?? presetFacility?.supplierId ?? (suppliers.length === 1 ? suppliers[0]?.id ?? "" : "")
+  );
+  const [facilityId, setFacilityId] = useState(product?.facility_id ?? presetFacility?.facilityId ?? "");
   const [pending, startTransition] = useTransition();
   const supplierFacilities = facilities.filter((facility) => {
     const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
@@ -375,15 +383,20 @@ export function ProductTable({
   facilities,
   products,
   supplierHref = "/exporters",
-  suppliers
+  suppliers,
+  presetFacility
 }: {
   countries: CountryOption[];
   facilities: FacilityOption[];
   products: ProductRow[];
   supplierHref?: string;
   suppliers: SupplierOption[];
+  /** Set by /products?facility=<id>, arriving from that facility's row. */
+  presetFacility?: { facilityId: string; supplierId: string } | null;
 }) {
-  const [showForm, setShowForm] = useState(false);
+  // Open straight into the form when the link that got here already said what
+  // was wanted. See NextStepBanner for why these threads exist at all.
+  const [showForm, setShowForm] = useState(Boolean(presetFacility));
   const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
@@ -422,6 +435,7 @@ export function ProductTable({
           onClose={() => setShowForm(false)}
           product={editingProduct}
           suppliers={suppliers}
+          presetFacility={editingProduct ? null : presetFacility}
         />
       ) : null}
 

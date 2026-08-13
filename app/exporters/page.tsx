@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SupplierTable, type SupplierRow } from "@/components/suppliers/SupplierTable";
@@ -187,20 +187,11 @@ export default async function ExportersPage() {
           for. The row's own actions are Suspend and Edit — both about the
           exporter, neither about the journey it belongs to. */}
       {scoped && suppliers.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-slate-50 px-5 py-4">
-          <p className="text-sm leading-6 text-slate-600">
-            <span className="font-semibold text-ink">Next:</span> a facility belongs to one
-            exporter, so add it from that exporter&apos;s row — use{" "}
-            <span className="font-semibold text-ink">Add facility</span> in the Facilities column.
-            Every exporter needs at least one before you can add the products you import from it.
-          </p>
-          <Link
-            href="/setup/fsvp"
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
-          >
-            See all steps
-          </Link>
-        </div>
+        <NextStepBanner>
+          a facility belongs to one exporter, so add it from that exporter&apos;s row — use{" "}
+          <span className="font-semibold text-ink">Add facility</span> in the Facilities column.
+          Every exporter needs at least one before you can add the products you import from it.
+        </NextStepBanner>
       )}
 
       <SupplierTable

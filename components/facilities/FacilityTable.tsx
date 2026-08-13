@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Edit2, MapPin, Warehouse, X, Search } from "lucide-react";
+import { Edit2, MapPin, Warehouse, X, Search, PackageSearch } from "lucide-react";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
 import { FacilityMapPicker } from "@/components/facilities/FacilityMapPicker";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -501,6 +501,7 @@ export function FacilityTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Location</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Certifications</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Products</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
               </tr>
@@ -556,6 +557,18 @@ export function FacilityTable({
                       ) : (
                         <span className="text-slate-400">None on file</span>
                       )}
+                    </td>
+                    {/* A product is imported from one facility, so it is reached
+                        from that facility's row — same reason the facility is
+                        reached from its exporter's row. */}
+                    <td className="px-4 py-3">
+                      <a
+                        href={`/products?facility=${facility.id}`}
+                        className="inline-flex items-center gap-1.5 font-semibold text-forest hover:underline"
+                      >
+                        <PackageSearch className="h-3.5 w-3.5" />
+                        Add product
+                      </a>
                     </td>
                     <td className="px-4 py-3">
                       <a
