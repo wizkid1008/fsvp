@@ -160,23 +160,17 @@ export default async function ExportersPage() {
       {scoped && suppliers.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-slate-50 px-5 py-4">
           <p className="text-sm leading-6 text-slate-600">
-            <span className="font-semibold text-ink">Next:</span> every exporter needs at least one
-            facility before you can add the products you import from it.
+            <span className="font-semibold text-ink">Next:</span> a facility belongs to one
+            exporter, so add it from that exporter&apos;s row — use{" "}
+            <span className="font-semibold text-ink">Add facility</span> in the Facilities column.
+            Every exporter needs at least one before you can add the products you import from it.
           </p>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/facilities"
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d]"
-            >
-              Add a facility
-            </Link>
-            <Link
-              href="/setup/fsvp"
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
-            >
-              See all steps
-            </Link>
-          </div>
+          <Link
+            href="/setup/fsvp"
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
+          >
+            See all steps
+          </Link>
         </div>
       )}
 

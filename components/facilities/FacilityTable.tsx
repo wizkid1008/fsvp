@@ -120,12 +120,15 @@ function AddFacilityForm({
   countries,
   facility,
   onClose,
-  suppliers
+  suppliers,
+  presetSupplierId
 }: {
   countries: CountryOption[];
   facility?: FacilityRow | null;
   onClose: () => void;
   suppliers: SupplierOption[];
+  /** Arrived from a specific exporter's row — start with it selected. */
+  presetSupplierId?: string | null;
 }) {
   const router = useRouter();
   const address = readFacilityAddress(facility?.facility_address_json ?? null);
@@ -139,9 +142,13 @@ function AddFacilityForm({
       ? facility.supplier_ids
       : facility?.supplier_id
         ? [facility.supplier_id]
-        : suppliers.length === 1
-          ? [suppliers[0]?.id ?? ""].filter(Boolean)
-          : []
+        // Coming from "Add facility" on an exporter's row: that exporter is the
+        // answer, so do not make the user find it again in a dropdown.
+        : presetSupplierId && suppliers.some((s) => s.id === presetSupplierId)
+          ? [presetSupplierId]
+          : suppliers.length === 1
+            ? [suppliers[0]?.id ?? ""].filter(Boolean)
+            : []
   );
   const [pending, startTransition] = useTransition();
 
@@ -338,14 +345,20 @@ export function FacilityTable({
   countries,
   facilities,
   supplierHref = "/exporters",
-  suppliers
+  suppliers,
+  presetSupplierId
 }: {
+  /** Set by /facilities?supplier=<id>, arriving from that exporter's row. */
+  presetSupplierId?: string | null;
   countries: CountryOption[];
   facilities: FacilityRow[];
   supplierHref?: string;
   suppliers: SupplierOption[];
 }) {
-  const [showForm, setShowForm] = useState(false);
+  // Opens straight into the form when arriving from an exporter's row. Landing
+  // on a facility list and hunting for the Add button is a detour when the
+  // intent was already stated by the link that got you here.
+  const [showForm, setShowForm] = useState(Boolean(presetSupplierId));
   const [editingFacility, setEditingFacility] = useState<FacilityRow | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -384,6 +397,7 @@ export function FacilityTable({
           facility={editingFacility}
           onClose={() => setShowForm(false)}
           suppliers={suppliers}
+          presetSupplierId={editingFacility ? null : presetSupplierId}
         />
       ) : null}
 

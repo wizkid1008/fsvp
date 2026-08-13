@@ -6,7 +6,7 @@ import { AddSupplierForm } from "@/components/suppliers/AddSupplierForm";
 import { LinkSupplierModal } from "@/components/suppliers/LinkSupplierModal";
 import { CreateExporterForm } from "@/components/suppliers/CreateExporterForm";
 import { SuspensionControl, type SuspensionRow } from "@/components/suppliers/SuspensionControl";
-import { Building2, Pencil, Search, Plus, Link2, MailWarning } from "lucide-react";
+import { Building2, Pencil, Search, Plus, Link2, MailWarning, Warehouse } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 import type { Country } from "@/types/database";
 
@@ -30,10 +30,14 @@ export type SupplierRow = {
   duns_number?: string | null;
 };
 
+// Who keeps this record up to date. "Self-managed" was ambiguous about whose
+// self — read from the importer's side of the table, next to "Managed by you",
+// it invited the reading that the importer manages it. The exporter does.
+// The stored record_mode value is unchanged; this is the label only.
 function recordModeLabel(mode: string | null | undefined, managedByMe: boolean) {
   if (mode === "importer_managed") return managedByMe ? "Managed by you" : "Managed elsewhere";
   if (mode === "claim_pending")    return "Invite pending";
-  return "Self-managed";
+  return "Managed by exporter";
 }
 
 function recordModeTone(mode: string | null | undefined): StatusTone {
@@ -256,6 +260,9 @@ export function SupplierTable({
                 {isImporter && (
                   <th className="px-4 py-3 text-left font-semibold text-slate-700">Record</th>
                 )}
+                {isImporter && (
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700">Facilities</th>
+                )}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Last Updated</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
@@ -299,6 +306,20 @@ export function SupplierTable({
                             awaiting their response
                           </span>
                         )}
+                      </td>
+                    )}
+                    {isImporter && (
+                      // A facility belongs to an exporter, so it is reached from
+                      // that exporter's row rather than from a global page where
+                      // you would have to name it again in a dropdown.
+                      <td className="px-4 py-3">
+                        <a
+                          href={`/facilities?supplier=${supplier.id}`}
+                          className="inline-flex items-center gap-1.5 font-semibold text-forest hover:underline"
+                        >
+                          <Warehouse className="h-3.5 w-3.5" />
+                          Add facility
+                        </a>
                       </td>
                     )}
                     <td className="px-4 py-3">

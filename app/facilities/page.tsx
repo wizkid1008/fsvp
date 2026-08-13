@@ -17,7 +17,7 @@ export const runtime = "edge";
 export default async function FacilitiesPage({
   searchParams,
 }: {
-  searchParams: { view?: string };
+  searchParams: { view?: string; supplier?: string };
 }) {
   const { role, realRole, user } = await requireProfileRole("/facilities");
   const supabase = createServerSupabaseClient();
@@ -214,11 +214,20 @@ export default async function FacilitiesPage({
       </div>
 
       <div className="mt-6">
+        {/* ?supplier=<id> arrives from "Add facility" on an exporter's row.
+            Validated against the options this account may actually pick, so a
+            hand-edited URL cannot preselect someone else's exporter. */}
         <FacilityTable
           countries={countryOptions}
           facilities={facilities}
           supplierHref={isSupplier ? "/my-suppliers" : "/exporters"}
           suppliers={formSupplierOptions}
+          presetSupplierId={
+            searchParams.supplier &&
+            formSupplierOptions.some((s) => s.id === searchParams.supplier)
+              ? searchParams.supplier
+              : null
+          }
         />
       </div>
     </AppShell>
