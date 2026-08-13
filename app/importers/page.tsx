@@ -3,7 +3,9 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { requireProfileRole } from "@/lib/auth/protection";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
+import { isTenantConfined } from "@/lib/auth/tenancy";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
@@ -37,7 +39,21 @@ function statusTone(status: string): StatusTone {
 }
 
 export default async function ImportersPage() {
-  const { role, realRole } = await requireProfileRole("/importers", ["administrator", "reviewer"]);
+  const { role, realRole, user } = await requireProfileRole("/importers", ["administrator", "reviewer"]);
+
+  // This page reads through the admin client, which bypasses RLS entirely — so
+  // the tenancy rule has to be applied here by hand. A reviewer holding an
+  // importer_id is one tenant's qualified individual, NOT a platform-wide
+  // reviewer (004_reviewer_tenancy.sql), and must not see other importers'
+  // legal names, EINs, D-U-N-S numbers or contact emails.
+  const supabase = createServerSupabaseClient();
+  const { data: profile } = await (supabase.from("profiles") as any)
+    .select("importer_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const ownImporterId: string | null = profile?.importer_id ?? null;
+  const confined = isTenantConfined({ role: realRole, importer_id: ownImporterId });
 
   const adminResult = tryAdminClient();
   if (!adminResult.ok) {
@@ -49,10 +65,18 @@ export default async function ImportersPage() {
     );
   }
 
+  // A confined caller with no importer_id at all sees nothing rather than
+  // everything — an unscoped query would be the leak this guard exists to stop.
+  let importersQuery = (adminResult.client.from("importers") as any)
+    .select("id, legal_name, display_name, ein, duns_number, food_scope, status, primary_contact_email, created_at")
+    .order("display_name");
+
+  if (confined) {
+    importersQuery = importersQuery.eq("id", ownImporterId ?? "00000000-0000-0000-0000-000000000000");
+  }
+
   const [{ data: rawImporters }, { data: rawProfiles }, { data: rawSuppliers }] = await Promise.all([
-    (adminResult.client.from("importers") as any)
-      .select("id, legal_name, display_name, ein, duns_number, food_scope, status, primary_contact_email, created_at")
-      .order("display_name"),
+    importersQuery,
     (adminResult.client.from("profiles") as any)
       .select("importer_id")
       .not("importer_id", "is", null),
@@ -82,7 +106,9 @@ export default async function ImportersPage() {
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Importers"
-        description="Every U.S. importing organization on the platform. An importer with no users has been created but never claimed."
+        description={confined
+          ? "The importing organization your account belongs to."
+          : "Every U.S. importing organization on the platform. An importer with no users has been created but never claimed."}
       />
 
       {importers.length === 0 ? (

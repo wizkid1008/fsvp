@@ -6,6 +6,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { isTenantConfined } from "@/lib/auth/tenancy";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -33,9 +34,19 @@ export default async function ExportersPage() {
 
   const importerId: string | null = resolvePreviewedAccountId(realRole, profile?.importer_id ?? null);
 
-  // Resolve which supplier IDs this importer is linked to
+  // This page reads through the admin client, so RLS does not scope it and the
+  // tenancy rule must be applied here. A reviewer holding an importer_id is one
+  // tenant's qualified individual, not a platform-wide reviewer
+  // (004_reviewer_tenancy.sql) — without this they would see every supplier on
+  // the platform. `role` rather than `realRole` for the importer branch keeps
+  // admin role-preview working.
+  const scoped =
+    role === "us_importer" ||
+    isTenantConfined({ role: realRole, importer_id: profile?.importer_id ?? null });
+
+  // Resolve which supplier IDs this tenant is linked to
   let linkedSupplierIds: string[] | null = null;
-  if (role === "us_importer" && importerId) {
+  if (scoped && importerId) {
     const { data: links } = await (admin.from("supplier_relationships") as any)
       .select("supplier_id")
       .eq("relationship_type", "importer_supplier")
@@ -65,8 +76,8 @@ export default async function ExportersPage() {
     .select("id, company_name, legal_entity_name, country, website, approval_status, certification_status, fda_registration_number, contact_json, supplier_type, updated_at, record_mode, managed_by_importer_id, duns_number")
     .order("updated_at", { ascending: false });
 
-  if (role === "us_importer") {
-    // An importer's own list is about who it buys from, so it stays limited to
+  if (scoped) {
+    // A tenant's own list is about who it buys from, so it stays limited to
     // export-eligible types and to the exporters actually linked to it.
     suppliersQuery = suppliersQuery.in("supplier_type", ["exporter", "exporter_manufacturer", "trader"]);
 
@@ -77,7 +88,8 @@ export default async function ExportersPage() {
       suppliersQuery = suppliersQuery.eq("id", "00000000-0000-0000-0000-000000000000");
     }
   }
-  // Administrators and platform reviewers get every supplier_type — exporters,
+  // ONLY administrators and platform reviewers (no importer_id) fall through to
+  // the unscoped query, and they get every supplier_type — exporters,
   // manufacturers, traders and brokers alike. The export-eligible filter used
   // to run for everyone, so `manufacturer` and `broker` rows were unreachable
   // from any screen in the app, even by URL.
@@ -136,8 +148,8 @@ export default async function ExportersPage() {
   return (
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
-        title={role === "us_importer" ? "My Exporters" : "All Suppliers & Exporters"}
-        description={role === "us_importer"
+        title={scoped ? "My Exporters" : "All Suppliers & Exporters"}
+        description={scoped
           ? "Exporters you import from. Link one who already has an account, or create a record yourself for an exporter who will not register."
           : "Every registered foreign company across all tenants — exporters, manufacturers, traders and brokers. The badge under each name is its supplier type."}
       />
