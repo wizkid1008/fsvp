@@ -180,7 +180,30 @@ export function AdmissibilityPanel({
         </div>
       )}
 
-      {canManage && (
+      {/* The taxonomy ships empty on purpose — see docs/reference-layer-curation.md:
+          "an empty table is honest, a wrong table is dangerous". But an empty
+          dropdown under a blocker saying "classify it first" is a dead end, and
+          the whole path is behind it: no commodity means no admissibility, which
+          means no FSVP record. Say so, and name who can fix it. */}
+      {canManage && commodities.length === 0 && (
+        <div className="mt-5 rounded-md border border-line bg-slate-50 px-4 py-4">
+          <h3 className="text-sm font-semibold text-ink">The commodity taxonomy is empty</h3>
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">
+            Nothing can be classified until commodities are added to it. The taxonomy is curated
+            rather than shipped — a country-commodity rule nobody has checked is worse than no rule
+            at all, because it produces confident wrong answers.
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            An administrator adds them under{" "}
+            <a href="/admin/reference-rules" className="font-semibold text-forest hover:underline">
+              Admin → Country-Commodity Rules
+            </a>
+            . If you are not an administrator, ask one to add the commodity for this product.
+          </p>
+        </div>
+      )}
+
+      {canManage && commodities.length > 0 && (
         <div className="mt-5 border-t border-line pt-5">
           <h3 className="text-sm font-semibold text-ink">1. Classify the product</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
