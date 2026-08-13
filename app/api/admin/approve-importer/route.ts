@@ -102,7 +102,10 @@ export async function POST(req: NextRequest) {
           ? { country: target.country }
           : {};
 
-    const { data: created, error: createError } = await (admin.from("importers") as any)
+    // USER-scoped client, not `admin` — see the profiles update below for why.
+    // importers_tenant_write permits is_platform_admin(), so an administrator
+    // can insert here through RLS.
+    const { data: created, error: createError } = await (supabase.from("importers") as any)
       .insert({
         legal_name:            legalName,
         display_name:          body.display_name?.trim() || legalName,
@@ -121,14 +124,44 @@ export async function POST(req: NextRequest) {
     importerId = created.id;
   }
 
-  // The service-role client bypasses prevent_profile_role_escalation, so this
-  // is the only path that can set importer_id and user_status together.
-  const { error: linkError } = await (admin.from("profiles") as any)
+  // This MUST use the user-scoped client, and the reason is not obvious.
+  //
+  // The service-role key bypasses RLS. It does NOT bypass triggers, and
+  // trg_profiles_prevent_role_escalation is a BEFORE UPDATE trigger on
+  // profiles. Its escape hatch is is_platform_admin(), which resolves
+  // auth.uid() — and under the service-role client there is no JWT, so
+  // auth.uid() is NULL, the check returns false, and the trigger silently
+  // reverts user_status and importer_id to their old values. No error is
+  // raised. The update "succeeds", this route returned 200, the admin UI
+  // closed its modal, and the account stayed pending forever. Approval had
+  // never worked.
+  //
+  // Through the user-scoped client auth.uid() is the administrator's id,
+  // is_platform_admin() is true, and the trigger lets the write through —
+  // which is exactly the case it was written to allow. profiles_self_update
+  // permits is_platform_admin() too, so RLS is satisfied.
+  const { data: linked, error: linkError } = await (supabase.from("profiles") as any)
     .update({ importer_id: importerId, user_status: "active" })
-    .eq("id", profileId);
+    .eq("id", profileId)
+    .select("id, importer_id, user_status")
+    .maybeSingle();
 
   if (linkError) {
     return NextResponse.json({ error: linkError.message }, { status: 500 });
+  }
+
+  // Read back rather than trust a silent success. A trigger that rewrites the
+  // row returns no error, so "no error" is not evidence the write landed —
+  // that silence is what hid this bug.
+  if (!linked || linked.importer_id !== importerId || linked.user_status !== "active") {
+    return NextResponse.json(
+      {
+        error:
+          "The account could not be activated — the update was accepted but did not persist. " +
+          "This usually means the acting administrator's own profile is not active.",
+      },
+      { status: 500 }
+    );
   }
 
   await (admin.from("audit_logs") as any).insert({
