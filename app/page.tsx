@@ -5,10 +5,13 @@ import { Check, ShieldCheck } from "lucide-react";
 export const runtime = "edge";
 import { APP_NAME, APP_SUBTITLE, LEGAL_DISCLAIMER, PARENT_BRAND } from "@/lib/constants";
 
+// "Assess in minutes" was a promise the signup flow does not keep: an importer
+// account waits on administrator approval before it can assess anything. The
+// claim is now about what the workspace holds rather than how fast it happens.
 const proofPoints = [
   {
-    title: "Assess in minutes",
-    text: "Capture supplier, commodity, origin, hazard, evidence, and review status in one workspace."
+    title: "One workspace",
+    text: "Capture exporter, commodity, origin, hazard, evidence, and review status in one place."
   },
   {
     title: "Control your evidence",
@@ -26,10 +29,15 @@ const stats = [
   { value: "2", label: "Private evidence libraries" }
 ];
 
+// These name screens in the app, so they use the app's word: Exporter. The
+// regulatory phrases below and in APP_SUBTITLE deliberately keep "foreign
+// supplier", which is FDA's own term for the same company (21 CFR Part 1
+// Subpart L). The hero copy introduces the two as equivalent so the switch is
+// not a surprise after signup.
 const featureColumns = [
   {
-    eyebrow: "SUPPLIER REVIEW",
-    items: ["Supplier records", "Foreign facility profiles", "Product and commodity files", "Written assurances"]
+    eyebrow: "EXPORTER REVIEW",
+    items: ["Exporter records", "Foreign facility profiles", "Product and commodity files", "Written assurances"]
   },
   {
     eyebrow: "RISK WORK",
@@ -49,8 +57,12 @@ export default function HomePage() {
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-black/55">{APP_NAME} / {APP_SUBTITLE}</p>
             <h1 className="mt-8 max-w-3xl text-[clamp(4rem,8vw,8.25rem)] font-normal leading-[0.93] tracking-[-0.055em]">
-              Verify imported food suppliers with confidence.
+              Verify your food exporters with confidence.
             </h1>
+            <p className="mt-6 max-w-xl text-sm leading-6 text-black/55">
+              FDA calls them foreign suppliers. You probably call them exporters — so the
+              platform does too, and cites the regulation either way.
+            </p>
           </div>
 
           <div className="mt-10 max-w-2xl">
@@ -87,7 +99,7 @@ export default function HomePage() {
         <div className="relative min-h-[420px] overflow-hidden rounded-md bg-neutral-100 lg:min-h-0">
           <Image
             src="/images/thrushcross-verify-hero.png"
-            alt="Laptop showing a supplier verification dashboard with imported food commodities and compliance records"
+            alt="Laptop showing an exporter verification dashboard with imported food commodities and compliance records"
             fill
             priority
             sizes="(min-width: 1024px) 52vw, 100vw"

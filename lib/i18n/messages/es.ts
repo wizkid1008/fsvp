@@ -5,7 +5,7 @@ const es: Messages = {
     name: "ThrushCross Verify",
     parent: "ThrushCross Trading & Commodities",
     tagline: "Verificar · Comerciar · Crecer",
-    subtitle: "Plataforma de cumplimiento FSVP y verificación de proveedores",
+    subtitle: "Plataforma de cumplimiento y evidencias FSVP",
     disclaimer: "Esta plataforma no proporciona asesoramiento legal o regulatorio. Las determinaciones de FSVP deben ser revisadas por profesionales regulatorios calificados y/o un individuo FSVP calificado.",
   },
   nav: {

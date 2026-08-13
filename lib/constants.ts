@@ -1,6 +1,9 @@
 export const APP_NAME = "ThrushCross Verify";
 export const PARENT_BRAND = "ThrushCross Trading & Commodities";
-export const APP_SUBTITLE = "FSVP Compliance & Supplier Verification Platform";
+// FSVP already expands to "Foreign Supplier Verification Program", so the old
+// "FSVP Compliance & Supplier Verification Platform" said verification twice and
+// left a bare "Supplier" that the app itself calls an Exporter.
+export const APP_SUBTITLE = "FSVP Compliance & Evidence Platform";
 export const BRAND_TAGLINE = "Verify • Trade • Grow";
 
 export const SUPPORT_EMAIL = "support@thrushcrosstrading.com";

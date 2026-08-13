@@ -5,7 +5,7 @@ const ar: Messages = {
     name: "ThrushCross Verify",
     parent: "ThrushCross للتجارة والسلع",
     tagline: "تحقق · تجارة · نمو",
-    subtitle: "منصة امتثال FSVP والتحقق من الموردين",
+    subtitle: "منصة امتثال FSVP والأدلة",
     disclaimer: "لا توفر هذه المنصة مشورة قانونية أو تنظيمية. يجب مراجعة تحديدات FSVP من قبل متخصصين تنظيميين مؤهلين و/أو فرد FSVP مؤهل.",
   },
   nav: {
@@ -207,7 +207,7 @@ const ar: Messages = {
     description: "رفع وإدارة وثائق أدلة FSVP وتتبع حالة المراجعة وتعيين كل وثيقة لمتطلبها التنظيمي.",
     upload: {
       title: "رفع الأدلة",
-      subtitle: "ملفات PDF أو Word أو Excel أو صور بحد أقصى 50 ميغابايت",
+      subtitle: "ملفات PDF أو Word أو Excel أو صور بحد أقصى 3 ميغابايت",
       dropzone: "أسقط الملف هنا أو انقر للتصفح",
       documentTitle: "عنوان الوثيقة",
       category: "الفئة",

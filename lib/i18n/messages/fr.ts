@@ -5,7 +5,7 @@ const fr: Messages = {
     name: "ThrushCross Verify",
     parent: "ThrushCross Trading & Commodities",
     tagline: "Vérifier · Commercer · Croître",
-    subtitle: "Plateforme de conformité FSVP et vérification des fournisseurs",
+    subtitle: "Plateforme de conformité et de preuves FSVP",
     disclaimer: "Cette plateforme ne fournit pas de conseils juridiques ou réglementaires. Les déterminations FSVP doivent être examinées par des professionnels réglementaires qualifiés et/ou un individu FSVP qualifié.",
   },
   nav: {
@@ -207,7 +207,7 @@ const fr: Messages = {
     description: "Téléversez et gérez les documents de preuves FSVP, suivez le statut de révision et mappez chaque document à son exigence réglementaire.",
     upload: {
       title: "Téléverser des preuves",
-      subtitle: "Fichiers PDF, Word, Excel ou image jusqu'à 50 Mo",
+      subtitle: "Fichiers PDF, Word, Excel ou image jusqu'à 3 Mo",
       dropzone: "Déposez le fichier ici ou cliquez pour parcourir",
       documentTitle: "Titre du document",
       category: "Catégorie",

@@ -4,7 +4,7 @@ const en = {
     name: "ThrushCross Verify",
     parent: "ThrushCross Trading & Commodities",
     tagline: "Verify · Trade · Grow",
-    subtitle: "FSVP Compliance & Supplier Verification Platform",
+    subtitle: "FSVP Compliance & Evidence Platform",
     disclaimer: "This platform does not provide legal or regulatory advice. FSVP determinations should be reviewed by qualified regulatory professionals and/or a qualified FSVP Individual.",
   },
 

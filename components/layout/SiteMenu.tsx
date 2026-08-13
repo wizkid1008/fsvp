@@ -22,36 +22,45 @@ const menuItems: Array<{ href: string; activeHref: string; label: string; key: M
   { href: "/login?next=%2Fdashboard", activeHref: "/dashboard", label: "Importers", key: "importers" }
 ];
 
-const megaMenus: Record<MenuKey, Array<{ heading: string; links: Array<{ label: string; href?: string }> }>> = {
+/**
+ * Two kinds of content, kept apart on purpose.
+ *
+ * Every entry used to be a `link`, and most had no href — so three columns of
+ * bold white text sat inside a dropdown looking exactly like navigation and
+ * doing nothing when clicked. The "NEXT STEPS" column was worse: four
+ * differently-labelled links that all went to /signup.
+ *
+ * `items` is descriptive copy, styled so it does not read as clickable.
+ * `cta` is the one real destination for that audience.
+ */
+type MegaColumn = {
+  heading: string;
+  items?: string[];
+  cta?: { label: string; href: string };
+};
+
+const megaMenus: Record<MenuKey, MegaColumn[]> = {
   platform: [
-    { heading: "OVERVIEW", links: [{ label: "Risk dashboard" }, { label: "Workflow navigation" }, { label: "Role-based access" }, { label: "Audit-ready records" }] },
-    { heading: "TEAMS", links: [{ label: "Foreign suppliers" }, { label: "U.S. importers" }, { label: "Reviewers" }, { label: "Administrators" }] },
-    { heading: "SYSTEM", links: [{ label: "Supabase Auth" }, { label: "Private document storage" }, { label: "RLS policies" }, { label: "Cloudflare Pages" }] }
+    { heading: "OVERVIEW", items: ["Risk dashboard", "Workflow navigation", "Role-based access", "Audit-ready records"] },
+    { heading: "TEAMS", items: ["Foreign suppliers and exporters", "U.S. importers", "Qualified individuals", "Administrators"] },
+    { heading: "SYSTEM", items: ["Supabase Auth", "Private document storage", "RLS policies", "Cloudflare Pages"] }
   ],
   exporters: [
-    { heading: "EXPORTER PROFILE", links: [{ label: "Legal entity" }, { label: "Contacts" }, { label: "Export markets" }, { label: "FDA registration" }] },
-    { heading: "COMPLIANCE STATUS", links: [{ label: "Certifications" }, { label: "Exporter questionnaire" }, { label: "Importer relationship" }, { label: "Ownership attestation" }] },
+    { heading: "EXPORTER PROFILE", items: ["Legal entity", "Contacts", "Export markets", "FDA registration"] },
+    { heading: "COMPLIANCE STATUS", items: ["Certifications", "Exporter questionnaire", "Importer relationship", "Ownership attestation"] },
     {
-      heading: "NEXT STEPS",
-      links: [
-        { label: "Create exporter account", href: "/signup" },
-        { label: "Attach evidence", href: "/signup" },
-        { label: "Review readiness", href: "/signup" },
-        { label: "Resolve gaps", href: "/signup" }
-      ]
+      heading: "GET STARTED",
+      items: ["Create your exporter profile, attach evidence, and track what your importer still needs."],
+      cta: { label: "Create an account", href: "/signup" }
     }
   ],
   importers: [
-    { heading: "IMPORTER PROFILE", links: [{ label: "Organization details" }, { label: "Contacts" }, { label: "Assigned exporters" }, { label: "Role management" }] },
-    { heading: "FSVP OVERSIGHT", links: [{ label: "Exporter approvals" }, { label: "Verification activities" }, { label: "Evidence requests" }, { label: "Corrective actions" }] },
+    { heading: "IMPORTER PROFILE", items: ["Organization details", "Contacts", "Assigned exporters", "Role management"] },
+    { heading: "FSVP OVERSIGHT", items: ["Exporter approvals", "Verification activities", "Evidence requests", "Corrective actions"] },
     {
-      heading: "NEXT STEPS",
-      links: [
-        { label: "Invite exporter", href: "/signup" },
-        { label: "Review submissions", href: "/signup" },
-        { label: "Track readiness", href: "/signup" },
-        { label: "Export audit packet", href: "/signup" }
-      ]
+      heading: "GET STARTED",
+      items: ["Importer accounts are approved by an administrator, usually within one business day."],
+      cta: { label: "Create an account", href: "/signup" }
     }
   ]
 };
@@ -125,17 +134,23 @@ export function SiteMenu() {
               {megaMenus[activeMenu].map((column) => (
                 <div key={column.heading}>
                   <p className="mb-5 text-[11px] font-black uppercase tracking-[0.08em] text-white/40">{column.heading}</p>
-                  <div className="space-y-3">
-                    {column.links.map((link) =>
-                      link.href ? (
-                        <Link key={link.label} href={link.href} className="block text-sm font-bold text-white/90 hover:text-white hover:underline">
-                          {link.label}
-                        </Link>
-                      ) : (
-                        <p key={link.label} className="text-sm font-bold text-white/60">{link.label}</p>
-                      )
-                    )}
-                  </div>
+                  {/* Normal weight and cursor-default: this is a description of
+                      what the platform holds, not a list of destinations. */}
+                  <ul className="space-y-2.5">
+                    {(column.items ?? []).map((item) => (
+                      <li key={item} className="cursor-default text-sm font-normal leading-6 text-white/65">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                  {column.cta && (
+                    <Link
+                      href={column.cta.href}
+                      className="mt-5 inline-flex h-11 items-center border border-white bg-white px-5 text-xs font-black uppercase tracking-[0.04em] text-black transition hover:bg-black hover:text-white"
+                    >
+                      {column.cta.label}
+                    </Link>
+                  )}
                 </div>
               ))}
             </div>
