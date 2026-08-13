@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus, FolderCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -88,6 +89,27 @@ export default async function FsvpRecordsPage() {
           </Link>
         }
       />
+
+      {/* Steps 7-11. A record is not finished when it exists — it needs
+          compliance screening, accepted evidence, three QI signatures and an
+          approval decision before the inspection package can be generated. The
+          per-record blockers are named on /setup/fsvp; this says which stage
+          the account as a whole is at. */}
+      {records.length > 0 && approved === 0 && (
+        <NextStepBanner action={{ label: "See what is blocking", href: "/setup/fsvp" }}>
+          no record is approved yet. Open one to document the hazard analysis, supplier evaluation
+          and verification determination, then a qualified individual signs each under
+          §§ 1.504–1.506. Approval comes after those gates, not before.
+        </NextStepBanner>
+      )}
+
+      {approved > 0 && (
+        <NextStepBanner action={{ label: "Generate package", href: "/reports" }}>
+          {approved === 1 ? "1 record is approved" : `${approved} records are approved`}. Generate
+          the inspection package for each — that is the printable evidence assembled during an FDA
+          records request, and it is the last step of the path.
+        </NextStepBanner>
+      )}
 
       {/* Summary metrics */}
       <div className="mt-6 grid gap-4 sm:grid-cols-4">

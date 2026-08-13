@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { ProductTable, type ProductRow } from "@/components/products/ProductTable";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
@@ -185,6 +186,13 @@ export default async function ProductsPage({
     };
   });
 
+  // "Unclassified" here means the two fields the admissibility gate needs, which
+  // is what the setup planner's Classify step checks too.
+  const unclassifiedCount = products.filter(
+    (p: { commodity_id: string | null; country_of_origin: string | null }) =>
+      !p.commodity_id || !p.country_of_origin
+  ).length;
+
   let supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
 
   // Same fallback as Facilities — guarantee own supplier appears so Add Product button shows
@@ -236,6 +244,27 @@ export default async function ProductsPage({
           : "Products"}
         description="Track every supplier product by facility, ingredients, allergens, intended use, and origin."
       />
+
+      {/* Steps 4-6 of the canonical path, and the largest cluster of blockers
+          on a real tenant: a product cannot reach an FSVP record until it is
+          classified and has an origin. The Admissibility column already says
+          which ones — this says what to do about it. */}
+      {!isSupplier && unclassifiedCount > 0 && (
+        <NextStepBanner action={{ label: "Determine applicability", href: "/applicability" }}>
+          {unclassifiedCount === 1
+            ? "1 product still needs a commodity classification or a country of origin"
+            : `${unclassifiedCount} products still need a commodity classification or a country of origin`}
+          . Open a product from its name to set them — until then its admissibility cannot be
+          determined, and no FSVP record can be opened for it.
+        </NextStepBanner>
+      )}
+
+      {!isSupplier && products.length > 0 && unclassifiedCount === 0 && (
+        <NextStepBanner action={{ label: "Determine applicability", href: "/applicability" }}>
+          every product is classified. Next, determine whether FSVP applies to each one — an exempt
+          food never needs a record, so this decides how much work the rest of the path is.
+        </NextStepBanner>
+      )}
 
       {/* Context switcher */}
       {isSupplier && linkedSuppliers.length > 0 && (

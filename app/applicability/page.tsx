@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { ApplicabilityClient, type PairRow, type EntitySizeRow } from "@/components/applicability/ApplicabilityClient";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -150,6 +151,29 @@ export default async function ApplicabilityPage() {
 
   const canManageSize = role === "us_importer" || role === "administrator";
 
+  // Which of the two things this page gates is actually outstanding. Expiry is
+  // deliberately not folded in here — the setup path reports lapsed
+  // determinations precisely, and a banner that conflates "never decided" with
+  // "decided and lapsed" would send you to the wrong screen.
+  const undetermined = pairs.filter((p) => !p.determination).length;
+
+  const { data: recordRows } = await (admin.from("fsvp_records") as any)
+    .select("product_id")
+    .eq("importer_id", importerId);
+
+  const productsWithRecord = new Set(
+    ((recordRows ?? []) as Array<{ product_id: string | null }>)
+      .map((r) => r.product_id)
+      .filter(Boolean)
+  );
+
+  const needsRecord = pairs.filter(
+    (p) =>
+      p.determination &&
+      p.determination.outcome !== "exempt" &&
+      !productsWithRecord.has(p.product_id)
+  ).length;
+
   return (
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
@@ -161,6 +185,29 @@ export default async function ApplicabilityPage() {
           "applies to each food — and that decision governs what the rest of the platform asks of it."
         }
       />
+      {/* Step 6. An exempt food never needs a record, so this decides how much
+          of the remaining path applies at all — which is why it sits before
+          FSVP Records rather than after. */}
+      {undetermined > 0 && (
+        <NextStepBanner>
+          {undetermined === 1
+            ? "1 product has no applicability determination yet"
+            : `${undetermined} products have no applicability determination yet`}
+          . A qualified individual decides each one below. Until then no FSVP record can be opened,
+          and an exempt food will never need one.
+        </NextStepBanner>
+      )}
+
+      {undetermined === 0 && needsRecord > 0 && (
+        <NextStepBanner action={{ label: "Open FSVP record", href: "/fsvp-records/new" }}>
+          {needsRecord === 1
+            ? "1 product is subject to FSVP and has no record yet"
+            : `${needsRecord} products are subject to FSVP and have no record yet`}
+          . Open the importer-owned record for each — that is where the hazard analysis, supplier
+          evaluation and verification determination are documented and signed.
+        </NextStepBanner>
+      )}
+
       <ApplicabilityClient
         pairs={pairs}
         entitySizes={(rawSizes ?? []) as EntitySizeRow[]}
