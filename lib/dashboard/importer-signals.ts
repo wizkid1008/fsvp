@@ -48,7 +48,7 @@ export type ImporterSignals = {
    * or approved for these.
   */
   undeterminedPairs: number;
-  /** Products blocked from a clean shipment-readiness answer. */
+  /** Products blocked from a clean entry-readiness answer. */
   shipmentReadinessBlocks: SignalRow[];
   /** Linked suppliers missing a current compliance-history screening. */
   screeningBlocks: SignalRow[];

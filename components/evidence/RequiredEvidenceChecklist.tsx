@@ -11,13 +11,24 @@ function bestStatus(statuses: string[]): string {
   return "not_submitted";
 }
 
+/**
+ * The requirements a company, facility or product still owes evidence for.
+ *
+ * "supplier" was added on 2026-08-13 to close an incoherence on /my-readiness:
+ * the score there is computed from requirement_items via
+ * lib/readiness/supplier-score.ts, while the checklist beneath it came from
+ * SupplierReadinessPanel, which reads the older fsvp_requirements table. A
+ * number and a list that disagree about what is outstanding are worse than
+ * either alone. Both now read the same model.
+ */
 export async function RequiredEvidenceChecklist({
   linkType,
   entityId,
   supplierId,
   supabase,
 }: {
-  linkType: "facility" | "product";
+  linkType: "supplier" | "facility" | "product";
+  /** The supplier id when linkType is "supplier" — the company IS the entity. */
   entityId: string;
   supplierId: string;
   supabase: SupabaseLike;
@@ -49,7 +60,16 @@ export async function RequiredEvidenceChecklist({
       .eq("rule_version_id", pubVersion.id)
       .eq("applies_to", linkType),
 
-    linkType === "facility"
+    // Company-level evidence hangs off supplier_id rather than a linked entity,
+    // which is the same column lib/readiness/supplier-score.ts counts — so the
+    // list and the score above it cannot disagree.
+    linkType === "supplier"
+      ? (supabase.from("documents") as any)
+          .select("requirement_item_id, evidence_status")
+          .eq("supplier_id", entityId)
+          .is("soft_deleted_at", null)
+          .not("requirement_item_id", "is", null)
+    : linkType === "facility"
       ? (supabase.from("documents") as any)
           .select("requirement_item_id, evidence_status")
           .eq("facility_id", entityId)

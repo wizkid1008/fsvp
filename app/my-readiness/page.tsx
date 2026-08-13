@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/layout/AppShell";
-import { SupplierReadinessPanel } from "@/components/readiness/SupplierReadinessPanel";
+import { RequiredEvidenceChecklist } from "@/components/evidence/RequiredEvidenceChecklist";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -60,8 +60,23 @@ export default async function MyReadinessPage() {
         </p>
       </section>
 
+      {/* Same model as the score above — requirement_items, counted from
+          documents.requirement_item_id. This used to be SupplierReadinessPanel,
+          which reads the older fsvp_requirements table, so the number and the
+          list below it were answering from different data. */}
       <div className="mt-6">
-        <SupplierReadinessPanel supabase={supabase} showScore={false} />
+        {supplierCtx?.supplierId ? (
+          <RequiredEvidenceChecklist
+            linkType="supplier"
+            entityId={supplierCtx.supplierId}
+            supplierId={supplierCtx.supplierId}
+            supabase={supabase as any}
+          />
+        ) : (
+          <p className="rounded-md border border-dashed border-line bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            Your account is not linked to a company record yet, so there is nothing to score.
+          </p>
+        )}
       </div>
     </AppShell>
   );

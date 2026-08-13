@@ -41,6 +41,9 @@ function navItemsFor(role: AppRole) {
 const NO_NAV_ENTRY = new Set([
   // Superseded by /exporters; kept only as a redirect for old bookmarks.
   "/suppliers",
+  // Superseded by /entry-readiness — the screen evaluates a product, not a
+  // shipment. Redirect only, so Phase 3 can have the name.
+  "/shipment-readiness",
   // Reached from the /fsvp-records list page, not from the sidebar.
   "/fsvp-records/new",
   // Deliberately moved to the header bell (components/layout/NotificationBell).

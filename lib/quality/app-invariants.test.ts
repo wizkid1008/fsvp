@@ -94,6 +94,7 @@ const PUBLIC_PAGES = new Set([
   "app/pending-approval/page.tsx",
   "app/products-facilities/page.tsx", // redirect only
   "app/suppliers/page.tsx",           // redirect only, to /exporters
+  "app/shipment-readiness/page.tsx",  // redirect only, to /entry-readiness
 ]);
 
 /**

@@ -172,11 +172,11 @@ async function ImporterDashboard({
               </p>
             </div>
             <Link
-              href="/shipment-readiness"
+              href="/entry-readiness"
               className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
             >
               <PackageCheck className="h-4 w-4" />
-              Shipment readiness
+              Entry readiness
             </Link>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -209,7 +209,7 @@ async function ImporterDashboard({
                   : signals.screeningBlocks.length > 0
                   ? `${signals.screeningBlocks.length} supplier${signals.screeningBlocks.length === 1 ? "" : "s"} need screening`
                   : "Shipment checks and compliance screening are clear",
-                href: "/shipment-readiness",
+                href: "/entry-readiness",
               },
             ].map((item) => (
               <Link key={item.label} href={item.href} className="rounded-md border border-line bg-slate-50 p-4 transition hover:border-forest hover:bg-white">
