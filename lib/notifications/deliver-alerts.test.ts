@@ -82,6 +82,12 @@ describe("alertTarget", () => {
     expect(alertTarget(alert({ alert_type: "reassessment_due" }))).toBe("/fsvp-records");
   });
 
+  it("sends an FDA registration renewal to the facilities list", () => {
+    // Added with migration 017. Without a case here it would fall through to
+    // /dashboard, which is a dead end for a facility-level task.
+    expect(alertTarget(alert({ alert_type: "facility_registration_due" }))).toBe("/facilities");
+  });
+
   it("never sends an unrecognised type to a dead end", () => {
     // entry_filing_pending is allowed by the CHECK constraint but Phase 3 does
     // not exist yet, so nothing generates it. It must still land somewhere real.

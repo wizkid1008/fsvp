@@ -19,7 +19,15 @@ type Body = {
   alerts?: boolean;
 };
 
+// generate_compliance_alerts_all() sums every sweep — the original three
+// branches from migration 003 plus the FDA registration renewal added in 017.
+// Falls back to the original when 017 has not been applied, so deploying the
+// code before running the migration degrades to the previous behaviour instead
+// of failing the whole cron.
 async function generateAlerts(admin: ReturnType<typeof createAdminSupabaseClient>) {
+  const all = await (admin as any).rpc("generate_compliance_alerts_all");
+  if (!all.error) return typeof all.data === "number" ? all.data : Number(all.data ?? 0);
+
   const { data, error } = await (admin as any).rpc("generate_compliance_alerts");
   if (error) throw new Error(`Generating compliance alerts failed: ${error.message}`);
   return typeof data === "number" ? data : Number(data ?? 0);

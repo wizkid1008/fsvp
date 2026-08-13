@@ -51,11 +51,12 @@ export function alertSeverity(severity: string): NotificationSeverity {
 export function alertTarget(alert: AlertRow): string {
   if (alert.fsvp_record_id) return `/fsvp-records/${alert.fsvp_record_id}`;
   switch (alert.alert_type) {
-    case "document_expiring":       return "/evidence";
-    case "corrective_action_open":  return "/gaps-actions";
-    case "supplier_approval_due":   return "/exporters";
-    case "reassessment_due":        return "/fsvp-records";
-    default:                        return "/dashboard";
+    case "document_expiring":          return "/evidence";
+    case "corrective_action_open":     return "/gaps-actions";
+    case "supplier_approval_due":      return "/exporters";
+    case "reassessment_due":           return "/fsvp-records";
+    case "facility_registration_due":  return "/facilities";
+    default:                           return "/dashboard";
   }
 }
 
