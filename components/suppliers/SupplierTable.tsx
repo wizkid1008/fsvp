@@ -46,15 +46,33 @@ function recordModeTone(mode: string | null | undefined): StatusTone {
   return "success";
 }
 
-function approvalTone(status: string): StatusTone {
-  if (status === "approved" || status === "active") return "success";
-  if (status === "pending_review") return "warning";
-  if (status === "suspended" || status === "rejected") return "danger";
-  return "neutral";
+export type RecordSummary = { approved: number; open: number; blocked: number };
+
+/**
+ * Where an exporter stands, from its FSVP records.
+ *
+ * This column used to render suppliers.approval_status, which nothing in the
+ * app ever advances — rows created through the UI are written 'pending_review'
+ * at insert and never change, so the badge said "Pending Review" forever while
+ * seeded rows said "Approved". Worse, in an FSVP tool that reads as the
+ * § 1.505 supplier determination, which is a different thing entirely: it is
+ * made per product, on fsvp_records, by a qualified individual.
+ */
+function recordTone(summary: RecordSummary | undefined): StatusTone {
+  if (!summary || summary.approved + summary.open + summary.blocked === 0) return "neutral";
+  if (summary.blocked > 0) return "danger";
+  if (summary.open > 0) return "warning";
+  return "success";
 }
 
-function approvalLabel(status: string) {
-  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+function recordLabel(summary: RecordSummary | undefined): string {
+  const total = (summary?.approved ?? 0) + (summary?.open ?? 0) + (summary?.blocked ?? 0);
+  if (total === 0) return "No records";
+  const parts: string[] = [];
+  if (summary!.approved > 0) parts.push(`${summary!.approved} approved`);
+  if (summary!.open > 0) parts.push(`${summary!.open} in progress`);
+  if (summary!.blocked > 0) parts.push(`${summary!.blocked} blocked`);
+  return parts.join(" · ");
 }
 
 export function SupplierTable({
@@ -62,7 +80,10 @@ export function SupplierTable({
   suppliers,
   importerId,
   suspensions = [],
+  recordSummary = {},
 }: {
+  /** FSVP record counts per supplier id — see recordLabel for why. */
+  recordSummary?: Record<string, RecordSummary>;
   countries: CountryOption[];
   suppliers: SupplierRow[];
   importerId?: string;
@@ -90,10 +111,17 @@ export function SupplierTable({
         (s.legal_entity_name?.toLowerCase().includes(q) ?? false) ||
         s.country.toLowerCase().includes(q) ||
         (s.fda_registration_number?.toLowerCase().includes(q) ?? false);
-      const matchesStatus = !statusFilter || s.approval_status === statusFilter;
+      const sum = recordSummary[s.id];
+      const total = (sum?.approved ?? 0) + (sum?.open ?? 0) + (sum?.blocked ?? 0);
+      const matchesStatus =
+        !statusFilter ||
+        (statusFilter === "none"     && total === 0) ||
+        (statusFilter === "open"     && (sum?.open ?? 0) > 0) ||
+        (statusFilter === "blocked"  && (sum?.blocked ?? 0) > 0) ||
+        (statusFilter === "approved" && total > 0 && (sum?.approved ?? 0) === total);
       return matchesSearch && matchesStatus;
     });
-  }, [suppliers, search, statusFilter]);
+  }, [suppliers, search, statusFilter, recordSummary]);
 
   function closeForm() {
     setShowForm(false);
@@ -211,11 +239,13 @@ export function SupplierTable({
             onChange={(e) => setStatusFilter(e.target.value)}
             className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
           >
-            <option value="">All Statuses</option>
-            <option value="pending_review">Pending Review</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="suspended">Suspended</option>
+            {/* Filters the FSVP record state now, not the dead
+                suppliers.approval_status column it used to read. */}
+            <option value="">All exporters</option>
+            <option value="none">No records yet</option>
+            <option value="open">Records in progress</option>
+            <option value="blocked">Records blocked</option>
+            <option value="approved">All records approved</option>
           </select>
           {isImporter ? (
             <>
@@ -256,7 +286,7 @@ export function SupplierTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Country</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">FSVP Records</th>
                 {isImporter && (
                   <th className="px-4 py-3 text-left font-semibold text-slate-700">Record</th>
                 )}
@@ -270,7 +300,8 @@ export function SupplierTable({
             </thead>
             <tbody className="divide-y divide-line">
               {filtered.map((supplier) => {
-                const tone = approvalTone(supplier.approval_status);
+                const summary = recordSummary[supplier.id];
+                const tone = recordTone(summary);
                 const borderColor =
                   tone === "success" ? "border-l-emerald-500" :
                   tone === "warning" ? "border-l-amber-400" :
@@ -293,7 +324,7 @@ export function SupplierTable({
                     <td className="px-4 py-3 text-slate-600">{supplier.country}</td>
                     <td className="px-4 py-3 text-slate-600">{supplier.fda_registration_number ?? "-"}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge tone={tone}>{approvalLabel(supplier.approval_status)}</StatusBadge>
+                      <StatusBadge tone={tone}>{recordLabel(summary)}</StatusBadge>
                     </td>
                     {isImporter && (
                       <td className="px-4 py-3">

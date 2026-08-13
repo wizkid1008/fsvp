@@ -95,7 +95,19 @@ export default async function ExportersPage() {
   // to run for everyone, so `manufacturer` and `broker` rows were unreachable
   // from any screen in the app, even by URL.
 
-  const [{ data: rawSuppliers }, { data: countries }, { data: products }, { data: facilities }, { data: facilityAccess }, { data: documents }] = await Promise.all([
+  // The Status column used to show suppliers.approval_status, which nothing in
+  // the app ever advances — every exporter created through the UI is written
+  // 'pending_review' at insert and stays there forever, while seeded rows read
+  // "Approved". In an FSVP tool a column headed Status reading Pending Review
+  // implies the § 1.505 supplier determination, which lives on fsvp_records and
+  // is made per product. So the column now reports the real thing.
+  let recordsQuery = (admin.from("fsvp_records") as any)
+    .select("id, status, supplier_id");
+  if (scoped && importerId) {
+    recordsQuery = recordsQuery.eq("importer_id", importerId);
+  }
+
+  const [{ data: rawSuppliers }, { data: countries }, { data: products }, { data: facilities }, { data: facilityAccess }, { data: documents }, { data: rawRecords }] = await Promise.all([
     suppliersQuery,
     (admin.from("countries") as any)
       .select("country_code,country_name")
@@ -105,7 +117,24 @@ export default async function ExportersPage() {
     (admin.from("facilities_verify") as any).select("id, supplier_id"),
     (admin.from("facility_supplier_access") as any).select("facility_id, supplier_id"),
     admin.from("documents").select("linked_entity_type, linked_entity_id"),
+    recordsQuery,
   ]);
+
+  // Grouped into the three answers an importer actually wants from this table:
+  // how many products from this exporter are cleared, how many are still being
+  // worked, and how many are blocked. Statuses come from fsvp_records.status.
+  const BLOCKED = new Set(["needs_corrective_action", "rejected", "expired"]);
+  const APPROVED = new Set(["importer_approved", "conditionally_approved"]);
+
+  const recordSummary: Record<string, { approved: number; open: number; blocked: number }> = {};
+  for (const row of (rawRecords ?? []) as Array<{ status: string; supplier_id: string | null }>) {
+    if (!row.supplier_id) continue;
+    const entry = recordSummary[row.supplier_id] ?? { approved: 0, open: 0, blocked: 0 };
+    if (BLOCKED.has(row.status)) entry.blocked += 1;
+    else if (APPROVED.has(row.status)) entry.approved += 1;
+    else entry.open += 1;
+    recordSummary[row.supplier_id] = entry;
+  }
 
   const productSupplier = new Map(
     ((products ?? []) as Array<{ id: string; supplier_id: string | null }>).map((p) => [p.id, p.supplier_id])
@@ -179,6 +208,7 @@ export default async function ExportersPage() {
         suppliers={suppliers}
         importerId={role === "us_importer" ? (importerId ?? undefined) : undefined}
         suspensions={suspensions}
+        recordSummary={recordSummary}
       />
     </AppShell>
   );
