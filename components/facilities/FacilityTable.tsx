@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Edit2, MapPin, Warehouse, X, Search, PackageSearch } from "lucide-react";
+import { registrationState, REGISTRATION_LABEL } from "@/lib/fsvp/facility-registration";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
 import { FacilityMapPicker } from "@/components/facilities/FacilityMapPicker";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -21,6 +22,7 @@ export type FacilityRow = {
   facility_type: string;
   facility_address_json: Json;
   fda_registration_number: string | null;
+  fda_registration_expires_on?: string | null;
   production_capacity: string | null;
   manufacturing_processes: string | null;
   food_safety_certifications: string[] | null;
@@ -195,6 +197,7 @@ function AddFacilityForm({
               longitude,
             },
             fda_registration_number: clean(formData.get("fda_registration_number")),
+            fda_registration_expires_on: clean(formData.get("fda_registration_expires_on")),
             production_capacity: clean(formData.get("production_capacity")),
             manufacturing_processes: clean(formData.get("manufacturing_processes")),
             food_safety_certifications: splitCertifications(clean(formData.get("food_safety_certifications"))),
@@ -289,6 +292,24 @@ function AddFacilityForm({
             <label className={labelClass}>
               FDA Registration #
               <input name="fda_registration_number" defaultValue={facility?.fda_registration_number ?? ""} className={inputClass} placeholder="Optional" />
+            </label>
+            {/* Without this the number alone proves the facility registered
+                once, not that it is registered now — see
+                lib/fsvp/facility-registration.ts. Registration is renewed
+                between 1 October and 31 December of every even year, so the
+                answer is always 31 December of an even year. */}
+            <label className={labelClass}>
+              Registration valid until
+              <input
+                type="date"
+                name="fda_registration_expires_on"
+                defaultValue={facility?.fda_registration_expires_on ?? ""}
+                className={inputClass}
+              />
+              <span className="mt-1 block text-xs text-slate-500">
+                31 December of the even year it was last renewed in (21 CFR 1.230). Leave blank
+                if you do not know — it will show as unconfirmed rather than current.
+              </span>
             </label>
             <label className={labelClass}>
               Address
@@ -531,7 +552,28 @@ export function FacilityTable({
                         : facility.suppliers?.company_name ?? "-"}
                     </td>
                     <td className="px-4 py-3 text-slate-600 capitalize">{labelize(facility.facility_type)}</td>
-                    <td className="px-4 py-3 text-slate-600">{facility.fda_registration_number ?? "-"}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {facility.fda_registration_number ?? "-"}
+                      {facility.fda_registration_number && (() => {
+                        // A number with no renewal date is NOT a current
+                        // registration, and saying so is the entire point of
+                        // migration 017.
+                        const state = registrationState({
+                          fdaRegistrationNumber: facility.fda_registration_number,
+                          registrationExpiresOn: facility.fda_registration_expires_on ?? null,
+                        });
+                        if (state === "current") return null;
+                        const tone =
+                          state === "expired" ? "text-red-600" :
+                          state === "renewal_open" ? "text-amber-700" :
+                          "text-slate-500";
+                        return (
+                          <span className={`mt-0.5 block text-[11px] font-semibold ${tone}`}>
+                            {REGISTRATION_LABEL[state]}
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="px-4 py-3">
                       {coordinates ? (
                         <a
