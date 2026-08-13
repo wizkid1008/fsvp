@@ -3,6 +3,24 @@
 Status: analysis only. No code, schema, or config changes proposed here have been applied.
 Date: 2026-07-30. Reviewed against `main` @ `73690a8`.
 
+> **Historical — read as a record of 2026-07-30, not as current state.**
+>
+> Kept unedited because it documents what was true then; rewriting the route
+> names would destroy that. Since this was written:
+>
+> - `/suppliers` was renamed to **`/exporters`** (a redirect keeps old links
+>   working). Every reference to `/suppliers` and `app/suppliers/page.tsx` below
+>   should be read as `/exporters` and `app/exporters/page.tsx`.
+> - The naming mismatch noted in Part 1 — the page titled "My Exporters" reached
+>   from a nav item labelled "Suppliers" — is fixed. The exporter's own upstream
+>   list is now "Upstream Vendors", so one word no longer means two companies.
+> - The dashboard tile that linked to `/suppliers` was replaced; the importer
+>   dashboard now leads with what is blocking approval.
+>
+> For the journey the app actually enforces today, read
+> `lib/setup/fsvp-steps.ts` — it is the single source the setup planner and the
+> onboarding modal both render from.
+
 ---
 
 ## Part 1 — Importer section analysis

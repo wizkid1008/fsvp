@@ -5,6 +5,24 @@ the current state. This document is the **process and edit plan**. Nothing here 
 
 Date: 2026-07-30. Baseline: `main` @ `73690a8`.
 
+> **Historical — parts of this have since shipped.**
+>
+> Kept unedited as a record of the plan as written. Read `/suppliers` below as
+> **`/exporters`**, and `app/suppliers/page.tsx` as `app/exporters/page.tsx`.
+>
+> Landed since:
+>
+> - The "Suppliers" vs "My Exporters" naming mismatch (§ at the end of this
+>   document) — done. The foreign company is an Exporter everywhere now,
+>   including the signup account type and the route itself.
+> - `components/suppliers/CreateExporterForm.tsx` — exists.
+> - The importer nav order this document argued for — done, and the reasoning is
+>   recorded in `data/nav-items.ts`.
+>
+> Superseded: the eleven-step journey in `lib/setup/fsvp-steps.ts` is now the
+> canonical description of the importer workflow. Where this document and that
+> array disagree, the array is what the app enforces.
+
 ---
 
 ## 0. What is being asked

@@ -48,20 +48,42 @@ Only server-side code may read the service role key.
 
 `createAdminSupabaseClient()` throws `SUPABASE_SERVICE_ROLE_KEY is not configured`
 when the key is missing **or** when its value contains `xxxxx`, which the config
-treats as a placeholder. Thirteen pages construct that client unconditionally and
-all break together, showing only Next's opaque digest.
+treats as a placeholder.
 
-Two things that look like evidence and are not:
+**This is no longer a single failure mode.** Pages now fall into four groups, and
+knowing which is which is the whole diagnostic. An earlier version of this file
+said "thirteen pages break together" and named `/suppliers`, `/readiness` and
+`/compliance-history` as the check. All three are wrong today: `/suppliers` no
+longer exists, and the other two now degrade gracefully — so following that
+advice, you would watch them load and conclude the key was set.
+
+| Behaviour without the key | Pages |
+| --- | --- |
+| **Crashes with an opaque digest** | `/fsvp-records/[id]` |
+| **Shows the real error message** | `/reviewer`, `/corporate` (construction is inside a `try`) |
+| **Renders a ConfigurationNotice** | every page using `tryAdminClient()` — `/exporters`, `/importers`, `/readiness`, `/compliance-history`, `/applicability`, `/qualified-individuals`, `/importer-review`, `/setup/fsvp`, `/shipment-readiness`, `/admin/reference-rules` |
+| **Looks completely fine** | `/facilities`, `/products`, `/my-suppliers` — they only construct the client when the account has linked suppliers, so an empty account never touches it |
+
+**The best check is `/reviewer`.** It constructs the client unconditionally inside
+a `try` and prints the actual exception on the page, so it tells you the answer
+rather than making you infer it. `/fsvp-records/[id]` is the one that still fails
+opaquely.
+
+Three things that look like evidence and are not:
 
 - **`/dashboard` loading proves nothing.** It only constructs the admin client
   when an administrator is previewing a supplier account. `/account` proves
   nothing either — it never uses it.
+- **A page rendering proves nothing on its own.** Most now catch the throw and
+  show a notice, which is easy to scroll past on a screen you expected to be
+  empty anyway.
 - **A stable digest across deploys does not mean the deploy is stale.** Next
   hashes the error message, so an unchanged message yields an unchanged digest
   no matter how many times you rebuild.
 
-The reliable check is any page in the unconditional list — `/suppliers`,
-`/reviewer`, `/readiness`, `/compliance-history`. They fail together or not at all.
+Keep this table honest when you add a page: `grep -rl createAdminSupabaseClient app --include=page.tsx`
+lists the candidates, and whether each is guarded by `tryAdminClient()`, wrapped
+in a `try`, or conditional on there being data decides which row it belongs in.
 
 ### FDA regulatory intelligence (migration 009)
 

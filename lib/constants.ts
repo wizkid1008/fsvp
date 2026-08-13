@@ -46,6 +46,23 @@ export const protectedRoutes = [
   "/settings",
 ];
 
+/**
+ * Which roles middleware lets through each route prefix. First matching prefix
+ * wins, so nested routes must come before their parent — `lib/quality/
+ * nav-invariants.test.ts` and `app-invariants.test.ts` both check that.
+ *
+ * **"administrator" in these lists is decorative.** middleware.ts bypasses every
+ * role restriction for administrators before consulting this map, so removing
+ * `administrator` from a route revokes nothing. It is kept for documentation —
+ * it records who the route is FOR — but do not mistake it for enforcement, and
+ * do not try to lock an admin out by editing it here.
+ *
+ * Two other things this map does NOT do:
+ *  - It does not scope data. A page that uses the admin client has opted out of
+ *    RLS entirely and must re-apply tenancy itself with isTenantConfined() —
+ *    see app/reviewer/page.tsx and app/importers/page.tsx for the pattern.
+ *  - It does not gate API routes. Those authorize in their own handlers.
+ */
 export const roleProtectedRoutes: Record<string, string[]> = {
   "/admin":        ["administrator"],
   "/audit-log":    ["reviewer", "administrator"],
