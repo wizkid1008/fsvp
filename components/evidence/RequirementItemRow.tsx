@@ -40,7 +40,10 @@ export function RequirementItemRow({
   itemName: string;
   status: string;
   isCriticalBlocker: boolean;
-  linkType: "facility" | "product";
+  // "supplier" is company-level evidence, where the supplier IS the entity —
+  // /api/documents/upload already defaults link_type to it and takes
+  // supplier_id separately, so the two entity branches below simply do not fire.
+  linkType: "supplier" | "facility" | "product";
   entityId: string;
   supplierId: string;
   requirementItemId: string;
