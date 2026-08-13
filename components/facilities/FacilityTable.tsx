@@ -53,10 +53,6 @@ function splitCertifications(value: string | null) {
     : [];
 }
 
-function selectedValues(select: HTMLSelectElement) {
-  return Array.from(select.selectedOptions).map((option) => option.value).filter(Boolean);
-}
-
 function labelize(value: string) {
   return value.replace(/_/g, " ");
 }
@@ -238,22 +234,50 @@ function AddFacilityForm({
               Facility Name <span className="text-red-500">*</span>
               <input name="facility_name" required defaultValue={facility?.facility_name ?? ""} className={inputClass} placeholder="Santiago Plant 2" />
             </label>
-            <label className={labelClass}>
-              Supplier <span className="text-red-500">*</span>
-              <select
-                name="supplier_ids"
-                required
-                multiple
-                className="mt-1.5 min-h-24 w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-forest"
-                value={supplierIds}
-                onChange={(event) => setSupplierIds(selectedValues(event.currentTarget))}
-              >
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>
-                ))}
-              </select>
-              <span className="mt-1 block text-xs text-slate-500">Hold Ctrl or Shift to assign the facility to more than one supplier.</span>
-            </label>
+            {/* Checkboxes, not a ctrl-click multi-select. A facility CAN be
+                shared — facility_supplier_access exists for co-packers and
+                shared cold stores — but the common case is one company, and a
+                multi-select listing every exporter made the single case look
+                like an open question. The one you came from is checked and
+                sorted to the top; the rest are opt-in. */}
+            <fieldset className="sm:col-span-2">
+              <legend className={labelClass}>
+                Company that operates this facility <span className="text-red-500">*</span>
+              </legend>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Usually one. Tick more than one only if they genuinely share the same site.
+              </p>
+              <div className="mt-2 max-h-40 space-y-0.5 overflow-y-auto rounded-md border border-line p-2">
+                {[...suppliers]
+                  .sort((a, b) =>
+                    a.id === presetSupplierId ? -1 : b.id === presetSupplierId ? 1 : 0
+                  )
+                  .map((supplier) => (
+                    <label
+                      key={supplier.id}
+                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={supplierIds.includes(supplier.id)}
+                        onChange={(event) =>
+                          setSupplierIds((prev) =>
+                            event.currentTarget.checked
+                              ? [...prev, supplier.id]
+                              : prev.filter((id) => id !== supplier.id)
+                          )
+                        }
+                      />
+                      <span className="text-ink">{supplier.company_name}</span>
+                      {supplier.id === presetSupplierId && (
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                          selected
+                        </span>
+                      )}
+                    </label>
+                  ))}
+              </div>
+            </fieldset>
             <label className={labelClass}>
               Facility Type <span className="text-red-500">*</span>
               <select name="facility_type" required className={inputClass} defaultValue={facility?.facility_type ?? ""}>
