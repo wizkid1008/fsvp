@@ -48,13 +48,27 @@ export async function POST(req: NextRequest) {
   // and put them somewhere no screen looked. Delivery runs even when alert
   // generation was skipped, so a backlog left by an earlier failure still goes
   // out. See lib/notifications/deliver-alerts.ts.
-  const delivery = await deliverPendingAlerts(admin);
+  //
+  // Caught rather than thrown. This route is also how the four FDA sources are
+  // ingested — the scheduled workflow calls it five times a day — and delivery
+  // now runs before that branch. Letting a notification failure propagate would
+  // turn "the bell is quiet" into "regulatory ingest stopped", which is a much
+  // worse outage and a far less obvious one. The error is reported in the
+  // response so the workflow log still shows it.
+  let delivered = 0;
+  let deliveryError: string | null = null;
+  try {
+    delivered = (await deliverPendingAlerts(admin)).delivered;
+  } catch (err) {
+    deliveryError = err instanceof Error ? err.message : String(err);
+  }
 
   if (requestedSource && !source) {
     return NextResponse.json({
       ok: true,
       alerts_created: alertsCreated,
-      alerts_delivered: delivery.delivered,
+      alerts_delivered: delivered,
+      alerts_delivery_error: deliveryError,
       available_sources: available,
       ingest: {
         source: requestedSource,
@@ -73,7 +87,8 @@ export async function POST(req: NextRequest) {
     {
       ok,
       alerts_created: alertsCreated,
-      alerts_delivered: delivery.delivered,
+      alerts_delivered: delivered,
+      alerts_delivery_error: deliveryError,
       available_sources: available,
       ingest: ingest
         ? {
