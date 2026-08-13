@@ -30,11 +30,15 @@ export default function PendingApprovalPage() {
         <h1 className="text-3xl font-normal leading-[0.95] tracking-[-0.045em] text-black">
           Account pending approval
         </h1>
+        {/* Do NOT promise an email here. approve-importer sends none, and the
+            app has no transactional email provider at all — the only mail this
+            system sends is Supabase Auth's own verification and password reset.
+            If that changes, change this copy with it. */}
         <p className="mt-4 text-base leading-7 text-black/60">
           Your importer account has been created. Importer accounts are approved by a platform
-          administrator, usually within one business day. You&apos;ll be able to log in normally
-          once approved — nothing is needed from you in the meantime, and we&apos;ll email you at
-          the address you signed up with.
+          administrator, usually within one business day. Nothing is needed from you in the
+          meantime — but you will not be notified automatically, so try logging in again after
+          a day. Once approved, you&apos;ll go straight to your dashboard.
         </p>
 
         <div className="mt-6 border-t border-black/10 pt-5">
