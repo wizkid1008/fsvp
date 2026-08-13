@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyIngestTriggerSecret } from "@/lib/auth/trigger-secret";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { configuredSources, runSourceIngest } from "@/lib/regulatory/ingest";
+import { deliverPendingAlerts } from "@/lib/notifications/deliver-alerts";
 import type { RegulatorySourceId } from "@/lib/regulatory/sources";
 
 export const runtime = "edge";
@@ -40,10 +41,20 @@ export async function POST(req: NextRequest) {
     : null;
 
   const alertsCreated = body.alerts === false ? 0 : await generateAlerts(admin);
+
+  // Generating an alert is not the same as anyone hearing about it. Until now
+  // this route stopped at the line above, and compliance_alerts was read by
+  // nothing — the sweep found expiring certificates and overdue reassessments
+  // and put them somewhere no screen looked. Delivery runs even when alert
+  // generation was skipped, so a backlog left by an earlier failure still goes
+  // out. See lib/notifications/deliver-alerts.ts.
+  const delivery = await deliverPendingAlerts(admin);
+
   if (requestedSource && !source) {
     return NextResponse.json({
       ok: true,
       alerts_created: alertsCreated,
+      alerts_delivered: delivery.delivered,
       available_sources: available,
       ingest: {
         source: requestedSource,
@@ -62,6 +73,7 @@ export async function POST(req: NextRequest) {
     {
       ok,
       alerts_created: alertsCreated,
+      alerts_delivered: delivery.delivered,
       available_sources: available,
       ingest: ingest
         ? {
