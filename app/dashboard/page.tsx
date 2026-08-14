@@ -82,6 +82,7 @@ async function ImporterDashboard({
         // from how many products exist, only from what is missing on them.
         (supabase.from("products_verify") as any)
           .select("id, commodity_id, country_of_origin")
+          .eq("lifecycle", "active")
           .in("supplier_id", supplierIds) as Promise<{
             data: Array<{ commodity_id: string | null; country_of_origin: string | null }> | null;
           }>,

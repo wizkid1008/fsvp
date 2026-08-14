@@ -569,6 +569,11 @@ export async function loadCompleteFsvpSetupPlan(
       ? (supabase.from("products_verify") as any)
           .select("id, product_name, supplier_id, facility_id, commodity_id, country_of_origin")
           .in("supplier_id", supplierIds)
+          // Only food actually imported carries an FSVP obligation — see
+          // migration 022. A product never sourced, or no longer sourced, must
+          // stop appearing as work without being deleted, because § 1.510 keeps
+          // the records of anything that WAS imported for two years after.
+          .eq("lifecycle", "active")
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     (supabase.from("fsvp_records") as any)
