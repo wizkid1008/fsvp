@@ -10,6 +10,7 @@ import { verifyIngestTriggerSecret } from "@/lib/auth/trigger-secret";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { configuredSources, runSourceIngest } from "@/lib/regulatory/ingest";
 import { deliverPendingAlerts } from "@/lib/notifications/deliver-alerts";
+import { sweepRuleReviews } from "@/lib/regulatory/sweep-rule-reviews";
 import type { RegulatorySourceId } from "@/lib/regulatory/sources";
 
 export const runtime = "edge";
@@ -71,12 +72,29 @@ export async function POST(req: NextRequest) {
     deliveryError = err instanceof Error ? err.message : String(err);
   }
 
+  // Rule reviews are platform work, not tenant work, so they do not pass
+  // through compliance_alerts at all — that table requires an importer_id and
+  // a country-commodity rule belongs to nobody's tenant. Caught for the same
+  // reason as delivery above: this route also drives FDA ingest, and a quiet
+  // notification must not stop it.
+  let rulesRaised = 0;
+  let ruleReviewError: string | null = null;
+  if (body.alerts !== false) {
+    try {
+      rulesRaised = (await sweepRuleReviews(admin)).raised;
+    } catch (err) {
+      ruleReviewError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   if (requestedSource && !source) {
     return NextResponse.json({
       ok: true,
       alerts_created: alertsCreated,
       alerts_delivered: delivered,
       alerts_delivery_error: deliveryError,
+      rule_reviews_raised: rulesRaised,
+      rule_review_error: ruleReviewError,
       available_sources: available,
       ingest: {
         source: requestedSource,
@@ -97,6 +115,8 @@ export async function POST(req: NextRequest) {
       alerts_created: alertsCreated,
       alerts_delivered: delivered,
       alerts_delivery_error: deliveryError,
+      rule_reviews_raised: rulesRaised,
+      rule_review_error: ruleReviewError,
       available_sources: available,
       ingest: ingest
         ? {
