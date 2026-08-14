@@ -13,8 +13,6 @@ const en = {
     dashboard: "Dashboard",
     myEvidence: "My Evidence",
     myReadiness: "My Readiness",
-    actionItems: "Action Items",
-    suppliers: "Suppliers",
     upstreamVendors: "Upstream Vendors",
     companyOverview: "Company Overview",
     exporters: "Exporters",
@@ -29,7 +27,6 @@ const en = {
     groupMonitoring: "Monitoring",
     readiness: "Readiness",
     reports: "Reports",
-    notifications: "Notifications",
     reviewQueue: "Review Queue",
     importerReview: "Exporter Submissions",
     auditLog: "Audit Log",
@@ -38,7 +35,6 @@ const en = {
     applicability: "FSVP Applicability",
     complianceHistory: "Compliance History",
     admin: "Admin",
-    account: "Account",
   },
 
   // Common actions

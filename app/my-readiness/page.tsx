@@ -62,7 +62,7 @@ export default async function MyReadinessPage() {
 
       {/* Same model as the score above — requirement_items, counted from
           documents.requirement_item_id. This used to be SupplierReadinessPanel,
-          which reads the older fsvp_requirements table, so the number and the
+          which read the older fsvp_requirements table, so the number and the
           list below it were answering from different data. */}
       <div className="mt-6">
         {supplierCtx?.supplierId ? (

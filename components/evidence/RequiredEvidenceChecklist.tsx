@@ -17,7 +17,8 @@ function bestStatus(statuses: string[]): string {
  * "supplier" was added on 2026-08-13 to close an incoherence on /my-readiness:
  * the score there is computed from requirement_items via
  * lib/readiness/supplier-score.ts, while the checklist beneath it came from
- * SupplierReadinessPanel, which reads the older fsvp_requirements table. A
+ * the since-deleted SupplierReadinessPanel, which read the older
+ * fsvp_requirements table. A
  * number and a list that disagree about what is outstanding are worse than
  * either alone. Both now read the same model.
  */
