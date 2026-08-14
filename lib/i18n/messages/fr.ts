@@ -21,6 +21,7 @@ const fr: Messages = {
     products: "Produits",
     facilities: "Installations",
     evidence: "Bibliothèque de Documents",
+    ourRecords: "Nos dossiers FSVP",
     groupSupplyChain: "Chaîne d'Approvisionnement",
     groupCompliance: "Conformité",
     groupMonitoring: "Suivi",

@@ -21,6 +21,7 @@ const es: Messages = {
     products: "Productos",
     facilities: "Instalaciones",
     evidence: "Biblioteca de Documentos",
+    ourRecords: "Nuestros registros FSVP",
     groupSupplyChain: "Cadena de Suministro",
     groupCompliance: "Cumplimiento",
     groupMonitoring: "Seguimiento",

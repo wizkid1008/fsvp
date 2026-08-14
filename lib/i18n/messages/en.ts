@@ -22,6 +22,7 @@ const en = {
     products: "Products",
     facilities: "Facilities",
     evidence: "Document Library",
+    ourRecords: "Our FSVP Records",
     gapsActions: "Gaps & Actions",
     groupSupplyChain: "Supply Chain",
     groupCompliance: "Compliance",

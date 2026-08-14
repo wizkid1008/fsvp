@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   const productId = String(formData.get("product_id") ?? "");
   const facilityId = String(formData.get("facility_id") ?? "");
   const linkTypeRaw = String(formData.get("link_type") ?? "supplier");
-  const ALLOWED_LINK_TYPES = ["supplier", "product", "facility"] as const;
+  const ALLOWED_LINK_TYPES = ["importer", "supplier", "product", "facility"] as const;
   type LinkType = typeof ALLOWED_LINK_TYPES[number];
   if (!(ALLOWED_LINK_TYPES as readonly string[]).includes(linkTypeRaw)) {
     return NextResponse.json({ error: "Invalid link_type." }, { status: 400 });
@@ -98,7 +98,26 @@ export async function POST(request: Request) {
     if (ids.length === 1) resolvedImporterId = ids[0];
   }
 
-  if (!resolvedSupplierId) {
+  // Importer-level evidence is the exception: it is ABOUT the importer, not
+  // about any foreign supplier. § 1.506(b) written procedures, § 1.503 QI
+  // qualifications and § 1.510 records procedures belong to the importing
+  // organization itself, and demanding a supplier for them would force a false
+  // association — the document would then appear in that exporter's evidence
+  // and count toward their readiness.
+  if (linkTypeRaw === "importer") {
+    if (!resolvedImporterId) {
+      return NextResponse.json(
+        { error: "Your account is not linked to an importing organization, so it has no records of its own." },
+        { status: 403 }
+      );
+    }
+    if (uploaderProfile?.role !== "us_importer" && uploaderProfile?.role !== "administrator") {
+      return NextResponse.json(
+        { error: "Only the importing organization can file its own FSVP records." },
+        { status: 403 }
+      );
+    }
+  } else if (!resolvedSupplierId) {
     return NextResponse.json({ error: "Supplier is required for evidence uploads." }, { status: 400 });
   }
 
@@ -110,7 +129,8 @@ export async function POST(request: Request) {
     uploaderProfile?.role === "supplier" &&
     resolvedSupplierId === (uploaderProfile?.supplier_id || supplierId);
 
-  if (!uploaderIsOwner) {
+  // No supplier to validate when the document is the importer's own.
+  if (linkType !== "importer" && !uploaderIsOwner) {
     const supplier = await (supabase.from("suppliers") as any)
       .select("id")
       .eq("id", resolvedSupplierId)
@@ -125,7 +145,11 @@ export async function POST(request: Request) {
   let linkedEntityId = resolvedSupplierId;
   let linkedProductFacilityId: string | null = null;
 
-  if (linkType === "product") {
+  if (linkType === "importer") {
+    // The importing organization is both the owner and the subject.
+    linkedEntityType = "importer";
+    linkedEntityId = resolvedImporterId as string;
+  } else if (linkType === "product") {
     if (!productId) {
       return NextResponse.json({ error: "Product evidence must be linked to a product." }, { status: 400 });
     }

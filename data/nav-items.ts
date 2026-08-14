@@ -62,6 +62,10 @@ export const navItems: NavItem[] = [
   { href: "/qualified-individuals", label: "Qualified Individuals",  icon: "BadgeCheck",     roles: ["us_importer", "reviewer"], matches: ["/qualified-individuals"], tKey: "nav.qualifiedIndividuals", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/importer-review",       label: "Exporter Submissions",   icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/evidence",              label: "Document Library",       icon: "FileArchive",    roles: ["us_importer"], tKey: "nav.evidence",       group: "Compliance", groupTKey: "nav.groupCompliance" },
+  // The importer's own FSVP documents, as distinct from evidence about a
+  // foreign supplier. Sits last in Compliance because it is filed once and
+  // relied on across every record, rather than worked per shipment.
+  { href: "/our-records",           label: "Our FSVP Records",       icon: "FolderCheck",    roles: ["us_importer"], matches: ["/our-records"], tKey: "nav.ourRecords", group: "Compliance", groupTKey: "nav.groupCompliance" },
 
   // ── Importer: monitoring ─────────────────────────────────────
   { href: "/readiness",    label: "Readiness",      icon: "Gauge",         roles: ["us_importer"], matches: ["/readiness"],    tKey: "nav.readiness",   group: "Monitoring", groupTKey: "nav.groupMonitoring" },

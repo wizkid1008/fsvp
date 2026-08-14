@@ -21,6 +21,7 @@ const ar: Messages = {
     products: "المنتجات",
     facilities: "المرافق",
     evidence: "مكتبة المستندات",
+    ourRecords: "سجلاتنا لبرنامج FSVP",
     groupSupplyChain: "سلسلة التوريد",
     groupCompliance: "الامتثال",
     groupMonitoring: "المتابعة",
