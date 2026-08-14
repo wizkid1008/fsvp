@@ -11,6 +11,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { configuredSources, runSourceIngest } from "@/lib/regulatory/ingest";
 import { deliverPendingAlerts } from "@/lib/notifications/deliver-alerts";
 import { sweepRuleReviews } from "@/lib/regulatory/sweep-rule-reviews";
+import { sweepEcfrChanges } from "@/lib/regulatory/sweep-ecfr";
 import type { RegulatorySourceId } from "@/lib/regulatory/sources";
 
 export const runtime = "edge";
@@ -72,9 +73,22 @@ export async function POST(req: NextRequest) {
     deliveryError = err instanceof Error ? err.message : String(err);
   }
 
+  // eCFR runs BEFORE the review sweep, so a section amended overnight is
+  // flagged and then raised in the same pass rather than waiting a day. It only
+  // sets source_changed_at; the review sweep decides who hears about it.
+  let ecfrFlagged = 0;
+  let ecfrError: string | null = null;
+  if (body.alerts !== false) {
+    try {
+      ecfrFlagged = (await sweepEcfrChanges(admin)).flagged;
+    } catch (err) {
+      ecfrError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   // Rule reviews are platform work, not tenant work, so they do not pass
-  // through compliance_alerts at all — that table requires an importer_id and
-  // a country-commodity rule belongs to nobody's tenant. Caught for the same
+  // through compliance_alerts at all — that table requires an importer_id and a
+  // country-commodity rule belongs to nobody's tenant. Caught for the same
   // reason as delivery above: this route also drives FDA ingest, and a quiet
   // notification must not stop it.
   let rulesRaised = 0;
@@ -95,6 +109,8 @@ export async function POST(req: NextRequest) {
       alerts_delivery_error: deliveryError,
       rule_reviews_raised: rulesRaised,
       rule_review_error: ruleReviewError,
+      ecfr_flagged: ecfrFlagged,
+      ecfr_error: ecfrError,
       available_sources: available,
       ingest: {
         source: requestedSource,
@@ -117,6 +133,8 @@ export async function POST(req: NextRequest) {
       alerts_delivery_error: deliveryError,
       rule_reviews_raised: rulesRaised,
       rule_review_error: ruleReviewError,
+      ecfr_flagged: ecfrFlagged,
+      ecfr_error: ecfrError,
       available_sources: available,
       ingest: ingest
         ? {
