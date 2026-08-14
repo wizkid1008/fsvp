@@ -4,6 +4,8 @@ import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Edit2, PackageSearch, Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ProductLifecycleDialog } from "@/components/products/ProductLifecycleDialog";
+import { LIFECYCLE_LABEL, retentionEndsOn, type ProductLifecycle } from "@/lib/fsvp/product-lifecycle";
 import type { Country } from "@/types/database";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
@@ -39,7 +41,18 @@ export type ProductRow = {
   evidence_count?: number;
   approval_status?: string;
   admissibility_status?: "unclassified" | "not_determined" | "action_required" | "permitted" | "restricted" | "prohibited" | "importer_review";
+  lifecycle?: ProductLifecycle;
+  discontinued_on?: string | null;
 };
+
+function lifecycleTone(lifecycle: ProductLifecycle): "success" | "warning" | "neutral" {
+  // "Imported" is not a good/bad judgement — it says the obligation is live.
+  // Discontinued is neutral rather than a failure: stopping is a legitimate
+  // outcome, and the record is being retained correctly.
+  if (lifecycle === "active") return "success";
+  if (lifecycle === "not_imported") return "neutral";
+  return "warning";
+}
 
 function approvalTone(status?: string): "success" | "warning" | "danger" | "neutral" {
   if (status === "importer_approved") return "success";
@@ -384,7 +397,8 @@ export function ProductTable({
   products,
   supplierHref = "/exporters",
   suppliers,
-  presetFacility
+  presetFacility,
+  canEditLifecycle = false
 }: {
   countries: CountryOption[];
   facilities: FacilityOption[];
@@ -393,11 +407,17 @@ export function ProductTable({
   suppliers: SupplierOption[];
   /** Set by /products?facility=<id>, arriving from that facility's row. */
   presetFacility?: { facilityId: string; supplierId: string } | null;
+  /**
+   * Only the importing organization can say whether it imports a food — the
+   * API enforces the same rule. Exporters see the state but cannot change it.
+   */
+  canEditLifecycle?: boolean;
 }) {
   // Open straight into the form when the link that got here already said what
   // was wanted. See NextStepBanner for why these threads exist at all.
   const [showForm, setShowForm] = useState(Boolean(presetFacility));
   const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
+  const [lifecycleProduct, setLifecycleProduct] = useState<ProductRow | null>(null);
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const canAddProduct = suppliers.length > 0 && facilities.length > 0;
@@ -511,6 +531,7 @@ export function ProductTable({
             <thead>
               <tr className="border-b border-line bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Product</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Imported</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Admissibility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
@@ -529,6 +550,42 @@ export function ProductTable({
                     <a href={`/products/${product.id}`} className="text-forest hover:underline">
                       {product.product_name}
                     </a>
+                  </td>
+                  <td className="px-4 py-3">
+                    {(() => {
+                      const lifecycle = product.lifecycle ?? "active";
+                      const badge = (
+                        <StatusBadge tone={lifecycleTone(lifecycle)}>
+                          {LIFECYCLE_LABEL[lifecycle]}
+                        </StatusBadge>
+                      );
+                      const retentionEnd = retentionEndsOn({
+                        lifecycle,
+                        discontinuedOn: product.discontinued_on ?? null,
+                      });
+                      return (
+                        <>
+                          {canEditLifecycle ? (
+                            <button
+                              type="button"
+                              onClick={() => setLifecycleProduct(product)}
+                              title="Change whether this food is imported"
+                              className="rounded-md transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+                            >
+                              {badge}
+                            </button>
+                          ) : (
+                            badge
+                          )}
+                          {retentionEnd && (
+                            // The date the records may be disposed of, which is
+                            // the thing anyone looking at a discontinued
+                            // product actually needs to know.
+                            <p className="mt-1 text-xs text-slate-500">Retained to {retentionEnd}</p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge tone={approvalTone(product.approval_status)}>
@@ -579,6 +636,18 @@ export function ProductTable({
           </table>
           )}
         </div>
+      )}
+
+      {lifecycleProduct && (
+        <ProductLifecycleDialog
+          product={{
+            id: lifecycleProduct.id,
+            product_name: lifecycleProduct.product_name,
+            lifecycle: lifecycleProduct.lifecycle ?? "active",
+            discontinued_on: lifecycleProduct.discontinued_on ?? null,
+          }}
+          onClose={() => setLifecycleProduct(null)}
+        />
       )}
     </>
   );

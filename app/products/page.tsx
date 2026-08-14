@@ -76,7 +76,7 @@ export default async function ProductsPage({
   }
 
   let productsQuery = (supabase.from("products_verify") as any)
-    .select("id, product_name, product_description, country_of_origin, raw_or_processed, intended_use, ingredient_list, allergen_information, supplier_id, facility_id, commodity_id, approval_status, suppliers(company_name), facilities_verify(facility_name), commodities(common_name, plant_part)")
+    .select("id, product_name, product_description, country_of_origin, raw_or_processed, intended_use, ingredient_list, allergen_information, supplier_id, facility_id, commodity_id, approval_status, lifecycle, discontinued_on, suppliers(company_name), facilities_verify(facility_name), commodities(common_name, plant_part)")
     .order("created_at", { ascending: false });
   let suppliersQuery = (supabase.from("suppliers") as any)
     .select("id, company_name")
@@ -301,6 +301,10 @@ export default async function ProductsPage({
 
       <div className="mt-6">
         <ProductTable
+          // Only the importing organization can say whether it imports a food.
+          // /api/products/lifecycle enforces the same rule, so hiding the
+          // control is a courtesy rather than the protection.
+          canEditLifecycle={!isSupplier}
           countries={countryOptions}
           facilities={facilityOptions}
           products={products}
