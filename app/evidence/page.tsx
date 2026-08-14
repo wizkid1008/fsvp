@@ -32,16 +32,40 @@ export default async function EvidencePage({
   const { role, realRole } = await requireProfileRole("/evidence");
   const supabase = createServerSupabaseClient();
 
-  type DocRow = { id: string; importer_id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; size_bytes: number; linked_entity_type: string | null; linked_entity_id: string | null; related_requirement_id: string | null };
-  type ReqRow = { id: string; requirement_name: string; requirement_key: string; sort_order: number };
+  type DocRow = { id: string; importer_id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; size_bytes: number; linked_entity_type: string | null; linked_entity_id: string | null; requirement_item_id: string | null };
+  // Sections carry their items. The library files evidence against the same
+  // published rule version the scoring engine reads, so a document that counts
+  // here counts toward the score too — the two used to answer from different
+  // models, which is what migration 023 retired.
+  type SectionRow = {
+    id: string;
+    section_name: string;
+    applies_to: string;
+    sort_order: number;
+    requirement_items: Array<{ id: string; item_name: string; sort_order: number }> | null;
+  };
   type SupplierRow = { id: string; company_name: string };
   type ProductRow = { id: string; product_name: string; supplier_id: string | null; facility_id: string | null };
   type FacilityRow = { id: string; facility_name: string; supplier_id: string | null; supplier_ids?: string[] };
   type CategoryRow = { label: string };
 
-  const [docsRes, reqsRes, suppliersRes, productsRes, facilitiesRes, facilityAccessRes, categoriesRes] = await Promise.all([
-    supabase.from("documents").select("id, importer_id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes, linked_entity_type, linked_entity_id, related_requirement_id").is("soft_deleted_at", null).order("uploaded_at", { ascending: false }),
-    supabase.from("fsvp_requirements").select("id, requirement_name, requirement_key, sort_order").eq("active", true).order("sort_order"),
+  // The published rule version, resolved the same way lib/readiness/supplier-score.ts
+  // resolves it. Nothing to file against if no version is published.
+  const { data: publishedVersion } = await (supabase.from("rule_versions") as any)
+    .select("id")
+    .eq("status", "published")
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const [docsRes, sectionsRes, suppliersRes, productsRes, facilitiesRes, facilityAccessRes, categoriesRes] = await Promise.all([
+    supabase.from("documents").select("id, importer_id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes, linked_entity_type, linked_entity_id, requirement_item_id").is("soft_deleted_at", null).order("uploaded_at", { ascending: false }),
+    publishedVersion?.id
+      ? (supabase.from("requirement_sections") as any)
+          .select("id, section_name, applies_to, sort_order, requirement_items(id, item_name, sort_order)")
+          .eq("rule_version_id", publishedVersion.id)
+          .order("sort_order")
+      : Promise.resolve({ data: [] }),
     (supabase.from("suppliers") as any).select("id, company_name").order("company_name"),
     (supabase.from("products_verify") as any).select("id, product_name, supplier_id, facility_id").order("product_name"),
     (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
@@ -50,7 +74,23 @@ export default async function EvidencePage({
   ]);
 
   const documents = (docsRes.data ?? []) as unknown as DocRow[];
-  const requirements = (reqsRes.data ?? []) as unknown as ReqRow[];
+  const sections = (sectionsRes.data ?? []) as unknown as SectionRow[];
+  // Flattened for the two dropdowns: one option per item, labelled by its
+  // section so "Recall Procedure" is distinguishable from the supplier-level
+  // "Recall Plan". applies_to rides along so the edit dialog can narrow the
+  // list to the entity the document is actually linked to.
+  const requirementItems = sections.flatMap((section) =>
+    (section.requirement_items ?? [])
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((item) => ({
+        id: item.id,
+        item_name: item.item_name,
+        section_name: section.section_name,
+        applies_to: section.applies_to,
+      }))
+  );
+  const requirementItemById = new Map(requirementItems.map((item) => [item.id, item]));
   const suppliers = (suppliersRes.data ?? []) as SupplierRow[];
   const products = (productsRes.data ?? []) as ProductRow[];
   const accessByFacility = new Map<string, string[]>();
@@ -67,7 +107,6 @@ export default async function EvidencePage({
   const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
   const productById = new Map(products.map((product) => [product.id, product]));
   const facilityById = new Map(facilities.map((facility) => [facility.id, facility]));
-  const requirementById = new Map(requirements.map((requirement) => [requirement.id, requirement]));
   const filterEntity = searchParams?.entity ?? "";
   const filterId = searchParams?.id ?? "";
 
@@ -143,7 +182,7 @@ export default async function EvidencePage({
             documentCategories={documentCategories.length > 0 ? documentCategories : undefined}
             facilities={facilities}
             products={products}
-            requirements={requirements}
+            requirementItems={requirementItems}
             suppliers={suppliers}
             presetSupplierId={filterEntity === "supplier" && filterId ? filterId : null}
           />
@@ -187,7 +226,7 @@ export default async function EvidencePage({
                       </td>
                       <td className="px-4 py-3 text-slate-600 capitalize">{doc.document_kind.replace(/_/g, " ")}</td>
                       <td className="px-4 py-3 text-slate-600">{linkedLabel(doc)}</td>
-                      <td className="px-4 py-3 text-slate-600">{doc.related_requirement_id ? requirementById.get(doc.related_requirement_id)?.requirement_name ?? "Mapped" : "-"}</td>
+                      <td className="px-4 py-3 text-slate-600">{doc.requirement_item_id ? requirementItemById.get(doc.requirement_item_id)?.item_name ?? "Mapped" : "-"}</td>
                       <td className="px-4 py-3 text-slate-500">{new Date(doc.uploaded_at).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
                         <StatusBadge tone={approvalTone(doc.approval_status)}>
@@ -201,7 +240,7 @@ export default async function EvidencePage({
                           documentCategories={documentCategories}
                           facilities={facilities}
                           products={products}
-                          requirements={requirements}
+                          requirementItems={requirementItems}
                           suppliers={suppliers}
                         />
                       </td>
@@ -218,14 +257,20 @@ export default async function EvidencePage({
             <h3 className="text-sm font-semibold text-ink">FSVP Requirements</h3>
             <p className="mt-1 text-xs text-slate-500">Evidence needed per 21 CFR Part 1, Subpart L</p>
             <div className="mt-4 space-y-2">
-              {(requirements ?? []).map((req) => (
-                <div key={req.id} className="flex items-center gap-2 rounded-md border border-line px-3 py-2">
+              {sections.map((section) => (
+                <div key={section.id} className="flex items-center gap-2 rounded-md border border-line px-3 py-2">
                   <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
-                  <span className="text-xs font-medium text-slate-700">{req.requirement_name}</span>
+                  <span className="text-xs font-medium text-slate-700">{section.section_name}</span>
+                  {/* Which entity the section applies to, since the same idea
+                      appears at more than one level — a facility recall
+                      procedure is not the supplier's recall plan. */}
+                  <span className="ml-auto text-[10px] uppercase tracking-wide text-slate-400">{section.applies_to}</span>
                 </div>
               ))}
-              {(!requirements || requirements.length === 0) && (
-                <p className="text-xs text-slate-400">Requirements not loaded.</p>
+              {sections.length === 0 && (
+                <p className="text-xs text-slate-400">
+                  No rule version is published, so there are no requirements to show.
+                </p>
               )}
             </div>
           </div>

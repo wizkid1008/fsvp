@@ -45,7 +45,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid link_type." }, { status: 400 });
   }
   const linkType = linkTypeRaw as LinkType;
-  const relatedRequirementId = String(formData.get("related_requirement_id") ?? "");
   const requirementItemId = String(formData.get("requirement_item_id") ?? "");
   const expirationDate = String(formData.get("expiration_date") ?? "");
   const importerId = String(formData.get("importer_id") ?? "");
@@ -239,7 +238,6 @@ export async function POST(request: Request) {
     sha256,
     linked_entity_type: linkedEntityType,
     linked_entity_id: linkedEntityId,
-    related_requirement_id: relatedRequirementId || null,
     requirement_item_id: requirementItemId || null,
     facility_id: linkType === "facility" ? facilityId || null : linkedProductFacilityId,
     expiration_date: expirationDate || null,
@@ -256,17 +254,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: document.error.message }, { status: 500 });
   }
 
-  if (relatedRequirementId && document.data?.id) {
-    await (adminDb.from("requirement_evidence") as any).insert({
-      importer_id: resolvedImporterId,
-      supplier_id: resolvedSupplierId,
-      product_id: linkedEntityType === "product" ? linkedEntityId : null,
-      facility_id: linkedEntityType === "facility" ? linkedEntityId : linkedProductFacilityId,
-      requirement_id: relatedRequirementId,
-      document_id: document.data.id,
-      status: "uploaded"
-    });
-  }
+  // The requirement_evidence insert that used to sit here was removed with the
+  // legacy model (migration 023). It recorded which requirement a document
+  // answered — which documents.requirement_item_id already records, on the row
+  // itself, versioned and scoped by entity type.
 
   const { data: auditSetting } = await (adminDb.from("app_settings") as any)
     .select("boolean_value")
@@ -285,7 +276,7 @@ export async function POST(request: Request) {
         document_kind: documentKind,
         linked_entity_type: linkedEntityType,
         linked_entity_id: linkedEntityId,
-        related_requirement_id: relatedRequirementId || null
+        requirement_item_id: requirementItemId || null
       }
     });
   }

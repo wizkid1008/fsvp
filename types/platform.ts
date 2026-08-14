@@ -28,17 +28,6 @@ export type CommodityWorkflow = {
   verificationActivities: string[];
 };
 
-export type FsvpRequirement = {
-  name: string;
-  description: string;
-  requiredEvidence: string;
-  uploadedEvidence: string;
-  reviewerStatus: string;
-  gapStatus: string;
-  correctiveAction: string;
-  finalDetermination: string;
-};
-
 export type ReadinessScoreCategory = {
   category: string;
   weight: number;

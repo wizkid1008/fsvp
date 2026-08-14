@@ -32,11 +32,6 @@ type FacilityOption = {
   supplier_ids?: string[];
 };
 
-type RequirementOption = {
-  id: string;
-  requirement_name: string;
-};
-
 type RequirementItemOption = {
   id: string;
   item_name: string;
@@ -47,7 +42,6 @@ export function EvidenceUploadPanel({
   documentCategories = DOCUMENT_CATEGORIES,
   facilities = [],
   products = [],
-  requirements = [],
   requirementItems = [],
   suppliers = [],
   presetSupplierId = null
@@ -55,7 +49,6 @@ export function EvidenceUploadPanel({
   documentCategories?: string[];
   facilities?: FacilityOption[];
   products?: ProductOption[];
-  requirements?: RequirementOption[];
   requirementItems?: RequirementItemOption[];
   suppliers?: SupplierOption[];
   /** Set by /evidence?entity=supplier&id=<id>, arriving from that exporter's row. */
@@ -123,7 +116,6 @@ export function EvidenceUploadPanel({
     const selectedLinkType = formData.get("link_type")?.toString() ?? "supplier";
     const productId = selectedLinkType === "product" ? formData.get("product_id")?.toString() ?? "" : "";
     const facilityId = selectedLinkType === "facility" ? formData.get("facility_id")?.toString() ?? "" : "";
-    const requirementId = formData.get("related_requirement_id")?.toString() ?? "";
 
     if (!selectedSupplierId) {
       setError("Select the supplier this evidence belongs to.");
@@ -159,7 +151,6 @@ export function EvidenceUploadPanel({
         body.append("link_type", selectedLinkType);
         if (productId) body.append("product_id", productId);
         if (facilityId) body.append("facility_id", facilityId);
-        if (requirementId) body.append("related_requirement_id", requirementId);
 
         const requirementItemId = formData.get("requirement_item_id")?.toString() ?? "";
         const expirationDate = formData.get("expiration_date")?.toString() ?? "";
@@ -247,27 +238,23 @@ export function EvidenceUploadPanel({
                 ))}
               </select>
             </label>
-            {requirementItems.length > 0 ? (
-              <label className="block text-sm font-medium text-slate-700">
-                Requirement Item
-                <select name="requirement_item_id" className="mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest">
-                  <option value="">Not mapped</option>
-                  {requirementItems.map((item) => (
-                    <option key={item.id} value={item.id}>{item.section_name} — {item.item_name}</option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <label className="block text-sm font-medium text-slate-700">
-                FSVP Requirement
-                <select name="related_requirement_id" className="mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest">
-                  <option value="">Not mapped yet</option>
-                  {requirements.map((requirement) => (
-                    <option key={requirement.id} value={requirement.id}>{requirement.requirement_name}</option>
-                  ))}
-                </select>
-              </label>
-            )}
+            <label className="block text-sm font-medium text-slate-700">
+              Requirement Item
+              <select name="requirement_item_id" className="mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest">
+                <option value="">Not mapped</option>
+                {requirementItems.map((item) => (
+                  <option key={item.id} value={item.id}>{item.section_name} — {item.item_name}</option>
+                ))}
+              </select>
+              {requirementItems.length === 0 ? (
+                // Says why the list is empty instead of showing an empty
+                // dropdown: no rule version is published, so there is nothing
+                // to file against yet.
+                <span className="mt-1 block text-xs text-slate-500">
+                  No published rule version, so there are no requirements to map to yet.
+                </span>
+              ) : null}
+            </label>
             <label className="block text-sm font-medium text-slate-700">
               Expiration Date (if applicable)
               <input type="date" name="expiration_date"

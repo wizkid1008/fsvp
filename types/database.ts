@@ -110,18 +110,6 @@ export type FacilitySupplierAccess = {
   created_at: string;
 };
 
-export type FsvpRequirement = {
-  id: string;
-  requirement_key: string;
-  requirement_name: string;
-  requirement_description: string;
-  cfr_citation: string | null;
-  required_evidence: string;
-  active: boolean;
-  sort_order: number;
-  created_at: string;
-};
-
 export type CorrectiveAction = {
   id: string;
   importer_id: string;
@@ -231,7 +219,7 @@ export type Database = {
           approval_status: string | null;
           reviewer_profile_id: string | null;
           review_notes: string | null;
-          related_requirement_id: string | null;
+          requirement_item_id: string | null;
           expiration_date: string | null;
           created_at: string;
         };
@@ -248,7 +236,7 @@ export type Database = {
           language?: string | null;
           linked_entity_type?: string | null;
           linked_entity_id?: string | null;
-          related_requirement_id?: string | null;
+          requirement_item_id?: string | null;
           expiration_date?: string | null;
           uploaded_via?: string;
         };
@@ -277,12 +265,6 @@ export type Database = {
         Row: FacilitySupplierAccess;
         Insert: Partial<FacilitySupplierAccess> & Pick<FacilitySupplierAccess, "facility_id" | "supplier_id">;
         Update: Partial<FacilitySupplierAccess>;
-        Relationships: [];
-      };
-      fsvp_requirements: {
-        Row: FsvpRequirement;
-        Insert: Partial<FsvpRequirement> & Pick<FsvpRequirement, "requirement_key" | "requirement_name" | "requirement_description" | "required_evidence">;
-        Update: Partial<FsvpRequirement>;
         Relationships: [];
       };
       corrective_actions: {

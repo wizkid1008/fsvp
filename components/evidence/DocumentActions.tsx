@@ -24,9 +24,14 @@ type FacilityOption = {
   supplier_ids?: string[];
 };
 
-type RequirementOption = {
+type RequirementItemOption = {
   id: string;
-  requirement_name: string;
+  item_name: string;
+  section_name: string;
+  /** 'facility' | 'product' | 'supplier' — narrows the list to the entity the
+   *  document is linked to, so a product document cannot be filed against a
+   *  facility requirement. */
+  applies_to: string;
 };
 
 export type EditableDocument = {
@@ -37,7 +42,7 @@ export type EditableDocument = {
   approval_status: string | null;
   linked_entity_type: string | null;
   linked_entity_id: string | null;
-  related_requirement_id: string | null;
+  requirement_item_id: string | null;
 };
 
 const REVIEW_STATUSES = [
@@ -98,7 +103,7 @@ export function DocumentActions({
   documentCategories,
   facilities,
   products,
-  requirements,
+  requirementItems,
   suppliers
 }: {
   canEditReviewStatus?: boolean;
@@ -106,7 +111,7 @@ export function DocumentActions({
   documentCategories: string[];
   facilities: FacilityOption[];
   products: ProductOption[];
-  requirements: RequirementOption[];
+  requirementItems: RequirementItemOption[];
   suppliers: SupplierOption[];
 }) {
   const router = useRouter();
@@ -119,7 +124,20 @@ export function DocumentActions({
   const [linkType, setLinkType] = useState<"supplier" | "product" | "facility">(initialLinkState.linkType);
   const [productId, setProductId] = useState(initialLinkState.productId);
   const [facilityId, setFacilityId] = useState(initialLinkState.facilityId);
+  const [requirementItemId, setRequirementItemId] = useState(document.requirement_item_id ?? "");
   const categoryOptions = Array.from(new Set([document.document_kind, ...documentCategories].filter(Boolean)));
+
+  // Requirements are scoped by applies_to, so the list follows the link type.
+  const availableRequirementItems = requirementItems.filter((item) => item.applies_to === linkType);
+
+  // Switching a document from product to facility invalidates whatever was
+  // selected, so the mapping is cleared rather than left pointing at a
+  // requirement that does not apply to what the document is now linked to.
+  function changeLinkType(next: "supplier" | "product" | "facility") {
+    setLinkType(next);
+    setRequirementItemId("");
+  }
+
   const supplierProducts = products.filter((product) => product.supplier_id === supplierId);
   const supplierFacilities = facilities.filter((facility) => {
     const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
@@ -144,7 +162,6 @@ export function DocumentActions({
       try {
         const title = formData.get("title")?.toString().trim() ?? "";
         const documentKind = formData.get("document_kind")?.toString().trim() ?? "";
-        const requirementId = clean(formData.get("related_requirement_id"));
         const selectedSupplierId = clean(formData.get("supplier_id"));
         const selectedLinkType = formData.get("link_type")?.toString() ?? "supplier";
         const selectedProductId = selectedLinkType === "product" ? clean(formData.get("product_id")) : null;
@@ -182,10 +199,6 @@ export function DocumentActions({
             ? selectedFacilityId
             : selectedSupplierId;
 
-        const product = selectedProductId ? products.find((item) => item.id === selectedProductId) : null;
-        const facility = selectedFacilityId ? facilities.find((item) => item.id === selectedFacilityId) : null;
-        const facilityForProduct = product?.facility_id ? facilities.find((item) => item.id === product.facility_id) : null;
-
         const supabase = createBrowserSupabaseClient();
         const newStatus = canEditReviewStatus ? clean(formData.get("approval_status")) ?? "submitted" : undefined;
         const payload: Record<string, unknown> = {
@@ -193,7 +206,10 @@ export function DocumentActions({
           document_kind: documentKind,
           linked_entity_type: linkedEntityType,
           linked_entity_id: linkedEntityId,
-          related_requirement_id: requirementId,
+          // From state, not formData: the select is controlled, and switching
+          // the link type clears it. Reading the form here would resubmit a
+          // stale value the user can no longer see in the list.
+          requirement_item_id: requirementItemId || null,
         };
         if (newStatus && canEditReviewStatus) {
           payload.evidence_status = newStatus;
@@ -204,36 +220,18 @@ export function DocumentActions({
             : newStatus === "under_review" ? "under_review"
             : "uploaded";
         }
-        const approvalStatus = (payload.approval_status ?? document.approval_status ?? "uploaded") as string;
-
         const { error: documentError } = await (supabase.from("documents") as any)
           .update(payload)
           .eq("id", document.id);
 
         if (documentError) throw documentError;
 
-        // Withdrawn, not destroyed. This row records WHICH requirement the
-        // document was offered against, so deleting it leaves a retained
-        // document whose meaning is gone — the letter of 21 CFR 1.510(c) and
-        // none of its purpose. See migration 011.
-        await (supabase.from("requirement_evidence") as any)
-          .update({ soft_deleted_at: new Date().toISOString() })
-          .eq("document_id", document.id)
-          .is("soft_deleted_at", null);
-
-        if (requirementId) {
-          const { error: evidenceError } = await (supabase.from("requirement_evidence") as any).insert({
-            importer_id: document.importer_id,
-            supplier_id: selectedSupplierId,
-            product_id: linkedEntityType === "product" ? linkedEntityId : null,
-            facility_id: linkedEntityType === "facility" ? linkedEntityId : (facilityForProduct?.id ?? facility?.id ?? null),
-            requirement_id: requirementId,
-            document_id: document.id,
-            status: approvalStatus
-          });
-
-          if (evidenceError) throw evidenceError;
-        }
+        // The withdraw-and-reinsert of requirement_evidence that used to sit
+        // here went with the legacy model (migration 023). It existed to keep
+        // a record of WHICH requirement the document was offered against; that
+        // now lives on the document row itself, so changing the mapping is an
+        // ordinary column update and the retention concern behind migration
+        // 011 no longer has a separate row to protect.
 
         const {
           data: { user }
@@ -282,10 +280,11 @@ export function DocumentActions({
 
         if (documentError) throw documentError;
 
-        await (supabase.from("requirement_evidence") as any)
-          .update({ soft_deleted_at: deletedAt })
-          .eq("document_id", document.id)
-          .is("soft_deleted_at", null);
+        // Soft-deleting the document is now the whole operation. The mirrored
+        // requirement_evidence soft-delete went with the legacy model
+        // (migration 023) — the requirement pointer lives on the document row,
+        // so it is retained and withdrawn together with it, which is what
+        // migration 011 was reaching for.
 
         const {
           data: { user }
@@ -373,7 +372,7 @@ export function DocumentActions({
                     value={supplierId}
                     onChange={(event) => {
                       setSupplierId(event.target.value);
-                      setLinkType("supplier");
+                      changeLinkType("supplier");
                       setProductId("");
                       setFacilityId("");
                     }}
@@ -388,22 +387,28 @@ export function DocumentActions({
                 <label className="block text-sm font-medium text-slate-700">
                   FSVP Requirement
                   <select
-                    name="related_requirement_id"
-                    defaultValue={document.related_requirement_id ?? ""}
+                    name="requirement_item_id"
+                    value={requirementItemId}
+                    onChange={(event) => setRequirementItemId(event.target.value)}
                     className="mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
                   >
                     <option value="">Not mapped yet</option>
-                    {requirements.map((requirement) => (
-                      <option key={requirement.id} value={requirement.id}>{requirement.requirement_name}</option>
+                    {availableRequirementItems.map((item) => (
+                      <option key={item.id} value={item.id}>{item.section_name} — {item.item_name}</option>
                     ))}
                   </select>
+                  {availableRequirementItems.length === 0 ? (
+                    <span className="mt-1 block text-xs text-slate-500">
+                      No {linkType} requirements are published to map this to.
+                    </span>
+                  ) : null}
                 </label>
                 <label className="block text-sm font-medium text-slate-700">
                   Link Evidence To
                   <select
                     name="link_type"
                     value={linkType}
-                    onChange={(event) => setLinkType(event.target.value as "supplier" | "product" | "facility")}
+                    onChange={(event) => changeLinkType(event.target.value as "supplier" | "product" | "facility")}
                     className="mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
                   >
                     <option value="supplier">Supplier-wide evidence</option>
