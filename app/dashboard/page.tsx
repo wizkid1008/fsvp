@@ -73,24 +73,47 @@ async function ImporterDashboard({
   // importer with ten of eleven setup steps outstanding was told "Nothing needs
   // your attention". Two counts are enough to tell "not started" from "all
   // clear".
-  const [{ count: facilityCount }, { count: productCount }] = supplierIds.length
+  const [{ count: facilityCount }, { data: productRows }] = supplierIds.length
     ? await Promise.all([
         (supabase.from("facilities_verify") as any)
           .select("id", { count: "exact", head: true })
           .in("supplier_id", supplierIds) as Promise<{ count: number | null }>,
+        // Columns rather than a head count: the next step cannot be worked out
+        // from how many products exist, only from what is missing on them.
         (supabase.from("products_verify") as any)
-          .select("id", { count: "exact", head: true })
-          .in("supplier_id", supplierIds) as Promise<{ count: number | null }>,
+          .select("id, commodity_id, country_of_origin")
+          .in("supplier_id", supplierIds) as Promise<{
+            data: Array<{ commodity_id: string | null; country_of_origin: string | null }> | null;
+          }>,
       ])
-    : [{ count: 0 }, { count: 0 }];
+    : [{ count: 0 }, { data: [] }];
 
-  // The first canonical step that has nothing behind it yet, or null once the
-  // account is far enough along that "clear" means what it says.
+  const products = productRows ?? [];
+  const unclassified = products.filter((p) => !p.commodity_id || !p.country_of_origin).length;
+
+  /**
+   * The first canonical step with work outstanding.
+   *
+   * This used to run exporter → facility → product → record, skipping
+   * classification and admissibility entirely. On a real account that produced
+   * "Next step 6 of 11 — Open FSVP record" while the tile beside it said five
+   * products needed reference coverage — and step 6 cannot be done first,
+   * because opening a record requires a live applicability determination, which
+   * requires a classified product with a known origin.
+   *
+   * signals.referenceGaps counts products missing classification, origin OR a
+   * current admissibility determination, so once classification is clean any
+   * gap that remains is admissibility.
+   */
+  const referenceGaps = signals?.referenceGaps.length ?? 0;
+
   const nextStepId =
     supplierIds.length === 0 ? "exporter"
     : (facilityCount ?? 0) === 0 ? "facility"
-    : (productCount ?? 0) === 0 ? "product"
-    : fsvpRows.length === 0 ? "record"
+    : products.length === 0 ? "product"
+    : unclassified > 0 ? "classification"
+    : referenceGaps > 0 ? "admissibility"
+    : fsvpRows.length === 0 || (signals?.undeterminedPairs ?? 0) > 0 ? "record"
     : null;
 
   const nextStep = nextStepId
