@@ -150,8 +150,20 @@ export async function POST(req: NextRequest) {
   if (resolution.status !== "resolved") {
     return NextResponse.json(
       {
+        // "No rule on file" is the honest answer and the common one — the
+        // reference layer is curated by hand and ships empty, deliberately
+        // (docs/reference-layer-curation.md). But said in four words it reads
+        // like a fault in the platform rather than a gap in the data, and
+        // leaves the importer with nowhere to go. Say which gap it is and who
+        // closes it. The absence still blocks: a determination invented to get
+        // past this screen is exactly the confident wrong answer the curated
+        // table exists to prevent.
         error: resolution.status === "no_rule"
-          ? "No rule on file covers this movement."
+          ? "No country-commodity rule on file covers this movement. Rules are added by a " +
+            "platform administrator under Admin → Country-Commodity Rules, after checking APHIS " +
+            "ACIR — they are curated by hand rather than shipped, because a rule nobody has " +
+            "verified produces a confident wrong answer. Ask an administrator to add the rule " +
+            "for this commodity and origin, then record the determination."
           : "The rules on file cannot support a determination.",
         status: resolution.status,
         reasons: resolution.reasons,
