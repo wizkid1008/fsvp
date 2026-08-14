@@ -49,7 +49,8 @@ export function EvidenceUploadPanel({
   products = [],
   requirements = [],
   requirementItems = [],
-  suppliers = []
+  suppliers = [],
+  presetSupplierId = null
 }: {
   documentCategories?: string[];
   facilities?: FacilityOption[];
@@ -57,11 +58,22 @@ export function EvidenceUploadPanel({
   requirements?: RequirementOption[];
   requirementItems?: RequirementItemOption[];
   suppliers?: SupplierOption[];
+  /** Set by /evidence?entity=supplier&id=<id>, arriving from that exporter's row. */
+  presetSupplierId?: string | null;
 }) {
   const router = useRouter();
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [supplierId, setSupplierId] = useState(suppliers.length === 1 ? suppliers[0]?.id ?? "" : "");
+  // Arriving from one exporter's row already said which company this is for;
+  // making the user pick it again from a dropdown is the same detour that made
+  // "Add facility" feel disconnected from the exporter it belonged to.
+  const [supplierId, setSupplierId] = useState(
+    presetSupplierId && suppliers.some((s) => s.id === presetSupplierId)
+      ? presetSupplierId
+      : suppliers.length === 1
+        ? suppliers[0]?.id ?? ""
+        : ""
+  );
   const [linkType, setLinkType] = useState<"supplier" | "product" | "facility">("supplier");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);

@@ -6,7 +6,7 @@ import { AddSupplierForm } from "@/components/suppliers/AddSupplierForm";
 import { LinkSupplierModal } from "@/components/suppliers/LinkSupplierModal";
 import { CreateExporterForm } from "@/components/suppliers/CreateExporterForm";
 import { SuspensionControl, type SuspensionRow } from "@/components/suppliers/SuspensionControl";
-import { Building2, Pencil, Search, Plus, Link2, MailWarning, Warehouse } from "lucide-react";
+import { Building2, Pencil, Search, Plus, Link2, MailWarning, Warehouse, FileUp } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 import type { Country } from "@/types/database";
 
@@ -353,12 +353,23 @@ export function SupplierTable({
                         </a>
                       </td>
                     )}
+                    {/* "0 documents" read as a status rather than a way in, so
+                        with nothing uploaded the cell said only that nothing was
+                        uploaded. The destination is the same either way — the
+                        evidence page opens with this exporter preselected. */}
                     <td className="px-4 py-3">
                       <a
                         href={`/evidence?entity=supplier&id=${supplier.id}`}
-                        className="font-semibold text-forest hover:underline"
+                        className="inline-flex items-center gap-1.5 font-semibold text-forest hover:underline"
                       >
-                        {supplier.evidence_count ?? 0} documents
+                        {(supplier.evidence_count ?? 0) === 0 ? (
+                          <>
+                            <FileUp className="h-3.5 w-3.5" />
+                            Add document
+                          </>
+                        ) : (
+                          `${supplier.evidence_count} documents`
+                        )}
                       </a>
                     </td>
                     <td className="px-4 py-3 text-slate-500">

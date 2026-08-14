@@ -145,6 +145,7 @@ export default async function EvidencePage({
             products={products}
             requirements={requirements}
             suppliers={suppliers}
+            presetSupplierId={filterEntity === "supplier" && filterId ? filterId : null}
           />
 
           {activeFilterLabel ? (
