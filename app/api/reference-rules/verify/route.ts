@@ -113,6 +113,12 @@ export async function POST(req: NextRequest) {
       // Somebody has just looked, so whatever change detection flagged has now
       // been accounted for.
       source_changed_at:      null,
+      // And the notification state resets with it. Left stale, a rule verified
+      // shortly after being flagged would carry an old review_notified_at into
+      // its next cycle, and the review sweep's renotify window would suppress
+      // the reminder when it next came due — silently, and precisely for the
+      // rules someone had been diligent about. See lib/regulatory/rule-review.ts.
+      review_notified_at:     null,
     })
     .eq("id", ruleId)
     .is("superseded_at", null);
