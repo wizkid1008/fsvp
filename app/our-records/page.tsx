@@ -5,12 +5,17 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { ImporterRecordUpload } from "@/components/evidence/ImporterRecordUpload";
+import { ProcedureEditor } from "@/components/evidence/ProcedureEditor";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { outstandingRequired, summariseImporterRecords } from "@/lib/fsvp/importer-records";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
+
+/** Obligations the importer writes about its own process, so they are edited
+ *  in place rather than uploaded. The rest are external evidence. */
+const EDITABLE_PROCEDURES = ["approved_supplier_procedures", "records_procedures"];
 
 /**
  * The importer's own FSVP documents.
@@ -68,7 +73,31 @@ export default async function OurRecordsPage() {
     expiration_date: string | null;
   }>;
 
-  const summary = summariseImporterRecords(documents);
+  // Two of the four obligations are procedures the importer writes about its own
+  // process, so they live as editable versioned records rather than uploaded
+  // files — see migration 021. The other two are genuinely external evidence
+  // and stay as documents.
+  const { data: rawProcedures } = await (supabase.from("importer_procedures") as any)
+    .select("kind, content, status, version, adopted_at, profiles:adopted_by_profile_id(full_name, email)")
+    .eq("importer_id", importerId)
+    .in("status", ["draft", "adopted"]);
+
+  const procedures = (rawProcedures ?? []) as Array<{
+    kind: string;
+    content: string;
+    status: "draft" | "adopted";
+    version: number;
+    adopted_at: string | null;
+    profiles: { full_name: string | null; email: string } | null;
+  }>;
+
+  // An adopted procedure satisfies its obligation the way an accepted document
+  // does, so the summary counts both rather than reporting a gap that is filled.
+  const adoptedKinds = procedures.filter((p) => p.status === "adopted").map((p) => p.kind);
+
+  const summary = summariseImporterRecords(documents).map((s) =>
+    adoptedKinds.includes(s.kind.key) ? { ...s, satisfied: true } : s
+  );
   const outstanding = outstandingRequired(summary);
 
   const statusTone = (s: string | null): StatusTone =>
@@ -87,8 +116,8 @@ export default async function OurRecordsPage() {
       {outstanding > 0 && (
         <NextStepBanner>
           {outstanding === 1
-            ? "1 required record has no accepted document yet"
-            : `${outstanding} required records have no accepted document yet`}
+            ? "1 required record is not yet in place"
+            : `${outstanding} required records are not yet in place`}
           . These are held once by your organization and relied on across every FSVP record you own,
           so a gap here affects all of them at once.
         </NextStepBanner>
@@ -135,13 +164,29 @@ export default async function OurRecordsPage() {
                 </div>
               )}
 
-              <div className="border-t border-line px-5 py-3">
-                <ImporterRecordUpload
-                  documentKind={kind.key}
-                  label={kind.title}
-                  importerId={importerId}
-                  hasDocuments={count > 0}
-                />
+              <div className="border-t border-line px-5 py-4">
+                {EDITABLE_PROCEDURES.includes(kind.key) ? (
+                  (() => {
+                    const live = procedures.find((p) => p.kind === kind.key) ?? null;
+                    return (
+                      <ProcedureEditor
+                        kind={kind.key}
+                        content={live?.content ?? null}
+                        status={live?.status ?? "none"}
+                        version={live?.version ?? null}
+                        adoptedAt={live?.adopted_at ?? null}
+                        adoptedBy={live?.profiles?.full_name ?? live?.profiles?.email ?? null}
+                      />
+                    );
+                  })()
+                ) : (
+                  <ImporterRecordUpload
+                    documentKind={kind.key}
+                    label={kind.title}
+                    importerId={importerId}
+                    hasDocuments={count > 0}
+                  />
+                )}
               </div>
             </section>
           );
