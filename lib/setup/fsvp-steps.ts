@@ -86,9 +86,9 @@ export const FSVP_SETUP_STEPS = [
   {
     id: "package",
     title: "Generate inspection package",
-    description: "Assemble the printable record package used during an FDA records request.",
-    href: "/reports",
-    actionLabel: "Open reports",
+    description: "Open each approved record and assemble the printable package used during an FDA records request.",
+    href: "/fsvp-records",
+    actionLabel: "Open records",
   },
 ] as const;
 
