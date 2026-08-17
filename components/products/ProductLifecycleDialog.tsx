@@ -48,6 +48,10 @@ export function ProductLifecycleDialog({
   const [confirmedNeverImported, setConfirmedNeverImported] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refusedByRecords, setRefusedByRecords] = useState(false);
+  const lifecycleInput = {
+    lifecycle: product.lifecycle,
+    discontinuedOn: product.discontinued_on,
+  };
 
   const today = new Date().toISOString().slice(0, 10);
   const unchanged = target === product.lifecycle;
@@ -121,7 +125,7 @@ export function ProductLifecycleDialog({
         </div>
 
         <div className="space-y-4 px-5 py-4">
-          <p className="text-sm text-slate-600">{lifecycleExplanation(product)}</p>
+          <p className="text-sm text-slate-600">{lifecycleExplanation(lifecycleInput)}</p>
 
           <fieldset className="space-y-2">
             <legend className="sr-only">Product state</legend>

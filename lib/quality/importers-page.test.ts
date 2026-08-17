@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { ReactNode } from "react";
 import { createSupabaseMock, type SupabaseMock } from "./supabase-mock";
 import { resolve, text } from "./render";
 
@@ -47,7 +48,7 @@ vi.mock("@/components/layout/AppShell", () => ({
 
 async function renderPage() {
   const { default: ImportersPage } = await import("@/app/importers/page");
-  return resolve(await (ImportersPage as unknown as () => Promise<unknown>)());
+  return resolve(await (ImportersPage as unknown as () => Promise<ReactNode>)());
 }
 
 function withProfile(id: string | null, rows: Record<string, unknown[]> = {}) {
