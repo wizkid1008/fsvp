@@ -64,7 +64,8 @@ export default async function FsvpRecordsPage() {
 
   const records = (rawRecords ?? []) as RecordRow[];
 
-  const approved = records.filter((r) => r.status === "importer_approved").length;
+  const approvedRecords = records.filter((r) => r.status === "importer_approved");
+  const approved = approvedRecords.length;
   const conditional = records.filter((r) => r.status === "conditionally_approved").length;
   const pending = records.filter((r) =>
     ["draft", "importer_review_pending", "supplier_evidence_accepted"].includes(r.status)
@@ -104,10 +105,15 @@ export default async function FsvpRecordsPage() {
       )}
 
       {approved > 0 && (
-        <NextStepBanner action={{ label: "Generate package", href: "/reports" }}>
+        <NextStepBanner
+          action={{
+            label: approved === 1 ? "Open approved record" : "See package steps",
+            href: approved === 1 ? `/fsvp-records/${approvedRecords[0].id}` : "/setup/fsvp",
+          }}
+        >
           {approved === 1 ? "1 record is approved" : `${approved} records are approved`}. Generate
           the inspection package for each — that is the printable evidence assembled during an FDA
-          records request, and it is the last step of the path.
+          records request; use the approved record detail page.
         </NextStepBanner>
       )}
 
