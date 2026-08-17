@@ -69,6 +69,11 @@ export default async function ApplicabilityPage() {
         ? (admin.from("products_verify") as any)
             .select("id, product_name, supplier_id, suppliers(company_name)")
             .in("supplier_id", supplierIds)
+            // Applicability is only work for food the importer actually
+            // imports. Discontinued and never-imported products stay in the
+            // product library for retention/history, but should not generate
+            // new FSVP applicability blockers.
+            .eq("lifecycle", "active")
             .order("product_name")
         : Promise.resolve({ data: [] }),
 

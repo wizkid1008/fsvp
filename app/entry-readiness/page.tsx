@@ -87,6 +87,10 @@ export default async function ShipmentReadinessPage() {
     ? await (admin.from("products_verify") as any)
         .select("id, product_name, country_of_origin, commodity_id, supplier_id, suppliers(company_name), facilities_verify(facility_name)")
         .in("supplier_id", supplierIds)
+        // Entry readiness is a daily operating view for foods currently
+        // imported. Products retained only for history should not look like
+        // shipments waiting to move.
+        .eq("lifecycle", "active")
         .order("product_name")
     : { data: [] };
 
