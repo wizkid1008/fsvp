@@ -162,10 +162,11 @@ export default async function FacilitiesPage({
       : "";
   const facilityScopeSupplierId = isSupplier
     ? activeSupplierId
-    : requestedSupplierId || (importerScoped ? supplierOptions[0]?.id ?? "" : "");
+    : requestedSupplierId;
   const facilityScopeSupplierName = facilityScopeSupplierId
     ? supplierById.get(facilityScopeSupplierId) ?? null
     : null;
+  const importerSupplierIds = new Set(supplierOptions.map((supplier) => supplier.id));
 
   for (const access of (accessRows ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
     const existing = accessByFacility.get(access.facility_id) ?? [];
@@ -186,7 +187,7 @@ export default async function FacilitiesPage({
     .filter((facility) =>
       facilityScopeSupplierId
         ? facility.supplier_ids.includes(facilityScopeSupplierId)
-        : !importerScoped
+        : !importerScoped || facility.supplier_ids.some((supplierId) => importerSupplierIds.has(supplierId))
     );
 
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
@@ -249,10 +250,13 @@ export default async function FacilitiesPage({
           basePath="/facilities"
           currentId={facilityScopeSupplierId}
           label="Viewing exporter"
-          options={supplierOptions.map((supplier) => ({
-            id: supplier.id,
-            label: supplier.company_name,
-          }))}
+          options={[
+            { id: "", label: "All linked exporters" },
+            ...supplierOptions.map((supplier) => ({
+              id: supplier.id,
+              label: supplier.company_name,
+            })),
+          ]}
           param="supplier"
         />
       )}

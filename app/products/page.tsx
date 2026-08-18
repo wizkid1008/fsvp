@@ -201,13 +201,18 @@ export default async function ProductsPage({
   const requestedFacility = searchParams.facility
     ? facilityOptions.find((facility) => facility.id === searchParams.facility) ?? null
     : null;
-  const productScopeFacility = requestedFacility ?? (!isSupplier && importerScoped ? facilityOptions[0] ?? null : null);
+  const productScopeFacility = requestedFacility;
   const productScopeFacilityId = productScopeFacility?.id ?? "";
+  const importerFacilityIds = new Set(facilityOptions.map((facility) => facility.id));
   const productsBeforeStatus = ((rawProducts ?? []) as unknown as ProductRow[])
     .filter((product) =>
       productScopeFacilityId
         ? product.facility_id === productScopeFacilityId
-        : !importerScoped
+        : !importerScoped ||
+            Boolean(
+              (product.facility_id && importerFacilityIds.has(product.facility_id)) ||
+              (product.supplier_id && importerSupplierIds.has(product.supplier_id))
+            )
     )
     .map((product) => ({
       ...product,
@@ -344,13 +349,16 @@ export default async function ProductsPage({
           basePath="/products"
           currentId={productScopeFacilityId}
           label="Viewing facility"
-          options={facilityOptions.map((facility) => ({
-            id: facility.id,
-            label: `${facility.facility_name} (${supplierOptions
-              .filter((supplier) => facility.supplier_ids.includes(supplier.id))
-              .map((supplier) => supplier.company_name)
-              .join(", ") || "No exporter"})`,
-          }))}
+          options={[
+            { id: "", label: "All linked facilities" },
+            ...facilityOptions.map((facility) => ({
+              id: facility.id,
+              label: `${facility.facility_name} (${supplierOptions
+                .filter((supplier) => facility.supplier_ids.includes(supplier.id))
+                .map((supplier) => supplier.company_name)
+                .join(", ") || "No exporter"})`,
+            })),
+          ]}
           param="facility"
         />
       )}

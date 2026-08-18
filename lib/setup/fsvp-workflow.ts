@@ -205,9 +205,14 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
   } else {
     for (const product of input.products) {
       if (!product.supplier_id || !product.facility_id) {
+        const missingLink = !product.supplier_id && !product.facility_id
+          ? "exporter and facility links"
+          : !product.supplier_id
+            ? "exporter link"
+            : "facility link";
         productBlockers.push(blocker(
           `product-link-${product.id}`,
-          `${productLabel(product)} is missing its exporter or facility link.`,
+          `${productLabel(product)} is missing its ${missingLink}.`,
           `/products/${product.id}`,
           "Fix product"
         ));
