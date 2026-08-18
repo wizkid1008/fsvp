@@ -11,6 +11,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getSupplierType } from "@/lib/supplier-context";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
+import { isTenantConfined } from "@/lib/auth/tenancy";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -25,13 +26,19 @@ export default async function FacilitiesPage({
   const isSupplier = role === "supplier" || role === "exporter";
 
   const { data: profile } = await (supabase.from("profiles") as any)
-    .select("supplier_id")
+    .select("supplier_id, importer_id")
     .eq("id", user.id)
     .maybeSingle();
 
   const ownSupplierId: string = isSupplier
     ? (resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) ?? "")
     : "";
+  const importerId: string | null = !isSupplier
+    ? resolvePreviewedAccountId(realRole, profile?.importer_id ?? null)
+    : null;
+  const importerScoped =
+    !isSupplier &&
+    (role === "us_importer" || isTenantConfined({ role: realRole, importer_id: profile?.importer_id ?? null }));
 
   // Context switcher: exporter can view a linked supplier's facilities via ?view=<id>
   const viewId = searchParams.view ?? "";
@@ -76,6 +83,28 @@ export default async function FacilitiesPage({
     linkedSuppliers = (supplierRows ?? []) as Array<{ id: string; company_name: string }>;
   }
 
+  let importerSupplierOptions: Array<{ id: string; company_name: string }> = [];
+  if (importerScoped && importerId) {
+    const admin = createAdminSupabaseClient();
+    const { data: importerLinks } = await (admin.from("supplier_relationships") as any)
+      .select("supplier_id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("importer_id", importerId)
+      .in("status", ["active", "pending_invite"]);
+
+    const importerSupplierIds = ((importerLinks ?? []) as Array<{ supplier_id: string | null }>)
+      .map((link) => link.supplier_id)
+      .filter(Boolean) as string[];
+
+    if (importerSupplierIds.length > 0) {
+      const { data: importerSuppliers } = await (admin.from("suppliers") as any)
+        .select("id, company_name")
+        .in("id", importerSupplierIds)
+        .order("company_name");
+      importerSupplierOptions = (importerSuppliers ?? []) as Array<{ id: string; company_name: string }>;
+    }
+  }
+
   let suppliersQuery = (supabase.from("suppliers") as any)
     .select("id, company_name")
     .order("company_name");
@@ -110,6 +139,9 @@ export default async function FacilitiesPage({
   }
 
   let supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
+  if (importerScoped) {
+    supplierOptions = importerSupplierOptions;
+  }
 
   // Guarantee the current supplier-role user's own record appears in the form options
   // even if the DB query returned empty (can happen when profiles.supplier_id isn't set
@@ -130,7 +162,9 @@ export default async function FacilitiesPage({
     searchParams.supplier && supplierOptions.some((s) => s.id === searchParams.supplier)
       ? searchParams.supplier
       : "";
-  const facilityScopeSupplierId = isSupplier ? activeSupplierId : requestedSupplierId;
+  const facilityScopeSupplierId = isSupplier
+    ? activeSupplierId
+    : requestedSupplierId || (importerScoped ? supplierOptions[0]?.id ?? "" : "");
   const facilityScopeSupplierName = facilityScopeSupplierId
     ? supplierById.get(facilityScopeSupplierId) ?? null
     : null;
@@ -151,7 +185,11 @@ export default async function FacilitiesPage({
         evidence_count: evidenceCountByFacility.get(facility.id) ?? 0,
       };
     })
-    .filter((facility) => !facilityScopeSupplierId || facility.supplier_ids.includes(facilityScopeSupplierId));
+    .filter((facility) =>
+      facilityScopeSupplierId
+        ? facility.supplier_ids.includes(facilityScopeSupplierId)
+        : !importerScoped
+    );
 
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 

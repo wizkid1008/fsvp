@@ -11,6 +11,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
+import { isTenantConfined } from "@/lib/auth/tenancy";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -25,13 +26,19 @@ export default async function ProductsPage({
   const isSupplier = role === "supplier" || role === "exporter";
 
   const { data: profile } = await (supabase.from("profiles") as any)
-    .select("supplier_id, organization_name")
+    .select("supplier_id, importer_id, organization_name")
     .eq("id", user.id)
     .maybeSingle();
 
   const ownSupplierId: string = isSupplier
     ? (resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) ?? "00000000-0000-0000-0000-000000000000")
     : "";
+  const importerId: string | null = !isSupplier
+    ? resolvePreviewedAccountId(realRole, profile?.importer_id ?? null)
+    : null;
+  const importerScoped =
+    !isSupplier &&
+    (role === "us_importer" || isTenantConfined({ role: realRole, importer_id: profile?.importer_id ?? null }));
 
   // Context switcher: exporter can view a linked supplier's products via ?view=<id>
   const viewId = searchParams.view ?? "";
@@ -73,6 +80,28 @@ export default async function ProductsPage({
       .select("id, company_name")
       .in("id", linkedSupplierIdList);
     linkedSuppliers = (supplierRows ?? []) as Array<{ id: string; company_name: string }>;
+  }
+
+  let importerSupplierOptions: Array<{ id: string; company_name: string }> = [];
+  if (importerScoped && importerId) {
+    const admin = createAdminSupabaseClient();
+    const { data: importerLinks } = await (admin.from("supplier_relationships") as any)
+      .select("supplier_id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("importer_id", importerId)
+      .in("status", ["active", "pending_invite"]);
+
+    const importerSupplierIds = ((importerLinks ?? []) as Array<{ supplier_id: string | null }>)
+      .map((link) => link.supplier_id)
+      .filter(Boolean) as string[];
+
+    if (importerSupplierIds.length > 0) {
+      const { data: importerSuppliers } = await (admin.from("suppliers") as any)
+        .select("id, company_name")
+        .in("id", importerSupplierIds)
+        .order("company_name");
+      importerSupplierOptions = (importerSuppliers ?? []) as Array<{ id: string; company_name: string }>;
+    }
   }
 
   let productsQuery = (supabase.from("products_verify") as any)
@@ -125,10 +154,67 @@ export default async function ProductsPage({
     }
   }
 
-  const productsBeforeStatus = ((rawProducts ?? []) as unknown as ProductRow[]).map((product) => ({
-    ...product,
-    evidence_count: evidenceCountByProduct.get(product.id) ?? 0,
-  }));
+  let supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
+  if (importerScoped) {
+    supplierOptions = importerSupplierOptions;
+  }
+
+  // Same fallback as Facilities — guarantee own supplier appears so Add Product button shows
+  if (isSupplier && activeSupplierId && !supplierOptions.some((s) => s.id === activeSupplierId)) {
+    const { data: ownSupplier } = await (supabase.from("suppliers") as any)
+      .select("id, company_name")
+      .eq("id", activeSupplierId)
+      .maybeSingle();
+    if (ownSupplier) supplierOptions = [ownSupplier, ...supplierOptions];
+  }
+
+  const accessByFacility = new Map<string, string[]>();
+  for (const access of (facilityAccess ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
+    const existing = accessByFacility.get(access.facility_id) ?? [];
+    existing.push(access.supplier_id);
+    accessByFacility.set(access.facility_id, existing);
+  }
+
+  const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
+  const importerSupplierIds = new Set(importerSupplierOptions.map((supplier) => supplier.id));
+  const facilityOptions = ((facilities ?? []) as Array<{
+    id: string;
+    facility_name: string;
+    supplier_id: string | null;
+    facility_address_json: { country?: string } | null;
+  }>)
+    .map((facility) => ({
+      id: facility.id,
+      facility_name: facility.facility_name,
+      supplier_id: facility.supplier_id,
+      country: facility.facility_address_json?.country ?? null,
+      supplier_ids: accessByFacility.get(facility.id) ?? (facility.supplier_id ? [facility.supplier_id] : []),
+    }))
+    .filter((facility) => {
+      if (isSupplier) {
+        return Boolean(activeSupplierId && facility.supplier_ids.includes(activeSupplierId));
+      }
+      if (importerScoped) {
+        return facility.supplier_ids.some((supplierId) => importerSupplierIds.has(supplierId));
+      }
+      return true;
+    });
+
+  const requestedFacility = searchParams.facility
+    ? facilityOptions.find((facility) => facility.id === searchParams.facility) ?? null
+    : null;
+  const productScopeFacility = requestedFacility ?? (!isSupplier && importerScoped ? facilityOptions[0] ?? null : null);
+  const productScopeFacilityId = productScopeFacility?.id ?? "";
+  const productsBeforeStatus = ((rawProducts ?? []) as unknown as ProductRow[])
+    .filter((product) =>
+      productScopeFacilityId
+        ? product.facility_id === productScopeFacilityId
+        : !importerScoped
+    )
+    .map((product) => ({
+      ...product,
+      evidence_count: evidenceCountByProduct.get(product.id) ?? 0,
+    }));
 
   const productIds = productsBeforeStatus.map((product) => product.id);
   const { data: rawDeterminations, error: determinationsError } = productIds.length > 0 && !isSupplier
@@ -193,40 +279,6 @@ export default async function ProductsPage({
       !p.commodity_id || !p.country_of_origin
   ).length;
 
-  let supplierOptions = (suppliers ?? []) as Array<{ id: string; company_name: string }>;
-
-  // Same fallback as Facilities — guarantee own supplier appears so Add Product button shows
-  if (isSupplier && activeSupplierId && !supplierOptions.some((s) => s.id === activeSupplierId)) {
-    const { data: ownSupplier } = await (supabase.from("suppliers") as any)
-      .select("id, company_name")
-      .eq("id", activeSupplierId)
-      .maybeSingle();
-    if (ownSupplier) supplierOptions = [ownSupplier, ...supplierOptions];
-  }
-
-  const accessByFacility = new Map<string, string[]>();
-  for (const access of (facilityAccess ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
-    const existing = accessByFacility.get(access.facility_id) ?? [];
-    existing.push(access.supplier_id);
-    accessByFacility.set(access.facility_id, existing);
-  }
-
-  const countryOptions  = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
-  const facilityOptions = ((facilities ?? []) as Array<{
-    id: string;
-    facility_name: string;
-    supplier_id: string | null;
-    facility_address_json: { country?: string } | null;
-  }>)
-    .map((facility) => ({
-      id: facility.id,
-      facility_name: facility.facility_name,
-      supplier_id: facility.supplier_id,
-      country: facility.facility_address_json?.country ?? null,
-      supplier_ids: accessByFacility.get(facility.id) ?? (facility.supplier_id ? [facility.supplier_id] : []),
-    }))
-    .filter((facility) => !isSupplier || Boolean(activeSupplierId && facility.supplier_ids.includes(activeSupplierId)));
-
   const productsAdded = products.length;
   const productsApproved = products.filter((p) => p.approval_status === "importer_approved").length;
   const productsNeedingUpdates = products.filter((p) =>
@@ -235,11 +287,23 @@ export default async function ProductsPage({
 
   const metricTone = (v: number, warnAbove = 0): StatusTone =>
     v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";
+  const productScopeSupplierIds = new Set(productScopeFacility?.supplier_ids ?? []);
+  const tableSuppliers = productScopeFacility
+    ? supplierOptions.filter((supplier) => productScopeSupplierIds.has(supplier.id))
+    : viewingLinkedSupplier
+      ? [viewingLinkedSupplier]
+      : [
+          ...supplierOptions,
+          ...linkedSuppliers.filter((s) => !supplierOptions.some((o) => o.id === s.id)),
+        ];
+  const tableFacilities = productScopeFacility ? [productScopeFacility] : facilityOptions;
 
   return (
     <AppShell role={role} realRole={realRole} supplierType={isSupplier ? await getSupplierType(supabase as any, ownSupplierId || null) : undefined}>
       <SectionHeader
-        title={viewingLinkedSupplier
+        title={productScopeFacility
+          ? `Products — ${productScopeFacility.facility_name}`
+          : viewingLinkedSupplier
           ? `Products — ${viewingLinkedSupplier.company_name}`
           : "Products"}
         description="Track every supplier product by facility, ingredients, allergens, intended use, and origin."
@@ -306,24 +370,17 @@ export default async function ProductsPage({
           // control is a courtesy rather than the protection.
           canEditLifecycle={!isSupplier}
           countries={countryOptions}
-          facilities={facilityOptions}
+          facilities={tableFacilities}
           products={products}
           supplierHref={isSupplier ? "/my-suppliers" : "/exporters"}
-          suppliers={viewingLinkedSupplier
-            ? [viewingLinkedSupplier]
-            : [
-                ...supplierOptions,
-                ...linkedSuppliers.filter((s) => !supplierOptions.some((o) => o.id === s.id)),
-              ]}
+          suppliers={tableSuppliers}
           // ?facility=<id> arrives from "Add product" on a facility's row.
           // Resolved against the facilities this account can actually see, so a
           // hand-edited URL cannot preselect another tenant's facility. The
           // exporter comes from the facility itself rather than the URL, so the
           // two cannot be made inconsistent.
           presetFacility={(() => {
-            const match = searchParams.facility
-              ? facilityOptions.find((f) => f.id === searchParams.facility)
-              : null;
+            const match = requestedFacility;
             const supplierId = match?.supplier_id ?? match?.supplier_ids[0] ?? null;
             return match && supplierId ? { facilityId: match.id, supplierId } : null;
           })()}
