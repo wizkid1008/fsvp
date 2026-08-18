@@ -3,6 +3,7 @@ import { ProductTable, type ProductRow } from "@/components/products/ProductTabl
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import type { StatusTone } from "@/types/platform";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
 import { getSupplierType } from "@/lib/supplier-context";
@@ -338,6 +339,22 @@ export default async function ProductsPage({
           linkedSuppliers={linkedSuppliers}
           currentViewId={activeSupplierId}
           basePath="/products"
+        />
+      )}
+
+      {importerScoped && facilityOptions.length > 0 && (
+        <ScopeSwitcher
+          basePath="/products"
+          currentId={productScopeFacilityId}
+          label="Viewing facility"
+          options={facilityOptions.map((facility) => ({
+            id: facility.id,
+            label: `${facility.facility_name} (${supplierOptions
+              .filter((supplier) => facility.supplier_ids.includes(supplier.id))
+              .map((supplier) => supplier.company_name)
+              .join(", ") || "No exporter"})`,
+          }))}
+          param="facility"
         />
       )}
 

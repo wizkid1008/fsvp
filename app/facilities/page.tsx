@@ -3,6 +3,7 @@ import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import type { StatusTone } from "@/types/platform";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -243,6 +244,19 @@ export default async function FacilitiesPage({
           linkedSuppliers={linkedSuppliers}
           currentViewId={activeSupplierId}
           basePath="/facilities"
+        />
+      )}
+
+      {importerScoped && supplierOptions.length > 0 && (
+        <ScopeSwitcher
+          basePath="/facilities"
+          currentId={facilityScopeSupplierId}
+          label="Viewing exporter"
+          options={supplierOptions.map((supplier) => ({
+            id: supplier.id,
+            label: supplier.company_name,
+          }))}
+          param="supplier"
         />
       )}
 
