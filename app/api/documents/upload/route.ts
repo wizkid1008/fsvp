@@ -3,6 +3,7 @@ import { DOCUMENT_BUCKET, DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL }
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvenance } from "@/lib/evidence/provenance";
+import { ACTIVE_LINK_STATUSES, canWriteSupplierEntity } from "@/lib/auth/entity-access";
 import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 import type { Database } from "@/types/database";
 
@@ -67,6 +68,10 @@ export async function POST(request: Request) {
     .eq("id", user.id)
     .maybeSingle();
 
+  if (!uploaderProfile) {
+    return NextResponse.json({ error: "Your user profile is not set up for evidence uploads." }, { status: 403 });
+  }
+
   // An admin previewing an account has no supplier_id or importer_id of their
   // own, so nothing below would have stopped them: the upload went through and
   // landed as importer_uploaded with the admin recorded as its reviewer.
@@ -120,23 +125,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Supplier is required for evidence uploads." }, { status: 400 });
   }
 
-  // Skip the supplier existence check when the uploader IS the supplier uploading
-  // their own evidence — the supplier_id came from their own profile so it is valid.
-  // The RLS on suppliers can block this read when profiles.supplier_id isn't yet
-  // persisted, causing a false "invalid supplier" rejection.
-  const uploaderIsOwner =
-    uploaderProfile?.role === "supplier" &&
-    resolvedSupplierId === (uploaderProfile?.supplier_id || supplierId);
-
   // No supplier to validate when the document is the importer's own.
-  if (linkType !== "importer" && !uploaderIsOwner) {
-    const supplier = await (supabase.from("suppliers") as any)
+  // Supplier/exporter evidence can be uploaded by the supplier itself, an
+  // exporter for its upstream supplier, or an importer for an exporter it links
+  // to. Check that relationship explicitly instead of relying on a read-through
+  // RLS side effect.
+  if (linkType !== "importer") {
+    const accessDb = createAdminSupabaseClient();
+    const supplier = await (accessDb.from("suppliers") as any)
       .select("id")
       .eq("id", resolvedSupplierId)
       .maybeSingle();
 
     if (supplier.error || !supplier.data) {
       return NextResponse.json({ error: "Select a valid supplier for this evidence." }, { status: 400 });
+    }
+
+    const { data: linkRows } = await (accessDb.from("supplier_relationships") as any)
+      .select("relationship_type, status, supplier_id, exporter_id, importer_id")
+      .eq("supplier_id", resolvedSupplierId)
+      .in("status", ACTIVE_LINK_STATUSES as unknown as string[]);
+
+    if (!canWriteSupplierEntity(uploaderProfile, resolvedSupplierId, linkRows ?? [])) {
+      return NextResponse.json({ error: "You cannot upload evidence for this supplier." }, { status: 403 });
     }
   }
 

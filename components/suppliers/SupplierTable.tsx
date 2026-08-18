@@ -365,10 +365,10 @@ export function SupplierTable({
                         {(supplier.evidence_count ?? 0) === 0 ? (
                           <>
                             <FileUp className="h-3.5 w-3.5" />
-                            Add document
+                            Add company docs
                           </>
                         ) : (
-                          `${supplier.evidence_count} documents`
+                          `${supplier.evidence_count} company docs`
                         )}
                       </a>
                     </td>

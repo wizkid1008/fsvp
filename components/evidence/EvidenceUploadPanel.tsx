@@ -36,6 +36,7 @@ type RequirementItemOption = {
   id: string;
   item_name: string;
   section_name: string;
+  applies_to?: string;
 };
 
 export function EvidenceUploadPanel({
@@ -72,6 +73,7 @@ export function EvidenceUploadPanel({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === supplierId) ?? null;
   const supplierProducts = products.filter((product) => product.supplier_id === supplierId);
   const supplierFacilities = facilities.filter((facility) => {
     const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
@@ -80,6 +82,11 @@ export function EvidenceUploadPanel({
         ? [facility.supplier_id]
         : [];
     return supplierIds.includes(supplierId);
+  });
+  const filteredRequirementItems = requirementItems.filter((item) => {
+    if (!item.applies_to) return true;
+    if (linkType === "supplier") return item.applies_to === "supplier";
+    return item.applies_to === linkType;
   });
 
   function handleFiles(files: FileList | null) {
@@ -174,8 +181,12 @@ export function EvidenceUploadPanel({
 
   return (
     <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-      <h3 className="text-sm font-semibold text-ink">Upload Evidence</h3>
-      <p className="mt-1 text-xs text-slate-500">PDF, Word, Excel, or image files up to {DOCUMENT_UPLOAD_MAX_LABEL}</p>
+      <h3 className="text-sm font-semibold text-ink">
+        {presetSupplierId ? "Upload Company Overview Evidence" : "Upload Evidence"}
+      </h3>
+      <p className="mt-1 text-xs text-slate-500">
+        {selectedSupplier ? `${selectedSupplier.company_name} · ` : ""}PDF, Word, Excel, or image files up to {DOCUMENT_UPLOAD_MAX_LABEL}
+      </p>
 
       <form onSubmit={submit} className="mt-4 space-y-4">
         <div
@@ -242,11 +253,11 @@ export function EvidenceUploadPanel({
               Requirement Item
               <select name="requirement_item_id" className="mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest">
                 <option value="">Not mapped</option>
-                {requirementItems.map((item) => (
+                {filteredRequirementItems.map((item) => (
                   <option key={item.id} value={item.id}>{item.section_name} — {item.item_name}</option>
                 ))}
               </select>
-              {requirementItems.length === 0 ? (
+              {filteredRequirementItems.length === 0 ? (
                 // Says why the list is empty instead of showing an empty
                 // dropdown: no rule version is published, so there is nothing
                 // to file against yet.

@@ -126,6 +126,14 @@ export default async function FacilitiesPage({
 
   const supplierById    = new Map(supplierOptions.map((s) => [s.id, s.company_name]));
   const accessByFacility = new Map<string, string[]>();
+  const requestedSupplierId =
+    searchParams.supplier && supplierOptions.some((s) => s.id === searchParams.supplier)
+      ? searchParams.supplier
+      : "";
+  const facilityScopeSupplierId = isSupplier ? activeSupplierId : requestedSupplierId;
+  const facilityScopeSupplierName = facilityScopeSupplierId
+    ? supplierById.get(facilityScopeSupplierId) ?? null
+    : null;
 
   for (const access of (accessRows ?? []) as Array<{ facility_id: string; supplier_id: string }>) {
     const existing = accessByFacility.get(access.facility_id) ?? [];
@@ -143,7 +151,7 @@ export default async function FacilitiesPage({
         evidence_count: evidenceCountByFacility.get(facility.id) ?? 0,
       };
     })
-    .filter((facility) => !isSupplier || Boolean(activeSupplierId && facility.supplier_ids.includes(activeSupplierId)));
+    .filter((facility) => !facilityScopeSupplierId || facility.supplier_ids.includes(facilityScopeSupplierId));
 
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 
@@ -171,7 +179,9 @@ export default async function FacilitiesPage({
     v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";
 
   // For the FacilityTable form, include own company + all linked upstream suppliers
-  const formSupplierOptions = viewingLinkedSupplier
+  const formSupplierOptions = facilityScopeSupplierId && facilityScopeSupplierName
+    ? [{ id: facilityScopeSupplierId, company_name: facilityScopeSupplierName }]
+    : viewingLinkedSupplier
     ? [viewingLinkedSupplier]
     : [
         ...supplierOptions,
@@ -181,8 +191,8 @@ export default async function FacilitiesPage({
   return (
     <AppShell role={role} realRole={realRole} supplierType={await getSupplierType(supabase as any, ownSupplierId || null)}>
       <SectionHeader
-        title={viewingLinkedSupplier
-          ? `Facilities — ${viewingLinkedSupplier.company_name}`
+        title={facilityScopeSupplierName
+          ? `Facilities — ${facilityScopeSupplierName}`
           : "Facilities"}
         description="Manage manufacturing facilities, FDA registrations, processes, certifications, and production capacity."
       />
@@ -233,9 +243,9 @@ export default async function FacilitiesPage({
           supplierHref={isSupplier ? "/my-suppliers" : "/exporters"}
           suppliers={formSupplierOptions}
           presetSupplierId={
-            searchParams.supplier &&
-            formSupplierOptions.some((s) => s.id === searchParams.supplier)
-              ? searchParams.supplier
+            requestedSupplierId &&
+            formSupplierOptions.some((s) => s.id === requestedSupplierId)
+              ? requestedSupplierId
               : null
           }
         />

@@ -1,5 +1,5 @@
 // POST { profile_id, legal_name?, display_name?, ein?, duns_number?, food_scope?,
-//        address_json?, attach_to_importer_id? }
+//        address_json?, attach_to_importer_id?, allow_duplicate_name? }
 //
 // Approves a pending us_importer account and gives it an organization.
 //
@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { importerNameMatches } from "@/lib/importers/names";
 
 export const runtime = "edge";
 
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
     food_scope?: string;
     address_json?: Record<string, unknown>;
     attach_to_importer_id?: string;
+    allow_duplicate_name?: boolean;
   };
 
   const profileId = body.profile_id?.trim();
@@ -93,6 +95,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const displayName = body.display_name?.trim() || legalName;
+
+    if (!body.allow_duplicate_name) {
+      const { data: existingImporters, error: duplicateLookupError } = await (admin.from("importers") as any)
+        .select("id, display_name, legal_name, primary_contact_email")
+        .limit(500);
+
+      if (duplicateLookupError) {
+        return NextResponse.json({ error: duplicateLookupError.message }, { status: 500 });
+      }
+
+      const duplicates = ((existingImporters ?? []) as Array<{
+        id: string;
+        display_name: string | null;
+        legal_name: string | null;
+        primary_contact_email: string | null;
+      }>).filter((importer) =>
+        importerNameMatches(importer.display_name, displayName) ||
+        importerNameMatches(importer.legal_name, legalName)
+      );
+
+      if (duplicates.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "An importer organization with this name already exists. Add the account to the existing organization, " +
+              "or confirm that this is a separate legal entity before creating another one.",
+            duplicate_importers: duplicates,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const foodScope = FOOD_SCOPES.has(body.food_scope ?? "") ? body.food_scope! : "human";
 
     const addressJson =
@@ -108,7 +144,7 @@ export async function POST(req: NextRequest) {
     const { data: created, error: createError } = await (supabase.from("importers") as any)
       .insert({
         legal_name:            legalName,
-        display_name:          body.display_name?.trim() || legalName,
+        display_name:          displayName,
         ein:                   body.ein?.trim() || null,
         duns_number:           body.duns_number?.trim() || null,
         food_scope:            foodScope,

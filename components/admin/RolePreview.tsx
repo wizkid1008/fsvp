@@ -36,7 +36,12 @@ const ROLES: { value: AppRole; label: string; description: string }[] = [
 // previewing these lets the admin pick which real account to view as.
 const ACCOUNT_SCOPED_ROLES = new Set<AppRole>(["supplier", "exporter", "us_importer"]);
 
-type Account = { id: string; company_name: string | null };
+type Account = {
+  id: string;
+  company_name: string | null;
+  detail?: string | null;
+  duplicate_count?: number | null;
+};
 
 export function RolePreviewSelector() {
   const [current, setCurrent] = useState<AppRole | null>(null);
@@ -124,7 +129,7 @@ export function RolePreviewSelector() {
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setPendingRole(null); }} />
-            <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-line bg-white shadow-xl overflow-hidden">
+            <div className="absolute left-0 top-full z-50 mt-1 w-96 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-white shadow-xl overflow-hidden">
               {pendingRole ? (
                 <>
                   <button
@@ -166,9 +171,16 @@ export function RolePreviewSelector() {
                       <button
                         key={acc.id}
                         onClick={() => apply(pendingRole, acc)}
-                        className="w-full px-4 py-2.5 text-left text-sm font-medium text-ink hover:bg-slate-50 transition"
+                        className="w-full px-4 py-2.5 text-left hover:bg-slate-50 transition"
                       >
-                        {acc.company_name ?? "Unnamed account"}
+                        <span className="block truncate text-sm font-medium text-ink">
+                          {acc.company_name ?? "Unnamed account"}
+                        </span>
+                        {acc.detail && (
+                          <span className={`mt-0.5 block truncate text-xs ${acc.duplicate_count && acc.duplicate_count > 1 ? "font-semibold text-amber-700" : "text-slate-500"}`}>
+                            {acc.detail}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>

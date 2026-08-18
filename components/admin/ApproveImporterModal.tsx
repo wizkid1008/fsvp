@@ -1,11 +1,18 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X, Building2 } from "lucide-react";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { normalizeImporterName } from "@/lib/importers/names";
 
-type ExistingImporter = { id: string; display_name: string; legal_name: string };
+type ExistingImporter = {
+  id: string;
+  company_name: string | null;
+  legal_name: string | null;
+  primary_contact_email?: string | null;
+  detail?: string | null;
+  duplicate_count?: number | null;
+};
 
 export function ApproveImporterModal({
   profileId,
@@ -22,18 +29,40 @@ export function ApproveImporterModal({
   const [mode, setMode] = useState<"new" | "existing">("new");
   const [existing, setExisting] = useState<ExistingImporter[]>([]);
   const [attachTo, setAttachTo] = useState("");
+  const [legalName, setLegalName] = useState(suggestedName ?? "");
+  const [displayName, setDisplayName] = useState("");
+  const [allowDuplicateName, setAllowDuplicateName] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    const supabase = createBrowserSupabaseClient();
     void (async () => {
-      const { data } = await (supabase.from("importers") as any)
-        .select("id, display_name, legal_name")
-        .order("display_name");
-      setExisting((data ?? []) as ExistingImporter[]);
+      const res = await fetch("/api/admin/preview-accounts?role=us_importer");
+      const json = await res.json().catch(() => ({})) as { accounts?: ExistingImporter[] };
+      if (res.ok) setExisting(json.accounts ?? []);
     })();
   }, []);
+
+  useEffect(() => {
+    setLegalName(suggestedName ?? "");
+    setDisplayName("");
+    setAllowDuplicateName(false);
+  }, [suggestedName]);
+
+  const duplicateMatches = useMemo(() => {
+    const requestedLegalName = normalizeImporterName(legalName);
+    const requestedDisplayName = normalizeImporterName(displayName || legalName);
+    if (!requestedLegalName && !requestedDisplayName) return [];
+
+    return existing.filter((importer) => {
+      const existingDisplayName = normalizeImporterName(importer.company_name);
+      const existingLegalName = normalizeImporterName(importer.legal_name);
+      return Boolean(
+        (requestedDisplayName && requestedDisplayName === existingDisplayName) ||
+        (requestedLegalName && requestedLegalName === existingLegalName)
+      );
+    });
+  }, [displayName, existing, legalName]);
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,11 +76,12 @@ export function ApproveImporterModal({
             ? { profile_id: profileId, attach_to_importer_id: attachTo }
             : {
                 profile_id:   profileId,
-                legal_name:   fd.get("legal_name")?.toString().trim(),
-                display_name: fd.get("display_name")?.toString().trim(),
+                legal_name:   legalName.trim(),
+                display_name: displayName.trim(),
                 ein:          fd.get("ein")?.toString().trim(),
                 duns_number:  fd.get("duns_number")?.toString().trim(),
                 food_scope:   fd.get("food_scope")?.toString(),
+                allow_duplicate_name: allowDuplicateName,
                 address_json: {
                   street:  fd.get("street")?.toString().trim() || undefined,
                   city:    fd.get("city")?.toString().trim() || undefined,
@@ -133,7 +163,10 @@ export function ApproveImporterModal({
               >
                 <option value="">Select an organization…</option>
                 {existing.map((i) => (
-                  <option key={i.id} value={i.id}>{i.display_name} — {i.legal_name}</option>
+                  <option key={i.id} value={i.id}>
+                    {i.company_name ?? "Unnamed organization"} — {i.legal_name ?? "No legal name"}
+                    {i.primary_contact_email ? ` — ${i.primary_contact_email}` : ""}
+                  </option>
                 ))}
               </select>
               <span className="mt-1 block text-xs text-slate-500">
@@ -149,7 +182,11 @@ export function ApproveImporterModal({
                   <input
                     name="legal_name"
                     required
-                    defaultValue={suggestedName ?? ""}
+                    value={legalName}
+                    onChange={(event) => {
+                      setLegalName(event.target.value);
+                      setAllowDuplicateName(false);
+                    }}
                     className={inputClass}
                     placeholder="GreenPath Foods LLC"
                   />
@@ -157,7 +194,16 @@ export function ApproveImporterModal({
 
                 <label className={labelClass}>
                   Display Name
-                  <input name="display_name" className={inputClass} placeholder="Defaults to legal name" />
+                  <input
+                    name="display_name"
+                    value={displayName}
+                    onChange={(event) => {
+                      setDisplayName(event.target.value);
+                      setAllowDuplicateName(false);
+                    }}
+                    className={inputClass}
+                    placeholder="Defaults to legal name"
+                  />
                 </label>
 
                 <label className={labelClass}>
@@ -182,6 +228,42 @@ export function ApproveImporterModal({
                   </span>
                 </label>
               </div>
+
+              {duplicateMatches.length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm font-semibold text-amber-900">
+                    This name already exists.
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    {duplicateMatches.slice(0, 3).map((importer) => (
+                      <button
+                        key={importer.id}
+                        type="button"
+                        onClick={() => {
+                          setMode("existing");
+                          setAttachTo(importer.id);
+                          setAllowDuplicateName(false);
+                        }}
+                        className="block w-full rounded border border-amber-200 bg-white px-3 py-2 text-left text-xs text-amber-950 transition hover:border-amber-400"
+                      >
+                        <span className="block font-semibold">
+                          {importer.company_name ?? "Unnamed organization"}
+                        </span>
+                        {importer.detail && <span className="mt-0.5 block text-amber-800">{importer.detail}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="mt-3 flex items-start gap-2 text-xs font-medium text-amber-950">
+                    <input
+                      type="checkbox"
+                      checked={allowDuplicateName}
+                      onChange={(event) => setAllowDuplicateName(event.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-amber-300 text-forest focus:ring-forest"
+                    />
+                    Create a separate importer organization anyway.
+                  </label>
+                </div>
+              )}
 
               <div className="border-t border-line pt-4">
                 <p className="mb-3 text-sm font-semibold text-slate-700">U.S. Address</p>
@@ -218,7 +300,7 @@ export function ApproveImporterModal({
               Cancel
             </button>
             <button
-              disabled={pending || (mode === "existing" && !attachTo)}
+              disabled={pending || (mode === "existing" && !attachTo) || (mode === "new" && duplicateMatches.length > 0 && !allowDuplicateName)}
               className="h-10 rounded-md bg-forest px-5 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60"
             >
               {pending ? "Approving…" : "Approve and activate"}
