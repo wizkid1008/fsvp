@@ -10,7 +10,7 @@ import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getSupplierType } from "@/lib/supplier-context";
-import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
 import { isTenantConfined } from "@/lib/auth/tenancy";
 import type { Country } from "@/types/database";
@@ -25,21 +25,18 @@ export default async function FacilitiesPage({
   const { role, realRole, user } = await requireProfileRole("/facilities");
   const supabase = createServerSupabaseClient();
   const isSupplier = role === "supplier" || role === "exporter";
-
-  const { data: profile } = await (supabase.from("profiles") as any)
-    .select("supplier_id, importer_id")
-    .eq("id", user.id)
-    .maybeSingle();
+  const accountContext = await resolveEffectiveAccountContext({ realRole, role, supabase, user });
+  const profile = accountContext.profile;
 
   const ownSupplierId: string = isSupplier
-    ? (resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) ?? "")
+    ? (accountContext.supplierId ?? "")
     : "";
   const importerId: string | null = !isSupplier
-    ? resolvePreviewedAccountId(realRole, profile?.importer_id ?? null)
+    ? accountContext.importerId
     : null;
   const importerScoped =
     !isSupplier &&
-    (role === "us_importer" || isTenantConfined({ role: realRole, importer_id: profile?.importer_id ?? null }));
+    (role === "us_importer" || isTenantConfined({ role, importer_id: accountContext.importerId }));
 
   // Context switcher: exporter can view a linked supplier's facilities via ?view=<id>
   const viewId = searchParams.view ?? "";
@@ -240,7 +237,7 @@ export default async function FacilitiesPage({
       {isSupplier && linkedSuppliers.length > 0 && (
         <SupplierContextSwitcher
           ownId={ownSupplierId}
-          ownLabel={profile?.organization_name ?? "My Facilities"}
+          ownLabel={accountContext.organizationName ?? profile?.organization_name ?? "My Facilities"}
           linkedSuppliers={linkedSuppliers}
           currentViewId={activeSupplierId}
           basePath="/facilities"

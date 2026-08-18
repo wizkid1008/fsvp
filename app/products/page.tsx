@@ -10,7 +10,7 @@ import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
 import { isTenantConfined } from "@/lib/auth/tenancy";
 import type { Country } from "@/types/database";
@@ -25,21 +25,18 @@ export default async function ProductsPage({
   const { role, realRole, user } = await requireProfileRole("/products");
   const supabase = createServerSupabaseClient();
   const isSupplier = role === "supplier" || role === "exporter";
-
-  const { data: profile } = await (supabase.from("profiles") as any)
-    .select("supplier_id, importer_id, organization_name")
-    .eq("id", user.id)
-    .maybeSingle();
+  const accountContext = await resolveEffectiveAccountContext({ realRole, role, supabase, user });
+  const profile = accountContext.profile;
 
   const ownSupplierId: string = isSupplier
-    ? (resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) ?? "00000000-0000-0000-0000-000000000000")
+    ? (accountContext.supplierId ?? "00000000-0000-0000-0000-000000000000")
     : "";
   const importerId: string | null = !isSupplier
-    ? resolvePreviewedAccountId(realRole, profile?.importer_id ?? null)
+    ? accountContext.importerId
     : null;
   const importerScoped =
     !isSupplier &&
-    (role === "us_importer" || isTenantConfined({ role: realRole, importer_id: profile?.importer_id ?? null }));
+    (role === "us_importer" || isTenantConfined({ role, importer_id: accountContext.importerId }));
 
   // Context switcher: exporter can view a linked supplier's products via ?view=<id>
   const viewId = searchParams.view ?? "";
@@ -335,7 +332,7 @@ export default async function ProductsPage({
       {isSupplier && linkedSuppliers.length > 0 && (
         <SupplierContextSwitcher
           ownId={ownSupplierId}
-          ownLabel={profile?.organization_name ?? "My Products"}
+          ownLabel={accountContext.organizationName ?? profile?.organization_name ?? "My Products"}
           linkedSuppliers={linkedSuppliers}
           currentViewId={activeSupplierId}
           basePath="/products"
