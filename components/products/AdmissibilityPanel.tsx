@@ -208,13 +208,13 @@ export function AdmissibilityPanel({
             notes: form.get("notes"),
           }),
         });
-        const json = await res.json().catch(() => ({})) as { error?: string; commodity_name?: string };
+        const json = await res.json().catch(() => ({})) as { error?: string };
         if (!res.ok) {
-          setError(json.error ?? "Could not create the provisional commodity.");
+          setError(json.error ?? "Could not submit the commodity gap.");
           return;
         }
         setRequesting(false);
-        setSuccess(`Created and classified as ${json.commodity_name ?? "a provisional commodity"}.`);
+        setSuccess("Commodity gap submitted for review. The product stays unclassified until the taxonomy is updated.");
         router.refresh();
       } catch {
         setError("Could not reach the server.");
@@ -382,8 +382,8 @@ export function AdmissibilityPanel({
                 <div className="rounded-md border border-dashed border-forest/40 bg-emerald-50/60 p-4">
                   <p className="text-sm font-semibold text-ink">Can&apos;t find the right commodity?</p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                    Do not choose the closest match. Create a provisional commodity for this product
-                    so you can keep working while the platform reviews the taxonomy later.
+                    Do not choose the closest match. Submit the gap so the taxonomy can be reviewed
+                    without turning one-off wording into a live commodity.
                   </p>
                   <button
                     type="button"
@@ -395,10 +395,10 @@ export function AdmissibilityPanel({
                 </div>
               ) : (
                 <form onSubmit={requestClassification} className="rounded-md border border-line bg-slate-50 p-4">
-                  <h4 className="text-sm font-semibold text-ink">Create a provisional commodity</h4>
+                  <h4 className="text-sm font-semibold text-ink">Submit a commodity gap</h4>
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    Describe the material as it actually enters. The product will be classified to this
-                    provisional entry right away, and the platform can review it later.
+                    Describe the material as it actually enters. This does not classify the product;
+                    it gives the reference team enough detail to add the right commodity cleanly.
                   </p>
 
                   <label className={`${labelClass} mt-3`}>
@@ -486,7 +486,7 @@ export function AdmissibilityPanel({
 
                   <div className="mt-3 flex gap-2">
                     <button type="submit" disabled={pending} className={buttonClass}>
-                      {pending ? "Creating…" : "Create and classify"}
+                      {pending ? "Submitting…" : "Submit gap"}
                     </button>
                     <button
                       type="button"

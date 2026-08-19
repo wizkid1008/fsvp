@@ -6,9 +6,9 @@
 // and an expiry and reads as authoritative, so the wrong pick is worse than the
 // dead end it was working around.
 //
-// The earlier version queued this for an administrator, which still blocked the
-// importer. This version creates a provisional commodity, classifies the product
-// to it, and leaves the row marked for cleanup rather than making cleanup a gate.
+// The product stays blocked on `not_classified` while the request is open. That
+// is intentional: the alternative is letting every free-text suggestion become
+// a live commodity, which makes the reference layer unmanageable and risky.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -132,96 +132,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { data: liveDeterminations, error: determinationsError } = await (admin.from("admissibility_determinations") as any)
-    .select("id, importer_id")
-    .eq("product_id", productId)
-    .is("superseded_at", null);
-  if (determinationsError) {
-    return NextResponse.json(
-      { error: `Existing determinations could not be checked, so provisional classification was refused. ${determinationsError.message}` },
-      { status: 503 }
-    );
-  }
-  const belongsToAnotherImporter = (liveDeterminations ?? []).some(
-    (row: { importer_id: string }) => row.importer_id !== profile.importer_id
-  );
-  if (belongsToAnotherImporter) {
-    return NextResponse.json(
-      {
-        error:
-          "Another importer has a live determination for this shared supplier product. " +
-          "A platform administrator must resolve the shared product identity first.",
-      },
-      { status: 409 }
-    );
-  }
-
-  const { data: existingCommodity } = await (admin.from("commodities") as any)
-    .select("id, common_name")
-    .ilike("common_name", describedAs)
-    .eq("plant_part", plantPart)
-    .eq("is_propagative", isPropagative)
-    .eq("active", true)
-    .maybeSingle();
-
-  let commodity = existingCommodity as { id: string; common_name: string } | null;
-  if (!commodity) {
-    const basis = `Importer-entered provisional commodity for product ${product.product_name} (${productId}).`;
-    const noteParts = [
-      body.notes?.trim() || null,
-      "Provisional importer-entered commodity pending platform review.",
-    ].filter(Boolean);
-
-    const { data: insertedCommodity, error: commodityError } = await (admin.from("commodities") as any)
-      .insert({
-        common_name:             describedAs,
-        scientific_name:         null,
-        commodity_class:         commodityClass,
-        plant_part:              plantPart,
-        is_propagative:          isPropagative,
-        notes:                   noteParts.join("\n\n"),
-        active:                  true,
-        review_status:           "provisional",
-        created_by_importer_id:  profile.importer_id,
-        created_by_profile_id:   user.id,
-        provisional_basis:       basis,
-      })
-      .select("id, common_name")
-      .single();
-
-    if (commodityError) {
-      return NextResponse.json({ error: commodityError.message }, { status: 500 });
-    }
-    commodity = insertedCommodity;
-  }
-  if (!commodity) {
-    return NextResponse.json({ error: "The provisional commodity could not be created." }, { status: 500 });
-  }
-
-  const changedAt = new Date().toISOString();
-  const { error: updateProductError } = await (admin.from("products_verify") as any)
-    .update({ commodity_id: commodity.id })
-    .eq("id", productId);
-  if (updateProductError) {
-    return NextResponse.json({ error: updateProductError.message }, { status: 500 });
-  }
-
-  const { error: supersedeError } = await (admin.from("admissibility_determinations") as any)
-    .update({ superseded_at: changedAt })
-    .eq("product_id", productId)
-    .eq("importer_id", profile.importer_id)
-    .is("superseded_at", null);
-
-  if (supersedeError) {
-    await (admin.from("products_verify") as any)
-      .update({ commodity_id: product.commodity_id })
-      .eq("id", productId);
-    return NextResponse.json(
-      { error: `The product could not be classified safely. ${supersedeError.message}` },
-      { status: 500 }
-    );
-  }
-
   const { data: created, error } = await (admin.from("commodity_classification_requests") as any)
     .insert({
       importer_id:             profile.importer_id,
@@ -233,24 +143,20 @@ export async function POST(req: NextRequest) {
       is_propagative:          isPropagative,
       notes:                   body.notes?.trim() || null,
       pcb_candidates:          pcbCandidates,
-      status:                  "resolved",
-      resolved_commodity_id:   commodity.id,
-      resolution_note:         "Provisional importer-entered commodity. Platform review recommended.",
-      resolved_by_profile_id:  user.id,
-      resolved_at:             changedAt,
     })
     .select("id")
     .single();
 
   if (error) {
-    await (admin.from("products_verify") as any)
-      .update({ commodity_id: product.commodity_id })
-      .eq("id", productId);
-    const liveIds = ((liveDeterminations ?? []) as Array<{ id: string }>).map((row) => row.id);
-    if (liveIds.length > 0) {
-      await (admin.from("admissibility_determinations") as any)
-        .update({ superseded_at: null })
-        .in("id", liveIds);
+    if (error.code === "23505") {
+      return NextResponse.json(
+        {
+          error:
+            "A classification request for this product is already open. Adding a second would " +
+            "queue the same question twice — add to the existing one instead.",
+        },
+        { status: 409 }
+      );
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -259,25 +165,15 @@ export async function POST(req: NextRequest) {
     importer_id:      profile.importer_id,
     actor_profile_id: user.id,
     actor_role:       profile.role,
-    action:           "commodity_classification_provisional",
+    action:           "commodity_classification_requested",
     record_type:      "commodity_classification_requests",
     record_id:        created.id,
-    previous_value:   { commodity_id: product.commodity_id },
-    new_value:        {
-      product_id: productId,
-      described_as: describedAs,
-      commodity_id: commodity.id,
-      commodity_name: commodity.common_name,
-      commodity_class: commodityClass,
-    },
+    new_value:        { product_id: productId, described_as: describedAs, commodity_class: commodityClass },
   });
 
   return NextResponse.json({
     ok: true,
     id: created.id,
-    commodity_id: commodity.id,
-    commodity_name: commodity.common_name,
-    provisional: true,
     pcb_searched: Boolean(pcbCandidates),
   });
 }

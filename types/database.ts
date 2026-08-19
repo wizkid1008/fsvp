@@ -735,10 +735,6 @@ export type Commodity = {
   fda_product_group: string | null;
   notes: string | null;
   active: boolean;
-  review_status: "verified" | "provisional" | "archived";
-  created_by_importer_id: string | null;
-  created_by_profile_id: string | null;
-  provisional_basis: string | null;
   created_at: string;
   updated_at: string;
 };
