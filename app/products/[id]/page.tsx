@@ -42,13 +42,20 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     role === "supplier" ? resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) : null;
 
   const { data: product } = await (supabase.from("products_verify") as any)
-    .select("id, product_name, approval_status, supplier_id, facility_id, commodity_id, country_of_origin, intended_use, raw_or_processed, fda_product_code, fda_subclass_code, fda_pic_code, fda_product_code_verified_at, suppliers(company_name), facilities_verify(facility_name), commodities(common_name, scientific_name, plant_part, is_propagative)")
+    .select("id, product_name, approval_status, supplier_id, facility_id, commodity_id, country_of_origin, intended_use, raw_or_processed, suppliers(company_name), facilities_verify(facility_name), commodities(common_name, scientific_name, plant_part, is_propagative)")
     .eq("id", params.id)
     .maybeSingle();
 
   if (!product) notFound();
 
   const isSupplierView = role === "supplier" || role === "exporter";
+  const { data: productFdaCode, error: productFdaCodeError } = !isSupplierView
+    ? await (supabase.from("products_verify") as any)
+        .select("fda_product_code, fda_subclass_code, fda_pic_code, fda_product_code_verified_at")
+        .eq("id", params.id)
+        .maybeSingle()
+    : { data: null, error: null };
+  const hasFdaCodeColumns = !productFdaCodeError;
 
   const [commoditiesResult, determinationsResult, scoreStatusMap, admissibilityBlocks, requestResult] = await Promise.all([
     (supabase.from("commodities") as any)
@@ -153,15 +160,15 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             />
           )}
 
-          {!isSupplierView && (
+          {!isSupplierView && hasFdaCodeColumns && (
             <ProductFdaCodeCard
               productId={params.id}
               canManage={canManageAdmissibility}
               current={{
-                code:        product.fda_product_code,
-                subclass:    product.fda_subclass_code,
-                pic:         product.fda_pic_code,
-                verified_at: product.fda_product_code_verified_at,
+                code:        productFdaCode?.fda_product_code ?? null,
+                subclass:    productFdaCode?.fda_subclass_code ?? null,
+                pic:         productFdaCode?.fda_pic_code ?? null,
+                verified_at: productFdaCode?.fda_product_code_verified_at ?? null,
               }}
             />
           )}
