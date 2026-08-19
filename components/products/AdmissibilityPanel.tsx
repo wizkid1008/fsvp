@@ -358,13 +358,20 @@ export function AdmissibilityPanel({
                 </div>
               )}
               {!requesting ? (
-                <button
-                  type="button"
-                  onClick={() => setRequesting(true)}
-                  className="text-sm font-semibold text-forest hover:underline"
-                >
-                  None of these describe this product
-                </button>
+                <div className="rounded-md border border-dashed border-forest/40 bg-emerald-50/60 p-4">
+                  <p className="text-sm font-semibold text-ink">Can&apos;t find the right commodity?</p>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                    Do not choose the closest match. Send a request so an administrator can add the
+                    correct commodity and keep this product unclassified until then.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setRequesting(true)}
+                    className="mt-3 inline-flex h-9 items-center justify-center rounded-md border border-forest bg-white px-3 text-sm font-semibold text-forest transition hover:bg-emerald-50"
+                  >
+                    None of these describe this product
+                  </button>
+                </div>
               ) : (
                 <form onSubmit={requestClassification} className="rounded-md border border-line bg-slate-50 p-4">
                   <h4 className="text-sm font-semibold text-ink">Ask for a commodity to be added</h4>
