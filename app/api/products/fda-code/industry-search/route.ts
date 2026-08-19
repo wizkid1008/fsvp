@@ -19,6 +19,15 @@ function matches(row: Record<string, string | null>, filter: string): boolean {
   return filter.toLowerCase().split(/\s+/).filter(Boolean).every((term) => haystack.includes(term));
 }
 
+function normalizeRow(row: Record<string, unknown>): Record<string, string | null> {
+  return Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [
+      key,
+      value === null || value === undefined ? null : String(value),
+    ])
+  );
+}
+
 export async function GET(req: NextRequest) {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -52,7 +61,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const rows = await listProductCodesForIndustry(Number(industry), creds);
+    const rows = (await listProductCodesForIndustry(Number(industry), creds)).map(normalizeRow);
     const filtered = rows.filter((row) => matches(row, filter));
     return NextResponse.json({
       ok: true,

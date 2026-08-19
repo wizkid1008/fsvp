@@ -44,6 +44,15 @@ function searchTerms(name: string): string[] {
   ]).slice(0, 6);
 }
 
+function normalizeRow(row: Record<string, unknown>): Record<string, string | null> {
+  return Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [
+      key,
+      value === null || value === undefined ? null : String(value),
+    ])
+  );
+}
+
 export async function GET(req: NextRequest) {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -83,10 +92,11 @@ export async function GET(req: NextRequest) {
       tried.push(term);
       const found = await searchProductsByName(term, creds);
       for (const row of found) {
-        const key = Object.entries(row).find(([column, value]) =>
+        const safeRow = normalizeRow(row);
+        const key = Object.entries(safeRow).find(([column, value]) =>
           Boolean(value && /code/i.test(column) && /^[0-9A-Z-]{5,7}$/i.test(value))
         )?.[1] ?? JSON.stringify(row);
-        if (!byCode.has(key)) byCode.set(key, row);
+        if (!byCode.has(key)) byCode.set(key, safeRow);
       }
       if (byCode.size >= MAX_ROWS) break;
     }

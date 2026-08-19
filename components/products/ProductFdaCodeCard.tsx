@@ -31,6 +31,10 @@ const labelClass = "block text-sm font-medium text-slate-700";
 const buttonClass =
   "inline-flex h-10 items-center justify-center rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60";
 
+function cellText(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value);
+}
+
 export function ProductFdaCodeCard({
   productId,
   productName,
@@ -62,20 +66,20 @@ export function ProductFdaCodeCard({
 
   function codeFromRow(row: Record<string, string | null>): string | null {
     const direct = Object.entries(row).find(([key, value]) =>
-      Boolean(value && /code/i.test(key) && /^[0-9A-Z-]{5,7}$/i.test(value))
+      Boolean(cellText(value) && /code/i.test(key) && /^[0-9A-Z-]{5,7}$/i.test(cellText(value)!))
     )?.[1];
-    if (direct) return direct.toUpperCase();
+    if (direct) return String(direct).toUpperCase();
 
-    const values = Object.values(row).filter((value): value is string => Boolean(value));
+    const values = Object.values(row).map(cellText).filter((value): value is string => Boolean(value));
     return values.find((value) => /^[0-9A-Z-]{5,7}$/i.test(value.trim()))?.toUpperCase() ?? null;
   }
 
   function productLabel(row: Record<string, string | null>): string {
     const preferred = Object.entries(row).find(([key, value]) =>
-      Boolean(value && /(product|name|description)/i.test(key) && !/code/i.test(key))
+      Boolean(cellText(value) && /(product|name|description)/i.test(key) && !/code/i.test(key))
     )?.[1];
-    if (preferred) return preferred;
-    return Object.values(row).filter(Boolean).join(" — ");
+    if (preferred) return String(preferred);
+    return Object.values(row).map(cellText).filter(Boolean).join(" — ");
   }
 
   function lookup() {
