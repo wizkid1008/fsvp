@@ -196,6 +196,7 @@ export function ProductFdaCodeCard({
           total?: number;
           truncated?: boolean;
           fallback?: boolean;
+          source_count?: number;
         };
         if (!res.ok) {
           setIndustryNote(json.error ?? "FDA industry search is unavailable.");
@@ -203,9 +204,12 @@ export function ProductFdaCodeCard({
         }
         const rows = json.rows ?? [];
         setLookupRows(rows);
+        const hasFilter = industryFilter.trim().length > 0;
         setIndustryNote(
           rows.length === 0
-            ? "FDA returned no codes in that industry for the filter. Try removing a word."
+            ? hasFilter
+              ? "FDA returned no products in that industry for the filter. Try removing a word."
+              : `FDA returned ${json.source_count ?? 0} products for that industry. Try another industry.`
             : json.fallback
               ? "No exact filter match. Showing broader results from the selected industry."
             : json.truncated

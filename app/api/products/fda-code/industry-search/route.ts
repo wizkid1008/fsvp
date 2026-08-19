@@ -1,9 +1,10 @@
-// GET ?industry=NN&filter= — browse FDA Product Code Builder codes in one
+// GET ?industry=NN&filter= — browse FDA Product Code Builder products in one
 // industry, with an optional local text filter.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
+  listProductsForIndustry,
   listProductCodesForIndustry,
   pcbCredentialsFromEnv,
   PcbError,
@@ -32,6 +33,13 @@ function normalizeRow(row: Record<string, unknown>): Record<string, string | nul
       value === null || value === undefined ? null : String(value),
     ])
   );
+}
+
+function rowKey(row: Record<string, string | null>): string {
+  const codeish = Object.entries(row).find(([key, value]) =>
+    Boolean(value && /(product.*code|product.*id|code|id)/i.test(key))
+  )?.[1];
+  return codeish ?? JSON.stringify(row);
 }
 
 export async function GET(req: NextRequest) {
@@ -67,7 +75,21 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const rows = (await listProductCodesForIndustry(Number(industry), creds)).map(normalizeRow);
+    const productRows = (await listProductsForIndustry(Number(industry), creds)).map(normalizeRow);
+    let codeRows: Array<Record<string, string | null>> = [];
+    try {
+      codeRows = (await listProductCodesForIndustry(Number(industry), creds)).map(normalizeRow);
+    } catch {
+      // Some industries do not return useful rows from the full-code endpoint.
+      // The product-family endpoint still mirrors FDA's industry browse path.
+    }
+    const byKey = new Map<string, Record<string, string | null>>();
+    for (const row of [...productRows, ...codeRows]) {
+      const key = rowKey(row);
+      if (!byKey.has(key)) byKey.set(key, row);
+    }
+
+    const rows = [...byKey.values()];
     const exact = rows.filter((row) => matchesAll(row, filter));
     const loose = exact.length > 0 ? exact : rows.filter((row) => matchesAny(row, filter));
     const filtered = loose.length > 0 ? loose : rows;
@@ -76,6 +98,7 @@ export async function GET(req: NextRequest) {
       industry,
       filter,
       fallback: filter.length > 0 && exact.length === 0,
+      source_count: rows.length,
       total: filtered.length,
       truncated: filtered.length > MAX_ROWS,
       rows: filtered.slice(0, MAX_ROWS),
