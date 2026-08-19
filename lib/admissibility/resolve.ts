@@ -155,9 +155,9 @@ export function resolveRule(rules: RuleRow[], q: ResolutionQuery): Resolution {
     return {
       status: "no_rule",
       reasons: [
-        `No country-commodity rule is on file for this commodity from ${q.originCountry} ` +
-        `(${q.intendedUse}, ${q.processingState}). Admissibility cannot be determined from the ` +
-        `reference layer; it has to be established against the agency and recorded as a rule first.`,
+        `No reviewed reference rule is on file for this commodity from ${q.originCountry} ` +
+        `(${q.intendedUse}, ${q.processingState}). File-building can continue, but final ` +
+        `admissibility cannot be recorded until the agency source is checked and saved as a rule.`,
       ],
     };
   }
