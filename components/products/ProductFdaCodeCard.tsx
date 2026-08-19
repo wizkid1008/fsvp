@@ -130,12 +130,19 @@ export function ProductFdaCodeCard({
         const json = await res.json().catch(() => ({})) as {
           error?: string;
           rows?: Array<{ id: string; name: string }>;
+          source_count?: number;
         };
         if (!res.ok) {
           setIndustryNote(json.error ?? "FDA industry lookup is unavailable.");
           return;
         }
-        setIndustryRows(json.rows ?? []);
+        const rows = json.rows ?? [];
+        setIndustryRows(rows);
+        setIndustryNote(
+          rows.length === 0
+            ? `FDA returned ${json.source_count ?? 0} industry rows, but the app could not read the industry codes.`
+            : null
+        );
       } catch {
         setIndustryNote("Could not reach the server.");
       }

@@ -7,15 +7,20 @@ import { listIndustries, pcbCredentialsFromEnv, PcbError } from "@/lib/regulator
 export const runtime = "edge";
 
 function industryId(row: Record<string, string | null>): string | null {
-  return Object.entries(row).find(([key, value]) =>
-    Boolean(value && /industry.*id|industry.*code/i.test(key) && /^\d+$/.test(value))
-  )?.[1] ?? null;
+  const preferred = Object.entries(row).find(([key, value]) =>
+    Boolean(value && /(industry.*id|industry.*code|^id$|^code$)/i.test(key) && /\d+/.test(value))
+  )?.[1];
+  const fallback = Object.values(row).find((value) => Boolean(value && /\b\d{1,3}\b/.test(value)));
+  const match = (preferred ?? fallback)?.match(/\b\d{1,3}\b/);
+  return match?.[0] ?? null;
 }
 
 function industryName(row: Record<string, string | null>): string {
-  return Object.entries(row).find(([key, value]) =>
+  const preferred = Object.entries(row).find(([key, value]) =>
     Boolean(value && /industry.*name|description/i.test(key))
-  )?.[1] ?? Object.values(row).filter(Boolean).join(" ");
+  )?.[1] ?? Object.values(row).find((value) => Boolean(value && /[A-Za-z]/.test(value)));
+  const fallback = Object.values(row).filter(Boolean).join(" ");
+  return (preferred ?? fallback).replace(/\s+-\s+\d{1,3}\s*$/, "").trim();
 }
 
 export async function GET() {
@@ -46,12 +51,15 @@ export async function GET() {
 
   try {
     const rows = await listIndustries(creds);
+    const parsed = rows
+      .map((row) => ({ id: industryId(row), name: industryName(row), raw: row }))
+      .filter((row): row is { id: string; name: string; raw: Record<string, string | null> } => Boolean(row.id))
+      .sort((a, b) => Number(a.id) - Number(b.id));
+
     return NextResponse.json({
       ok: true,
-      rows: rows
-        .map((row) => ({ id: industryId(row), name: industryName(row), raw: row }))
-        .filter((row): row is { id: string; name: string; raw: Record<string, string | null> } => Boolean(row.id))
-        .sort((a, b) => Number(a.id) - Number(b.id)),
+      source_count: rows.length,
+      rows: parsed,
     });
   } catch (err) {
     const message = err instanceof PcbError
