@@ -15,7 +15,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, HelpCircle } from "lucide-react";
+import { BadgeCheck, HelpCircle, Search } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 export type ProductFdaCode = {
@@ -33,15 +33,20 @@ const buttonClass =
 
 export function ProductFdaCodeCard({
   productId,
+  productName,
   current,
   canManage,
 }: {
   productId: string;
+  productName: string;
   current: ProductFdaCode;
   canManage: boolean;
 }) {
   const router = useRouter();
   const [code, setCode] = useState(current.code ?? "");
+  const [lookupTerm, setLookupTerm] = useState(productName);
+  const [lookupRows, setLookupRows] = useState<Array<Record<string, string | null>> | null>(null);
+  const [lookupNote, setLookupNote] = useState<string | null>(null);
   const [subclass, setSubclass] = useState("");
   const [pic, setPic] = useState("");
   /** Set when FDA's format cannot say whether the middle character is subclass or PIC. */
@@ -50,6 +55,62 @@ export function ProductFdaCodeCard({
   const [reasons, setReasons] = useState<string[]>([]);
   const [note, setNote] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  function codeFromRow(row: Record<string, string | null>): string | null {
+    const direct = Object.entries(row).find(([key, value]) =>
+      Boolean(value && /code/i.test(key) && /^[0-9A-Z-]{5,7}$/i.test(value))
+    )?.[1];
+    if (direct) return direct.toUpperCase();
+
+    const values = Object.values(row).filter((value): value is string => Boolean(value));
+    return values.find((value) => /^[0-9A-Z-]{5,7}$/i.test(value.trim()))?.toUpperCase() ?? null;
+  }
+
+  function productLabel(row: Record<string, string | null>): string {
+    const preferred = Object.entries(row).find(([key, value]) =>
+      Boolean(value && /(product|name|description)/i.test(key) && !/code/i.test(key))
+    )?.[1];
+    if (preferred) return preferred;
+    return Object.values(row).filter(Boolean).join(" — ");
+  }
+
+  function lookup() {
+    const term = lookupTerm.trim();
+    if (term.length < 2) {
+      setLookupNote("Enter at least two characters.");
+      return;
+    }
+    setLookupRows(null);
+    setLookupNote(null);
+    setError(null);
+    setReasons([]);
+
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/products/fda-code/search?name=${encodeURIComponent(term)}`);
+        const json = await res.json().catch(() => ({})) as {
+          error?: string;
+          rows?: Array<Record<string, string | null>>;
+          truncated?: boolean;
+        };
+        if (!res.ok) {
+          setLookupNote(json.error ?? "FDA Product Code Builder lookup is unavailable.");
+          return;
+        }
+        const rows = json.rows ?? [];
+        setLookupRows(rows);
+        setLookupNote(
+          rows.length === 0
+            ? "FDA returned no product names for that search."
+            : json.truncated
+              ? "Showing the first matches. Narrow the search if needed."
+              : null
+        );
+      } catch {
+        setLookupNote("Could not reach the server.");
+      }
+    });
+  }
 
   function save() {
     setError(null);
@@ -132,10 +193,56 @@ export function ProductFdaCodeCard({
       {canManage && (
         <div className="mt-4 border-t border-line pt-4">
           <p className="text-xs leading-relaxed text-slate-500">
-            Take this from the entry or your broker rather than working it out. The container
-            material and the process are part of the code, so the same commodity packed differently
-            is a different code.
+            Use the code from the entry line or broker when you have it. If not, search FDA Product
+            Code Builder by product name, then confirm the result against packaging and processing
+            details before recording it.
           </p>
+
+          <div className="mt-3 rounded-md border border-line bg-slate-50 p-3">
+            <label className={labelClass}>
+              Search FDA Product Code Builder
+              <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={lookupTerm}
+                  onChange={(event) => setLookupTerm(event.target.value)}
+                  className={`${inputClass} mt-0 flex-1`}
+                  placeholder="Green coffee beans"
+                />
+                <button
+                  type="button"
+                  onClick={lookup}
+                  disabled={pending || lookupTerm.trim().length < 2}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  <Search className="h-4 w-4" />
+                  Search FDA
+                </button>
+              </div>
+            </label>
+
+            {lookupNote && <p className="mt-2 text-xs leading-relaxed text-slate-500">{lookupNote}</p>}
+
+            {lookupRows && lookupRows.length > 0 && (
+              <div className="mt-3 max-h-56 overflow-y-auto rounded-md border border-line bg-white">
+                {lookupRows.map((row, index) => {
+                  const rowCode = codeFromRow(row);
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => rowCode && setCode(rowCode)}
+                      disabled={!rowCode}
+                      className="grid w-full gap-1 border-b border-line px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:grid-cols-[8rem_1fr]"
+                    >
+                      <span className="font-mono font-semibold text-forest">{rowCode ?? "No code"}</span>
+                      <span className="text-slate-700">{productLabel(row)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <input
               value={code}

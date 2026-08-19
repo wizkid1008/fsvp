@@ -178,6 +178,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           {!isSupplierView && hasFdaCodeColumns && (
             <ProductFdaCodeCard
               productId={params.id}
+              productName={product.product_name}
               canManage={canManageAdmissibility}
               current={{
                 code:        productFdaCode?.fda_product_code ?? null,
