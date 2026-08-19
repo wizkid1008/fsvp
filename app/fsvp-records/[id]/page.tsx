@@ -597,7 +597,7 @@ export default async function FsvpRecordPage({
         </section>
 
         {/* Hazard Analysis */}
-        <section id="qi-attestations" className="rounded-lg border border-line bg-white p-5 shadow-soft">
+        <section id="hazard-analysis" className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="mb-5 border-b border-line pb-4">
             <h2 className="text-base font-semibold text-ink">Hazard Analysis</h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -710,7 +710,7 @@ export default async function FsvpRecordPage({
         </section>
 
         {/* Qualified individual attestations */}
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+        <section id="qi-attestations" className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="mb-5 border-b border-line pb-4">
             <h2 className="text-base font-semibold text-ink">Qualified Individual Attestations</h2>
             <p className="mt-1 text-sm text-slate-500">

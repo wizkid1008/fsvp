@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Clock, AlertCircle, XCircle, Upload, FileText, X } from "lucide-react";
+import { CheckCircle2, Clock, AlertCircle, XCircle, Upload, FileText, X, PenLine } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
@@ -10,7 +10,7 @@ import type { StatusTone } from "@/types/platform";
 
 function StatusIcon({ status }: { status: string }) {
   if (status === "accepted") return <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />;
-  if (status === "under_review" || status === "submitted") return <Clock className="h-4 w-4 shrink-0 text-amber-400" />;
+  if (status === "under_review" || status === "submitted" || status === "in_progress") return <Clock className="h-4 w-4 shrink-0 text-amber-400" />;
   if (status === "needs_revision" || status === "rejected") return <XCircle className="h-4 w-4 shrink-0 text-red-500" />;
   return <AlertCircle className="h-4 w-4 shrink-0 text-slate-300" />;
 }
@@ -18,13 +18,14 @@ function StatusIcon({ status }: { status: string }) {
 function statusTone(status: string): StatusTone {
   if (status === "accepted") return "success";
   if (status === "under_review") return "info";
-  if (status === "submitted") return "warning";
+  if (status === "submitted" || status === "in_progress") return "warning";
   if (status === "needs_revision" || status === "rejected") return "danger";
   return "neutral";
 }
 
 function statusLabel(status: string): string {
   if (status === "not_submitted") return "Missing";
+  if (status === "in_progress") return "In Progress";
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -36,6 +37,7 @@ export function RequirementItemRow({
   entityId,
   supplierId,
   requirementItemId,
+  createAction,
 }: {
   itemName: string;
   status: string;
@@ -47,13 +49,19 @@ export function RequirementItemRow({
   entityId: string;
   supplierId: string;
   requirementItemId: string;
+  createAction?: {
+    productId: string;
+    existingHref: string | null;
+  };
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [creating, startCreateTransition] = useTransition();
   const isAccepted = status === "accepted";
 
   function handleFiles(files: FileList | null) {
@@ -66,6 +74,34 @@ export function RequirementItemRow({
     }
     setError(null);
     setFile(next);
+  }
+
+  function startGeneratedHazardAnalysis() {
+    if (!createAction) return;
+    setCreateError(null);
+
+    if (createAction.existingHref) {
+      router.push(createAction.existingHref);
+      return;
+    }
+
+    startCreateTransition(async () => {
+      try {
+        const res = await fetch("/api/product-hazard-analysis/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ product_id: createAction.productId }),
+        });
+        const json = (await res.json()) as { error?: string; href?: string };
+        if (!res.ok || json.error || !json.href) {
+          throw new Error(json.error ?? "Failed to create hazard analysis.");
+        }
+        router.push(json.href);
+        router.refresh();
+      } catch (err) {
+        setCreateError(err instanceof Error ? err.message : "Failed to create hazard analysis.");
+      }
+    });
   }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -119,6 +155,17 @@ export function RequirementItemRow({
           )}
         </div>
         <StatusBadge tone={statusTone(status)}>{statusLabel(status)}</StatusBadge>
+        {createAction && !isAccepted && (
+          <button
+            type="button"
+            onClick={startGeneratedHazardAnalysis}
+            disabled={creating}
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <PenLine className="h-3 w-3" />
+            {creating ? "Opening..." : createAction.existingHref ? "Open" : "Create"}
+          </button>
+        )}
         {!isAccepted && (
           <button
             type="button"
@@ -129,6 +176,12 @@ export function RequirementItemRow({
           </button>
         )}
       </div>
+
+      {createError && (
+        <div className="border-t border-line bg-amber-50 px-4 py-2 text-xs text-amber-900">
+          {createError}
+        </div>
+      )}
 
       {open && (
         <div className="border-t border-line bg-slate-50 px-4 py-3">

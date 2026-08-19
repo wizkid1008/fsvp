@@ -129,10 +129,16 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <h2 className="text-base font-semibold text-ink">Required Documents</h2>
             <p className="mt-1 text-sm text-slate-500">
-              These are the specific documents this product needs. Click "Upload" next to any missing or
-              rejected item to attach it directly.
+              These are the specific records this product needs. Create platform-authored records where
+              available, or upload an existing document next to any missing or rejected item.
             </p>
-            <RequiredEvidenceChecklist linkType="product" entityId={params.id} supplierId={product.supplier_id} supabase={supabase} />
+            <RequiredEvidenceChecklist
+              linkType="product"
+              entityId={params.id}
+              supplierId={product.supplier_id}
+              supabase={supabase}
+              allowGeneratedActions={!isSupplierView}
+            />
           </section>
 
         </div>

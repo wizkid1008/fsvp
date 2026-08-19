@@ -27,12 +27,14 @@ export async function RequiredEvidenceChecklist({
   entityId,
   supplierId,
   supabase,
+  allowGeneratedActions = false,
 }: {
   linkType: "supplier" | "facility" | "product";
   /** The supplier id when linkType is "supplier" — the company IS the entity. */
   entityId: string;
   supplierId: string;
   supabase: SupabaseLike;
+  allowGeneratedActions?: boolean;
 }) {
   const { data: pubVersion } = await (supabase.from("rule_versions") as any)
     .select("id")
@@ -49,7 +51,7 @@ export async function RequiredEvidenceChecklist({
     );
   }
 
-  const [sectionsRes, itemsRes, docsRes] = await Promise.all([
+  const [sectionsRes, itemsRes, docsRes, fsvpRecordRes] = await Promise.all([
     (supabase.from("requirement_sections") as any)
       .select("id, section_key, section_name, sort_order")
       .eq("rule_version_id", pubVersion.id)
@@ -57,7 +59,7 @@ export async function RequiredEvidenceChecklist({
       .order("sort_order"),
 
     (supabase.from("requirement_sections") as any)
-      .select("id, requirement_items(id, item_name, is_required, is_critical_blocker, sort_order)")
+      .select("id, requirement_items(id, item_key, item_name, is_required, is_critical_blocker, sort_order)")
       .eq("rule_version_id", pubVersion.id)
       .eq("applies_to", linkType),
 
@@ -82,11 +84,21 @@ export async function RequiredEvidenceChecklist({
           .eq("linked_entity_id", entityId)
           .is("soft_deleted_at", null)
           .not("requirement_item_id", "is", null),
+
+    linkType === "product"
+      ? (supabase.from("fsvp_records") as any)
+          .select("id")
+          .eq("product_id", entityId)
+          .eq("supplier_id", supplierId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const sections: Array<{ id: string; section_key: string; section_name: string }> = sectionsRes.data ?? [];
 
-  type RawItem = { id: string; item_name: string; is_required: boolean; is_critical_blocker: boolean; sort_order: number };
+  type RawItem = { id: string; item_key: string; item_name: string; is_required: boolean; is_critical_blocker: boolean; sort_order: number };
   type RawSec = { id: string; requirement_items: RawItem[] };
 
   const itemsBySectionId = new Map<string, RawItem[]>();
@@ -103,6 +115,49 @@ export async function RequiredEvidenceChecklist({
     const existing = docByItemId.get(doc.requirement_item_id) ?? [];
     existing.push(doc.evidence_status ?? "not_submitted");
     docByItemId.set(doc.requirement_item_id, existing);
+  }
+
+  const fsvpRecordId = fsvpRecordRes.data?.id as string | undefined;
+  const hazardRes = fsvpRecordId
+    ? await (supabase.from("fsvp_plan_hazard_analyses") as any)
+        .select("id, status, fsvp_plan_hazard_items(id)")
+        .eq("fsvp_record_id", fsvpRecordId)
+        .neq("status", "superseded")
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
+  const hazardAnalysis = hazardRes.data as {
+    id: string;
+    status: string;
+    fsvp_plan_hazard_items?: Array<{ id: string }>;
+  } | null;
+
+  function generatedStatusFor(item: RawItem): string | null {
+    if (linkType !== "product" || !hazardAnalysis) return null;
+    if (item.item_key === "product_hazard_analysis_doc") {
+      return hazardAnalysis.status === "final" ? "accepted" : "in_progress";
+    }
+    if (item.item_key === "known_or_reasonably_foreseeable") {
+      if ((hazardAnalysis.fsvp_plan_hazard_items ?? []).length === 0) return "in_progress";
+      return hazardAnalysis.status === "final" ? "accepted" : "in_progress";
+    }
+    return null;
+  }
+
+  function createActionFor(item: RawItem) {
+    if (
+      !allowGeneratedActions ||
+      linkType !== "product" ||
+      !["product_hazard_analysis_doc", "known_or_reasonably_foreseeable"].includes(item.item_key)
+    ) {
+      return undefined;
+    }
+
+    return {
+      productId: entityId,
+      existingHref: fsvpRecordId ? `/fsvp-records/${fsvpRecordId}#hazard-analysis` : null,
+    };
   }
 
   const sectionsWithItems = sections
@@ -128,12 +183,13 @@ export async function RequiredEvidenceChecklist({
             <RequirementItemRow
               key={item.id}
               itemName={item.item_name}
-              status={bestStatus(docByItemId.get(item.id) ?? [])}
+              status={generatedStatusFor(item) ?? bestStatus(docByItemId.get(item.id) ?? [])}
               isCriticalBlocker={item.is_critical_blocker}
               linkType={linkType}
               entityId={entityId}
               supplierId={supplierId}
               requirementItemId={item.id}
+              createAction={createActionFor(item)}
             />
           ))}
         </div>
