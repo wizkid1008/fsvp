@@ -269,7 +269,7 @@ export default async function ProductsPage({
       // Suppliers cannot read importer-owned determinations. Preserve the
       // evidence status in their view rather than turning hidden data into a
       // false "not approved" assertion.
-      approval_status: isSupplier || ["permitted", "restricted"].includes(status ?? "")
+      approval_status: isSupplier || ["permitted", "restricted", "not_determined"].includes(status ?? "")
         ? scoreStatus
         : "not_approved",
     };

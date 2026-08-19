@@ -21,7 +21,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSupplierType } from "@/lib/supplier-context";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import type { StatusTone } from "@/types/platform";
-import { evaluateAdmissibility } from "@/lib/admissibility/gate";
+import { evaluateAdmissibility, hardAdmissibilityBlocks } from "@/lib/admissibility/gate";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
 
 export const runtime = "edge";
@@ -93,7 +93,8 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   ]);
 
   const scoredStatus = scoreStatusMap.get(params.id) ?? product.approval_status ?? "pending";
-  const gatedStatus = admissibilityBlocks.length > 0 ? "not_approved" : scoredStatus;
+  const hardBlocks = hardAdmissibilityBlocks(admissibilityBlocks);
+  const gatedStatus = hardBlocks.length > 0 ? "not_approved" : scoredStatus;
   const commodity = product.commodities as {
     common_name: string;
     scientific_name: string | null;

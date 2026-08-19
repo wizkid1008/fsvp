@@ -1,4 +1,4 @@
-import { evaluateAdmissibility, type AdmissibilityBlock } from "@/lib/admissibility/gate";
+import { evaluateAdmissibility, hardAdmissibilityBlocks, type AdmissibilityBlock } from "@/lib/admissibility/gate";
 import { fetchDetermination, isDeterminationLive, type LiveDetermination } from "@/lib/fsvp/applicability";
 import { evaluateGates, type GateBlock } from "@/lib/fsvp/gates";
 import { evaluateAttestations, type AttestationEvaluation, type AttestationInput } from "@/lib/fsvp/qi-attestation";
@@ -262,7 +262,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
   const admissibilityBlockers: SetupBlocker[] = [];
   for (const product of input.products) {
     const blocks = input.admissibilityByProductId.get(product.id) ?? [];
-    for (const [index, item] of blocks.entries()) {
+    for (const [index, item] of hardAdmissibilityBlocks(blocks).entries()) {
       admissibilityBlockers.push(blocker(
         `admissibility-${product.id}-${item.code}-${index}`,
         `${productLabel(product)}: ${item.message}`,
@@ -283,7 +283,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ...STEP_COPY.admissibility,
     blockers: admissibilityBlockers,
     progress: progress(
-      countWhere(input.products, (p) => (input.admissibilityByProductId.get(p.id) ?? []).length === 0),
+      countWhere(input.products, (p) => hardAdmissibilityBlocks(input.admissibilityByProductId.get(p.id) ?? []).length === 0),
       input.products.length
     ),
   });

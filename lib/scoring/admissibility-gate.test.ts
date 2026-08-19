@@ -15,10 +15,18 @@ describe("applyAdmissibilityGate", () => {
     expect(applyAdmissibilityGate(approved, [])).toBe(approved);
   });
 
-  it("prevents an evidence score from presenting a blocked product as approved", () => {
+  it("does not fail a product solely because reference coverage is pending", () => {
     const result = applyAdmissibilityGate(approved, [{
       code: "determination_missing",
       message: "No determination.",
+    }]);
+    expect(result).toBe(approved);
+  });
+
+  it("prevents an evidence score from presenting a hard-blocked product as approved", () => {
+    const result = applyAdmissibilityGate(approved, [{
+      code: "prohibited",
+      message: "Prohibited movement.",
     }]);
     expect(result.approval_status).toBe("not_approved");
     expect(result.critical_blockers_present).toBe(true);

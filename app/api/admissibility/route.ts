@@ -159,11 +159,10 @@ export async function POST(req: NextRequest) {
         // past this screen is exactly the confident wrong answer the curated
         // table exists to prevent.
         error: resolution.status === "no_rule"
-          ? "No country-commodity rule on file covers this movement. Rules are added by a " +
-            "platform administrator under Admin → Country-Commodity Rules, after checking APHIS " +
-            "ACIR — they are curated by hand rather than shipped, because a rule nobody has " +
-            "verified produces a confident wrong answer. Ask an administrator to add the rule " +
-            "for this commodity and origin, then record the determination."
+          ? "Reference rule needed before an admissibility determination can be recorded. " +
+            "A platform administrator should add the country-commodity rule after checking " +
+            "APHIS ACIR; until then this product can continue through file-building, but it " +
+            "is not ready for final admissibility approval."
           : "The rules on file cannot support a determination.",
         status: resolution.status,
         reasons: resolution.reasons,

@@ -31,6 +31,14 @@ export type AdmissibilityContext = {
   countryOfOrigin: string | null;
 };
 
+export function isHardAdmissibilityBlock(block: AdmissibilityBlock): boolean {
+  return block.code !== "determination_missing";
+}
+
+export function hardAdmissibilityBlocks(blocks: AdmissibilityBlock[]): AdmissibilityBlock[] {
+  return blocks.filter(isHardAdmissibilityBlock);
+}
+
 /**
  * A prohibited outcome blocks. A RESTRICTED one does not — restricted means
  * entry is allowed subject to conditions, and the conditions are recorded on

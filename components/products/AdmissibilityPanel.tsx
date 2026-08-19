@@ -112,6 +112,7 @@ export function AdmissibilityPanel({
       : "")
   );
   const [error, setError] = useState<string | null>(null);
+  const [errorTone, setErrorTone] = useState<"danger" | "warning">("danger");
   const [reasons, setReasons] = useState<string[]>([]);
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -136,6 +137,7 @@ export function AdmissibilityPanel({
 
   function classify() {
     setError(null);
+    setErrorTone("danger");
     setReasons([]);
     setSuccess(null);
     startTransition(async () => {
@@ -190,6 +192,7 @@ export function AdmissibilityPanel({
   function requestClassification(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setErrorTone("danger");
     setReasons([]);
     setSuccess(null);
     const form = new FormData(event.currentTarget);
@@ -225,6 +228,7 @@ export function AdmissibilityPanel({
   function determine(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setErrorTone("danger");
     setReasons([]);
     setSuccess(null);
     const form = new FormData(event.currentTarget);
@@ -242,10 +246,12 @@ export function AdmissibilityPanel({
         });
         const json = await res.json().catch(() => ({})) as {
           error?: string;
+          status?: string;
           reasons?: string[];
           outcome?: string;
         };
         if (!res.ok) {
+          setErrorTone(json.status === "no_rule" ? "warning" : "danger");
           setError(json.error ?? "Admissibility could not be determined.");
           setReasons(Array.isArray(json.reasons) ? json.reasons : []);
           return;
@@ -541,7 +547,9 @@ export function AdmissibilityPanel({
       )}
 
       {error && (
-        <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <div className={`mt-4 rounded-md p-3 text-sm ${
+          errorTone === "warning" ? "bg-amber-50 text-amber-900" : "bg-red-50 text-red-700"
+        }`}>
           <p className="font-semibold">{error}</p>
           {reasons.length > 0 && <ul className="mt-2 space-y-1">{reasons.map((reason) => <li key={reason}>• {reason}</li>)}</ul>}
         </div>

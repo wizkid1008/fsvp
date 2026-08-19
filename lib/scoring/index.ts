@@ -11,7 +11,7 @@ import {
 } from "./queries";
 import type { ScoreResult } from "./types";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { evaluateAdmissibility, type AdmissibilityBlock } from "@/lib/admissibility/gate";
+import { evaluateAdmissibility, hardAdmissibilityBlocks, type AdmissibilityBlock } from "@/lib/admissibility/gate";
 
 export type { ScoreResult, SectionScore, ApprovalStatus } from "./types";
 export { sectionCompletionPercent } from "./engine";
@@ -81,7 +81,7 @@ export function applyAdmissibilityGate(
   result: ScoreResult,
   blocks: AdmissibilityBlock[]
 ): ScoreResult {
-  if (blocks.length === 0) return result;
+  if (hardAdmissibilityBlocks(blocks).length === 0) return result;
   return {
     ...result,
     approval_status: "not_approved",

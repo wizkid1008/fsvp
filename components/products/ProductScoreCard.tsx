@@ -1,6 +1,6 @@
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
-import type { AdmissibilityBlock } from "@/lib/admissibility/gate";
+import { hardAdmissibilityBlocks, type AdmissibilityBlock } from "@/lib/admissibility/gate";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -126,11 +126,21 @@ export async function ProductScoreCard({
   }>;
   const matched = thresholds.find((t) => score >= t.min_score && score <= t.max_score) ?? null;
 
-  const admissibilityBlocked = admissibilityBlocks.length > 0;
+  const hardBlocks = hardAdmissibilityBlocks(admissibilityBlocks);
+  const admissibilityBlocked = hardBlocks.length > 0;
+  const admissibilityPending = !admissibilityBlocked && admissibilityBlocks.some(
+    (block) => block.code === "determination_missing"
+  );
   const displayLabel = admissibilityBlocked
     ? "Not approvable"
+    : admissibilityPending
+      ? "Admissibility pending"
     : thresholdLabel(matched?.label ?? null, hasDocs);
-  const tone = admissibilityBlocked ? "danger" : hasDocs ? thresholdTone(matched?.resulting_status ?? null) : "neutral";
+  const tone = admissibilityBlocked
+    ? "danger"
+    : admissibilityPending
+      ? "warning"
+      : hasDocs ? thresholdTone(matched?.resulting_status ?? null) : "neutral";
 
   const ringColor =
     score >= 90 ? "text-emerald-500" :
@@ -178,6 +188,11 @@ export async function ProductScoreCard({
           {admissibilityBlocked && (
             <p className="mt-1.5 text-xs font-semibold text-red-600">
               Admissibility blockers pending
+            </p>
+          )}
+          {admissibilityPending && (
+            <p className="mt-1.5 text-xs font-semibold text-amber-600">
+              Reference rule pending
             </p>
           )}
           <p className="mt-1.5 text-sm text-slate-600">
