@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   }
   if (!product.facility_id) {
     return NextResponse.json(
-      { error: "This product needs a facility before an FSVP hazard analysis can be created." },
+      { error: "Assign this product to a facility before creating its FSVP hazard analysis." },
       { status: 400 }
     );
   }

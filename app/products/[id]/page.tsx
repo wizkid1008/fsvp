@@ -9,6 +9,10 @@ import {
   type ProductCommodityOption,
 } from "@/components/products/AdmissibilityPanel";
 import { ProductFdaCodeCard } from "@/components/products/ProductFdaCodeCard";
+import {
+  ProductFacilityAssignmentPanel,
+  type ProductFacilityOption,
+} from "@/components/products/ProductFacilityAssignmentPanel";
 import { RequiredEvidenceChecklist } from "@/components/evidence/RequiredEvidenceChecklist";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -56,6 +60,9 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         .maybeSingle()
     : { data: null, error: null };
   const hasFdaCodeColumns = !productFdaCodeError;
+  const assignableFacilities = !product.facility_id && product.supplier_id
+    ? await fetchAssignableFacilities(supabase as any, product.supplier_id)
+    : [];
 
   const [commoditiesResult, determinationsResult, scoreStatusMap, admissibilityBlocks, requestResult] = await Promise.all([
     (supabase.from("commodities") as any)
@@ -143,6 +150,13 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         <ProductScoreCard productId={params.id} supabase={supabase} admissibilityBlocks={admissibilityBlocks} />
 
         <div className="space-y-6">
+          {!product.facility_id && (
+            <ProductFacilityAssignmentPanel
+              productId={params.id}
+              facilities={assignableFacilities}
+            />
+          )}
+
           {!isSupplierView && (
             <AdmissibilityPanel
               productId={params.id}
@@ -192,4 +206,41 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       </div>
     </AppShell>
   );
+}
+
+async function fetchAssignableFacilities(
+  supabase: { from: (table: string) => any },
+  supplierId: string
+): Promise<ProductFacilityOption[]> {
+  const [directRes, accessRes] = await Promise.all([
+    (supabase.from("facilities_verify") as any)
+      .select("id, facility_name, facility_address_json")
+      .eq("supplier_id", supplierId)
+      .order("facility_name"),
+    (supabase.from("facility_supplier_access") as any)
+      .select("facilities_verify(id, facility_name, facility_address_json)")
+      .eq("supplier_id", supplierId),
+  ]);
+
+  type FacilityRow = {
+    id: string;
+    facility_name: string;
+    facility_address_json: { country?: string } | null;
+  };
+  type AccessRow = { facilities_verify: FacilityRow | null };
+
+  const byId = new Map<string, ProductFacilityOption>();
+  function add(row: FacilityRow | null | undefined) {
+    if (!row) return;
+    byId.set(row.id, {
+      id: row.id,
+      facility_name: row.facility_name,
+      country: row.facility_address_json?.country ?? null,
+    });
+  }
+
+  for (const row of (directRes.data ?? []) as FacilityRow[]) add(row);
+  for (const row of (accessRes.data ?? []) as AccessRow[]) add(row.facilities_verify);
+
+  return [...byId.values()].sort((a, b) => a.facility_name.localeCompare(b.facility_name));
 }
