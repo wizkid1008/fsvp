@@ -388,8 +388,8 @@ export function AdmissibilityPanel({
                 <div className="rounded-md border border-dashed border-forest/40 bg-emerald-50/60 p-4">
                   <p className="text-sm font-semibold text-ink">Can&apos;t find the right commodity?</p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                    Do not choose the closest match. Submit the gap so the taxonomy can be reviewed
-                    without turning one-off wording into a live commodity.
+                    Tell us what the product is and we&apos;ll review the right option to add. This helps
+                    avoid picking a close-but-wrong match.
                   </p>
                   <button
                     type="button"
@@ -401,10 +401,10 @@ export function AdmissibilityPanel({
                 </div>
               ) : (
                 <form onSubmit={requestClassification} className="rounded-md border border-line bg-slate-50 p-4">
-                  <h4 className="text-sm font-semibold text-ink">Submit a commodity gap</h4>
+                  <h4 className="text-sm font-semibold text-ink">Request a commodity option</h4>
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    Describe the material as it actually enters. This does not classify the product;
-                    it gives the reference team enough detail to add the right commodity cleanly.
+                    Describe the product as it will enter the United States. We&apos;ll use this to review
+                    and add the right commodity option.
                   </p>
 
                   <label className={`${labelClass} mt-3`}>
@@ -492,7 +492,7 @@ export function AdmissibilityPanel({
 
                   <div className="mt-3 flex gap-2">
                     <button type="submit" disabled={pending} className={buttonClass}>
-                      {pending ? "Submitting…" : "Submit gap"}
+                      {pending ? "Submitting…" : "Submit request"}
                     </button>
                     <button
                       type="button"
