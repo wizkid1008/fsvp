@@ -47,6 +47,10 @@ export function ProductFdaCodeCard({
   const [lookupTerm, setLookupTerm] = useState(productName);
   const [lookupRows, setLookupRows] = useState<Array<Record<string, string | null>> | null>(null);
   const [lookupNote, setLookupNote] = useState<string | null>(null);
+  const [industryRows, setIndustryRows] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [industryId, setIndustryId] = useState("");
+  const [industryFilter, setIndustryFilter] = useState(productName);
+  const [industryNote, setIndustryNote] = useState<string | null>(null);
   const [subclass, setSubclass] = useState("");
   const [pic, setPic] = useState("");
   /** Set when FDA's format cannot say whether the middle character is subclass or PIC. */
@@ -110,6 +114,68 @@ export function ProductFdaCodeCard({
         );
       } catch {
         setLookupNote("Could not reach the server.");
+      }
+    });
+  }
+
+  function loadIndustries() {
+    setIndustryNote(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/products/fda-code/industries");
+        const json = await res.json().catch(() => ({})) as {
+          error?: string;
+          rows?: Array<{ id: string; name: string }>;
+        };
+        if (!res.ok) {
+          setIndustryNote(json.error ?? "FDA industry lookup is unavailable.");
+          return;
+        }
+        setIndustryRows(json.rows ?? []);
+      } catch {
+        setIndustryNote("Could not reach the server.");
+      }
+    });
+  }
+
+  function searchIndustry() {
+    if (!industryId) {
+      setIndustryNote("Choose an FDA industry first.");
+      return;
+    }
+    setLookupRows(null);
+    setLookupNote(null);
+    setIndustryNote(null);
+    setError(null);
+    setReasons([]);
+
+    const params = new URLSearchParams({ industry: industryId });
+    if (industryFilter.trim()) params.set("filter", industryFilter.trim());
+
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/products/fda-code/industry-search?${params.toString()}`);
+        const json = await res.json().catch(() => ({})) as {
+          error?: string;
+          rows?: Array<Record<string, string | null>>;
+          total?: number;
+          truncated?: boolean;
+        };
+        if (!res.ok) {
+          setIndustryNote(json.error ?? "FDA industry search is unavailable.");
+          return;
+        }
+        const rows = json.rows ?? [];
+        setLookupRows(rows);
+        setIndustryNote(
+          rows.length === 0
+            ? "FDA returned no codes in that industry for the filter. Try removing a word."
+            : json.truncated
+              ? `Showing first ${rows.length} of ${json.total ?? "many"} matches. Add a filter to narrow it.`
+              : null
+        );
+      } catch {
+        setIndustryNote("Could not reach the server.");
       }
     });
   }
@@ -243,6 +309,56 @@ export function ProductFdaCodeCard({
                 })}
               </div>
             )}
+
+            <div className="mt-4 border-t border-line pt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-ink">Browse by FDA industry</p>
+                {!industryRows && (
+                  <button
+                    type="button"
+                    onClick={loadIndustries}
+                    disabled={pending}
+                    className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Load industries
+                  </button>
+                )}
+              </div>
+
+              {industryRows && (
+                <div className="mt-2 grid gap-2 lg:grid-cols-[1.2fr_1fr_auto]">
+                  <select
+                    value={industryId}
+                    onChange={(event) => setIndustryId(event.target.value)}
+                    className={`${inputClass} mt-0`}
+                  >
+                    <option value="">Select FDA industry</option>
+                    {industryRows.map((industry) => (
+                      <option key={industry.id} value={industry.id}>
+                        {industry.name} - {industry.id}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={industryFilter}
+                    onChange={(event) => setIndustryFilter(event.target.value)}
+                    className={`${inputClass} mt-0`}
+                    placeholder="Optional filter"
+                  />
+                  <button
+                    type="button"
+                    onClick={searchIndustry}
+                    disabled={pending || !industryId}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <Search className="h-4 w-4" />
+                    Browse
+                  </button>
+                </div>
+              )}
+
+              {industryNote && <p className="mt-2 text-xs leading-relaxed text-slate-500">{industryNote}</p>}
+            </div>
           </div>
 
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
