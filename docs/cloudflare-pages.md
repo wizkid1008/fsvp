@@ -100,6 +100,18 @@ actions. Both must be set; `ingestableSources()` in `lib/regulatory/sources.ts` 
 without the other as absent, because a half-configured credential fails at request time with
 a 401 that looks like a supplier having no findings.
 
+- `FDA_PCB_USER` — the email FDA approved, sent as `Authorization-User`.
+- `FDA_PCB_KEY` — the key FDA issued, sent as `Authorization-Key`.
+
+The Product Code Builder pair gates `lib/regulatory/product-code-builder.ts`, which reads
+FDA's product-code reference tables and verifies codes an importer already holds. Both must
+be set, for the same reason as the pair above.
+
+These are a **separate** credential from the Data Dashboard pair even though both are issued
+through the same OII Unified Logon. FDA issues keys per application, so do not assume one
+value works for both — request PCB access explicitly and set these two variables even if the
+values turn out to match.
+
 None of these are `NEXT_PUBLIC_`. They are read server-side only, inside request handlers —
 an FDA credential in a client bundle is a published credential.
 
