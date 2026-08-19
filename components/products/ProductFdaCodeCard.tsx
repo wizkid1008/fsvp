@@ -92,6 +92,7 @@ export function ProductFdaCodeCard({
           error?: string;
           rows?: Array<Record<string, string | null>>;
           truncated?: boolean;
+          tried?: string[];
         };
         if (!res.ok) {
           setLookupNote(json.error ?? "FDA Product Code Builder lookup is unavailable.");
@@ -99,9 +100,10 @@ export function ProductFdaCodeCard({
         }
         const rows = json.rows ?? [];
         setLookupRows(rows);
+        const tried = (json.tried ?? []).filter(Boolean).join(", ");
         setLookupNote(
           rows.length === 0
-            ? "FDA returned no product names for that search."
+            ? `FDA returned no product names. Tried: ${tried || term}. Try a broader term, such as coffee.`
             : json.truncated
               ? "Showing the first matches. Narrow the search if needed."
               : null
