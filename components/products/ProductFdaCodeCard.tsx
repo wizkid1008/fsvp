@@ -35,6 +35,12 @@ function cellText(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value);
 }
 
+function rowValue(row: Record<string, string | null>, patterns: RegExp[]): string | null {
+  return Object.entries(row).find(([key, value]) =>
+    Boolean(cellText(value) && patterns.some((pattern) => pattern.test(key)))
+  )?.[1] ?? null;
+}
+
 export function ProductFdaCodeCard({
   productId,
   productName,
@@ -66,12 +72,30 @@ export function ProductFdaCodeCard({
 
   function codeFromRow(row: Record<string, string | null>): string | null {
     const direct = Object.entries(row).find(([key, value]) =>
-      Boolean(cellText(value) && /code/i.test(key) && /^[0-9A-Z-]{5,7}$/i.test(cellText(value)!))
+      Boolean(
+        cellText(value) &&
+        /code/i.test(key) &&
+        !/id/i.test(key) &&
+        /^[0-9]{2}[A-Z][0-9A-Z-]{2,4}$/i.test(cellText(value)!)
+      )
     )?.[1];
     if (direct) return String(direct).toUpperCase();
 
     const values = Object.values(row).map(cellText).filter((value): value is string => Boolean(value));
-    return values.find((value) => /^[0-9A-Z-]{5,7}$/i.test(value.trim()))?.toUpperCase() ?? null;
+    return values.find((value) => /^[0-9]{2}[A-Z][0-9A-Z-]{2,4}$/i.test(value.trim()))?.toUpperCase() ?? null;
+  }
+
+  function partialCodeFromRow(row: Record<string, string | null>): string | null {
+    const industry = rowValue(row, [/industry.*(id|code)/i, /^industry$/i]);
+    const klass = rowValue(row, [/class.*(id|code)$/i, /^class$/i]);
+    const group = rowValue(row, [/product.*group/i, /group.*code/i]);
+    if (!industry && !klass && !group) return null;
+    return [
+      industry ? industry.padStart(2, "0") : "??",
+      klass?.toUpperCase() ?? "?",
+      "…",
+      group?.toUpperCase() ?? "??",
+    ].join("");
   }
 
   function productLabel(row: Record<string, string | null>): string {
@@ -171,6 +195,7 @@ export function ProductFdaCodeCard({
           rows?: Array<Record<string, string | null>>;
           total?: number;
           truncated?: boolean;
+          fallback?: boolean;
         };
         if (!res.ok) {
           setIndustryNote(json.error ?? "FDA industry search is unavailable.");
@@ -181,6 +206,8 @@ export function ProductFdaCodeCard({
         setIndustryNote(
           rows.length === 0
             ? "FDA returned no codes in that industry for the filter. Try removing a word."
+            : json.fallback
+              ? "No exact filter match. Showing broader results from the selected industry."
             : json.truncated
               ? `Showing first ${rows.length} of ${json.total ?? "many"} matches. Add a filter to narrow it.`
               : null
@@ -305,15 +332,25 @@ export function ProductFdaCodeCard({
               <div className="mt-3 max-h-56 overflow-y-auto rounded-md border border-line bg-white">
                 {lookupRows.map((row, index) => {
                   const rowCode = codeFromRow(row);
+                  const partialCode = partialCodeFromRow(row);
                   return (
                     <button
                       key={index}
                       type="button"
-                      onClick={() => rowCode && setCode(rowCode)}
-                      disabled={!rowCode}
+                      onClick={() => {
+                        if (rowCode) {
+                          setCode(rowCode);
+                          setLookupNote(null);
+                        } else {
+                          setLookupNote(
+                            "That FDA result identifies the product family, but not the full entry-line code. " +
+                            "Confirm subclass and process with the entry or broker before recording."
+                          );
+                        }
+                      }}
                       className="grid w-full gap-1 border-b border-line px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:grid-cols-[8rem_1fr]"
                     >
-                      <span className="font-mono font-semibold text-forest">{rowCode ?? "No code"}</span>
+                      <span className="font-mono font-semibold text-forest">{rowCode ?? partialCode ?? "Reference"}</span>
                       <span className="text-slate-700">{productLabel(row)}</span>
                     </button>
                   );

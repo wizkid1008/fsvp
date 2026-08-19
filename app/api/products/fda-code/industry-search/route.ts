@@ -13,10 +13,16 @@ export const runtime = "edge";
 
 const MAX_ROWS = 50;
 
-function matches(row: Record<string, string | null>, filter: string): boolean {
+function matchesAll(row: Record<string, string | null>, filter: string): boolean {
   if (!filter) return true;
   const haystack = Object.values(row).filter(Boolean).join(" ").toLowerCase();
   return filter.toLowerCase().split(/\s+/).filter(Boolean).every((term) => haystack.includes(term));
+}
+
+function matchesAny(row: Record<string, string | null>, filter: string): boolean {
+  if (!filter) return true;
+  const haystack = Object.values(row).filter(Boolean).join(" ").toLowerCase();
+  return filter.toLowerCase().split(/\s+/).filter(Boolean).some((term) => haystack.includes(term));
 }
 
 function normalizeRow(row: Record<string, unknown>): Record<string, string | null> {
@@ -62,11 +68,14 @@ export async function GET(req: NextRequest) {
 
   try {
     const rows = (await listProductCodesForIndustry(Number(industry), creds)).map(normalizeRow);
-    const filtered = rows.filter((row) => matches(row, filter));
+    const exact = rows.filter((row) => matchesAll(row, filter));
+    const loose = exact.length > 0 ? exact : rows.filter((row) => matchesAny(row, filter));
+    const filtered = loose.length > 0 ? loose : rows;
     return NextResponse.json({
       ok: true,
       industry,
       filter,
+      fallback: filter.length > 0 && exact.length === 0,
       total: filtered.length,
       truncated: filtered.length > MAX_ROWS,
       rows: filtered.slice(0, MAX_ROWS),
