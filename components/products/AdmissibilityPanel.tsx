@@ -51,6 +51,24 @@ const labelClass = "block text-sm font-medium text-slate-700";
 const buttonClass =
   "inline-flex h-10 items-center justify-center rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60";
 
+const commodityClasses = [
+  ["fruit", "Fruit"],
+  ["vegetable", "Vegetable"],
+  ["nut", "Nut"],
+  ["grain", "Grain"],
+  ["herb_spice", "Herb or spice"],
+  ["seafood", "Seafood"],
+  ["meat_poultry", "Meat or poultry"],
+  ["dairy", "Dairy"],
+  ["egg", "Egg"],
+  ["beverage", "Beverage"],
+  ["processed_food", "Processed food"],
+  ["supplement", "Supplement"],
+  ["other", "Other"],
+] as const;
+
+const plantClassValues = new Set(["fruit", "vegetable", "nut", "grain", "herb_spice"]);
+
 function outcomeTone(outcome: AdmissibilityDeterminationRow["outcome"]): StatusTone {
   if (outcome === "permitted") return "success";
   if (outcome === "restricted") return "warning";
@@ -99,6 +117,7 @@ export function AdmissibilityPanel({
   const [pending, startTransition] = useTransition();
 
   const [requesting, setRequesting] = useState(false);
+  const [requestClass, setRequestClass] = useState("");
   const [pcbRows, setPcbRows] = useState<Array<Record<string, string | null>> | null>(null);
   const [pcbNote, setPcbNote] = useState<string | null>(null);
 
@@ -183,18 +202,19 @@ export function AdmissibilityPanel({
           body: JSON.stringify({
             product_id: productId,
             described_as: form.get("described_as"),
+            commodity_class: form.get("commodity_class"),
             plant_part: form.get("plant_part") || undefined,
             is_propagative: form.get("is_propagative") === "on",
             notes: form.get("notes"),
           }),
         });
-        const json = await res.json().catch(() => ({})) as { error?: string };
+        const json = await res.json().catch(() => ({})) as { error?: string; commodity_name?: string };
         if (!res.ok) {
-          setError(json.error ?? "Could not raise the request.");
+          setError(json.error ?? "Could not create the provisional commodity.");
           return;
         }
         setRequesting(false);
-        setSuccess("Request sent. This product stays unclassified until it is answered — which is accurate.");
+        setSuccess(`Created and classified as ${json.commodity_name ?? "a provisional commodity"}.`);
         router.refresh();
       } catch {
         setError("Could not reach the server.");
@@ -239,6 +259,7 @@ export function AdmissibilityPanel({
   }
 
   const HeadingIcon = heading.icon;
+  const requestIsPlantLike = plantClassValues.has(requestClass);
 
   return (
     <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -322,16 +343,16 @@ export function AdmissibilityPanel({
               or picks the nearest wrong commodity. The second is worse — the
               determination that follows resolves against a rule for a different
               commodity and still arrives with a citation and an expiry. */}
-          {classificationRequest?.status === "open" ? (
-            <div className="mt-3 rounded-md border border-line bg-slate-50 px-4 py-3">
-              <p className="text-sm font-semibold text-ink">A classification request is open</p>
-              <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                You described this as &ldquo;{classificationRequest.described_as}&rdquo; on{" "}
-                {classificationRequest.created_at.slice(0, 10)}. An administrator adds the commodity;
-                until then this product stays unclassified, which is the accurate state rather than
-                an obstructive one.
-              </p>
-            </div>
+              {classificationRequest?.status === "open" ? (
+                <div className="mt-3 rounded-md border border-line bg-slate-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-ink">A classification request is open</p>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                    You described this as &ldquo;{classificationRequest.described_as}&rdquo; on{" "}
+                    {classificationRequest.created_at.slice(0, 10)}. This older request still needs
+                    a platform answer; new unlisted products can now create a provisional commodity
+                    without waiting.
+                  </p>
+                </div>
           ) : classificationRequest?.status === "resolved" ? (
             <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
               <p className="text-sm font-semibold text-emerald-900">
@@ -361,8 +382,8 @@ export function AdmissibilityPanel({
                 <div className="rounded-md border border-dashed border-forest/40 bg-emerald-50/60 p-4">
                   <p className="text-sm font-semibold text-ink">Can&apos;t find the right commodity?</p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                    Do not choose the closest match. Send a request so an administrator can add the
-                    correct commodity and keep this product unclassified until then.
+                    Do not choose the closest match. Create a provisional commodity for this product
+                    so you can keep working while the platform reviews the taxonomy later.
                   </p>
                   <button
                     type="button"
@@ -374,11 +395,10 @@ export function AdmissibilityPanel({
                 </div>
               ) : (
                 <form onSubmit={requestClassification} className="rounded-md border border-line bg-slate-50 p-4">
-                  <h4 className="text-sm font-semibold text-ink">Ask for a commodity to be added</h4>
+                  <h4 className="text-sm font-semibold text-ink">Create a provisional commodity</h4>
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    Describe the material as it actually enters. Plant part and propagative status are
-                    part of a commodity&apos;s identity, so say them if you know them — mango fruit and
-                    mango leaves are different regulatory questions.
+                    Describe the material as it actually enters. The product will be classified to this
+                    provisional entry right away, and the platform can review it later.
                   </p>
 
                   <label className={`${labelClass} mt-3`}>
@@ -394,6 +414,22 @@ export function AdmissibilityPanel({
                         if (value.length >= 2) lookupPcb(value);
                       }}
                     />
+                  </label>
+
+                  <label className={`${labelClass} mt-3`}>
+                    Broad class <span className="text-red-500">*</span>
+                    <select
+                      name="commodity_class"
+                      required
+                      value={requestClass}
+                      onChange={(event) => setRequestClass(event.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Select class</option>
+                      {commodityClasses.map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
                   </label>
 
                   {(pcbRows || pcbNote) && (
@@ -419,22 +455,24 @@ export function AdmissibilityPanel({
                     </div>
                   )}
 
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label className={labelClass}>
-                      Plant part
-                      <select name="plant_part" className={inputClass} defaultValue="">
-                        <option value="">Not sure</option>
-                        {["not_applicable", "fruit", "leaf", "root", "seed", "stem", "flower", "whole_plant", "bulb", "tuber"]
-                          .map((value) => (
-                            <option key={value} value={value}>{value.replace(/_/g, " ")}</option>
-                          ))}
-                      </select>
-                    </label>
-                    <label className="flex items-center gap-2 pt-7 text-sm font-medium text-slate-700">
-                      <input name="is_propagative" type="checkbox" className="h-4 w-4 rounded border-line text-forest" />
-                      Capable of growing
-                    </label>
-                  </div>
+                  {requestIsPlantLike && (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className={labelClass}>
+                        Plant part
+                        <select name="plant_part" className={inputClass} defaultValue="">
+                          <option value="">Not sure</option>
+                          {["not_applicable", "fruit", "leaf", "root", "seed", "stem", "flower", "whole_plant", "bulb", "tuber"]
+                            .map((value) => (
+                              <option key={value} value={value}>{value.replace(/_/g, " ")}</option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="flex items-center gap-2 pt-7 text-sm font-medium text-slate-700">
+                        <input name="is_propagative" type="checkbox" className="h-4 w-4 rounded border-line text-forest" />
+                        Capable of growing
+                      </label>
+                    </div>
+                  )}
 
                   <label className={`${labelClass} mt-3`}>
                     Anything else that identifies it
@@ -448,7 +486,7 @@ export function AdmissibilityPanel({
 
                   <div className="mt-3 flex gap-2">
                     <button type="submit" disabled={pending} className={buttonClass}>
-                      {pending ? "Sending…" : "Send request"}
+                      {pending ? "Creating…" : "Create and classify"}
                     </button>
                     <button
                       type="button"

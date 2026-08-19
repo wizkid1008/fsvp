@@ -23,6 +23,7 @@ export type ClassificationRequestQueueRow = {
   product_name: string;
   importer_name: string | null;
   described_as: string;
+  commodity_class: string | null;
   plant_part: string | null;
   is_propagative: boolean | null;
   notes: string | null;
@@ -94,6 +95,9 @@ function RequestCard({
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
+          {request.commodity_class && (
+            <StatusBadge tone="neutral">{request.commodity_class.replace(/_/g, " ")}</StatusBadge>
+          )}
           {request.plant_part && (
             <StatusBadge tone="neutral">{request.plant_part.replace(/_/g, " ")}</StatusBadge>
           )}

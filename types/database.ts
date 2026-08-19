@@ -735,6 +735,10 @@ export type Commodity = {
   fda_product_group: string | null;
   notes: string | null;
   active: boolean;
+  review_status: "verified" | "provisional" | "archived";
+  created_by_importer_id: string | null;
+  created_by_profile_id: string | null;
+  provisional_basis: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -753,6 +757,10 @@ export type CommodityClassificationRequest = {
   product_id: string;
   requested_by_profile_id: string | null;
   described_as: string;
+  commodity_class:
+    | "fruit" | "vegetable" | "nut" | "grain" | "herb_spice"
+    | "seafood" | "meat_poultry" | "dairy" | "egg"
+    | "beverage" | "processed_food" | "supplement" | "other" | null;
   plant_part:
     | "fruit" | "leaf" | "root" | "seed" | "stem" | "flower"
     | "whole_plant" | "bulb" | "tuber" | "not_applicable" | null;

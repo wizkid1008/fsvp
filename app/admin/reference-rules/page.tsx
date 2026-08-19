@@ -62,7 +62,7 @@ export default async function ReferenceRulesPage() {
     // been stuck longest.
     (admin.from("commodity_classification_requests") as any)
       .select(`
-        id, described_as, plant_part, is_propagative, notes, pcb_candidates, created_at,
+        id, described_as, commodity_class, plant_part, is_propagative, notes, pcb_candidates, created_at,
         products_verify(product_name), importers(display_name)
       `)
       .eq("status", "open")
@@ -128,6 +128,7 @@ export default async function ReferenceRulesPage() {
         product_name:     r.products_verify?.product_name ?? "Unnamed product",
         importer_name:    r.importers?.display_name ?? null,
         described_as:     r.described_as,
+        commodity_class:  r.commodity_class,
         plant_part:       r.plant_part,
         is_propagative:   r.is_propagative,
         notes:            r.notes,

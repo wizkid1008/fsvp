@@ -59,7 +59,9 @@ function responseError(json: unknown, fallback: string): string {
 function CommodityForm({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [commodityClass, setCommodityClass] = useState("");
   const [pending, startTransition] = useTransition();
+  const isPlantLike = ["fruit", "vegetable", "nut", "grain", "herb_spice"].includes(commodityClass);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -114,7 +116,13 @@ function CommodityForm({ onClose }: { onClose: () => void }) {
           </label>
           <label className={labelClass}>
             Commodity class <span className="text-red-500">*</span>
-            <select name="commodity_class" required className={inputClass} defaultValue="">
+            <select
+              name="commodity_class"
+              required
+              className={inputClass}
+              value={commodityClass}
+              onChange={(event) => setCommodityClass(event.target.value)}
+            >
               <option value="" disabled>Select class</option>
               {[
                 "fruit", "vegetable", "nut", "grain", "herb_spice", "seafood",
@@ -123,18 +131,24 @@ function CommodityForm({ onClose }: { onClose: () => void }) {
               ].map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}
             </select>
           </label>
-          <label className={labelClass}>
-            Plant part
-            <select name="plant_part" required className={inputClass} defaultValue="">
-              <option value="" disabled>Select plant part</option>
-              {["not_applicable", "fruit", "leaf", "root", "seed", "stem", "flower", "whole_plant", "bulb", "tuber"]
-                .map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 pt-7 text-sm font-medium text-slate-700">
-            <input name="is_propagative" type="checkbox" className="h-4 w-4 rounded border-line text-forest" />
-            Capable of propagation
-          </label>
+          {isPlantLike ? (
+            <>
+              <label className={labelClass}>
+                Plant part
+                <select name="plant_part" required className={inputClass} defaultValue="">
+                  <option value="" disabled>Select plant part</option>
+                  {["not_applicable", "fruit", "leaf", "root", "seed", "stem", "flower", "whole_plant", "bulb", "tuber"]
+                    .map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 pt-7 text-sm font-medium text-slate-700">
+                <input name="is_propagative" type="checkbox" className="h-4 w-4 rounded border-line text-forest" />
+                Capable of propagation
+              </label>
+            </>
+          ) : (
+            <input type="hidden" name="plant_part" value="not_applicable" />
+          )}
         </div>
 
         {/* Only the commodity-level third of a product code. Subclass is the
