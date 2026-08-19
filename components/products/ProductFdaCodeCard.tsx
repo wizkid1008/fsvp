@@ -25,6 +25,9 @@ export type ProductFdaCode = {
   verified_at: string | null;
 };
 
+type FdaOption = { code: string; name: string };
+type ProductChoice = { key: string; label: string; classCode: string; group: string };
+
 const inputClass =
   "mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest";
 const labelClass = "block text-sm font-medium text-slate-700";
@@ -39,6 +42,31 @@ function rowValue(row: Record<string, string | null>, patterns: RegExp[]): strin
   return Object.entries(row).find(([key, value]) =>
     Boolean(cellText(value) && patterns.some((pattern) => pattern.test(key)))
   )?.[1] ?? null;
+}
+
+function productLabel(row: Record<string, string | null>): string {
+  const preferred = Object.entries(row).find(([key, value]) =>
+    Boolean(cellText(value) && /(product|name|description)/i.test(key) && !/code/i.test(key))
+  )?.[1];
+  if (preferred) return String(preferred);
+  return Object.values(row).map(cellText).filter(Boolean).join(" — ");
+}
+
+function productChoiceFromRow(row: Record<string, string | null>): ProductChoice | null {
+  const text = Object.values(row).map(cellText).filter(Boolean).join(" ");
+  const paren = text.match(/\(([A-Z])-([A-Z0-9]{2})\)/i);
+  const classCode = (
+    rowValue(row, [/^class(_code|_id)?$/i, /product.*class/i]) ??
+    paren?.[1] ??
+    ""
+  ).toUpperCase();
+  const group = (
+    rowValue(row, [/product.*group/i, /^group(_code|_id)?$/i]) ??
+    paren?.[2] ??
+    ""
+  ).toUpperCase();
+  if (!/^[A-Z]$/.test(classCode) || !/^[A-Z0-9]{2}$/.test(group)) return null;
+  return { key: `${classCode}-${group}-${productLabel(row)}`, label: productLabel(row), classCode, group };
 }
 
 export function ProductFdaCodeCard({
@@ -60,6 +88,14 @@ export function ProductFdaCodeCard({
   const [industryRows, setIndustryRows] = useState<Array<{ id: string; name: string }> | null>(null);
   const [industryId, setIndustryId] = useState("");
   const [industryFilter, setIndustryFilter] = useState(productName);
+  const [industryProductRows, setIndustryProductRows] = useState<Array<Record<string, string | null>>>([]);
+  const [selectedProductKey, setSelectedProductKey] = useState("");
+  const [subclassOptions, setSubclassOptions] = useState<FdaOption[]>([]);
+  const [picOptions, setPicOptions] = useState<FdaOption[]>([]);
+  const [selectedSubclass, setSelectedSubclass] = useState("");
+  const [selectedPic, setSelectedPic] = useState("");
+  const [finalRows, setFinalRows] = useState<Array<Record<string, string | null>> | null>(null);
+  const [finalNote, setFinalNote] = useState<string | null>(null);
   const [industryNote, setIndustryNote] = useState<string | null>(null);
   const [subclass, setSubclass] = useState("");
   const [pic, setPic] = useState("");
@@ -98,13 +134,10 @@ export function ProductFdaCodeCard({
     ].join("");
   }
 
-  function productLabel(row: Record<string, string | null>): string {
-    const preferred = Object.entries(row).find(([key, value]) =>
-      Boolean(cellText(value) && /(product|name|description)/i.test(key) && !/code/i.test(key))
-    )?.[1];
-    if (preferred) return String(preferred);
-    return Object.values(row).map(cellText).filter(Boolean).join(" — ");
-  }
+  const productChoices = industryProductRows
+    .map(productChoiceFromRow)
+    .filter((choice): choice is ProductChoice => Boolean(choice));
+  const selectedProduct = productChoices.find((choice) => choice.key === selectedProductKey) ?? null;
 
   function lookup() {
     const term = lookupTerm.trim();
@@ -173,6 +206,32 @@ export function ProductFdaCodeCard({
     });
   }
 
+  function loadCodeOptions(nextIndustryId: string) {
+    setSubclassOptions([]);
+    setPicOptions([]);
+    setSelectedSubclass("");
+    setSelectedPic("");
+    if (!nextIndustryId) return;
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/products/fda-code/options?industry=${encodeURIComponent(nextIndustryId)}`);
+        const json = await res.json().catch(() => ({})) as {
+          error?: string;
+          subclasses?: FdaOption[];
+          pics?: FdaOption[];
+        };
+        if (!res.ok) {
+          setIndustryNote(json.error ?? "FDA subclass and PIC options are unavailable.");
+          return;
+        }
+        setSubclassOptions(json.subclasses ?? []);
+        setPicOptions(json.pics ?? []);
+      } catch {
+        setIndustryNote("Could not reach the server.");
+      }
+    });
+  }
+
   function searchIndustry() {
     if (!industryId) {
       setIndustryNote("Choose an FDA industry first.");
@@ -181,6 +240,10 @@ export function ProductFdaCodeCard({
     setLookupRows(null);
     setLookupNote(null);
     setIndustryNote(null);
+    setIndustryProductRows([]);
+    setSelectedProductKey("");
+    setFinalRows(null);
+    setFinalNote(null);
     setError(null);
     setReasons([]);
 
@@ -203,7 +266,7 @@ export function ProductFdaCodeCard({
           return;
         }
         const rows = json.rows ?? [];
-        setLookupRows(rows);
+        setIndustryProductRows(rows);
         const hasFilter = industryFilter.trim().length > 0;
         setIndustryNote(
           rows.length === 0
@@ -218,6 +281,51 @@ export function ProductFdaCodeCard({
         );
       } catch {
         setIndustryNote("Could not reach the server.");
+      }
+    });
+  }
+
+  function findFinalCodes() {
+    if (!industryId || !selectedProduct) {
+      setFinalNote("Choose an FDA industry and product first.");
+      return;
+    }
+    setFinalRows(null);
+    setFinalNote(null);
+    setError(null);
+    setReasons([]);
+
+    const params = new URLSearchParams({
+      industry: industryId,
+      class: selectedProduct.classCode,
+      group: selectedProduct.group,
+    });
+    if (selectedSubclass) params.set("subclass", selectedSubclass);
+    if (selectedPic) params.set("pic", selectedPic);
+
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/products/fda-code/final-results?${params.toString()}`);
+        const json = await res.json().catch(() => ({})) as {
+          error?: string;
+          rows?: Array<Record<string, string | null>>;
+          truncated?: boolean;
+        };
+        if (!res.ok) {
+          setFinalNote(json.error ?? "FDA final code lookup is unavailable.");
+          return;
+        }
+        const rows = json.rows ?? [];
+        setFinalRows(rows);
+        setFinalNote(
+          rows.length === 0
+            ? "FDA returned no final codes for that combination. Try changing subclass or PIC."
+            : json.truncated
+              ? "Showing the first final matches. Narrow the selections if needed."
+              : null
+        );
+      } catch {
+        setFinalNote("Could not reach the server.");
       }
     });
   }
@@ -378,38 +486,130 @@ export function ProductFdaCodeCard({
               </div>
 
               {industryRows && (
-                <div className="mt-2 grid gap-2 lg:grid-cols-[1.2fr_1fr_auto]">
-                  <select
-                    value={industryId}
-                    onChange={(event) => setIndustryId(event.target.value)}
-                    className={`${inputClass} mt-0`}
-                  >
-                    <option value="">Select FDA industry</option>
-                    {industryRows.map((industry) => (
-                      <option key={industry.id} value={industry.id}>
-                        {industry.name} - {industry.id}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={industryFilter}
-                    onChange={(event) => setIndustryFilter(event.target.value)}
-                    className={`${inputClass} mt-0`}
-                    placeholder="Optional filter"
-                  />
-                  <button
-                    type="button"
-                    onClick={searchIndustry}
-                    disabled={pending || !industryId}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                  >
-                    <Search className="h-4 w-4" />
-                    Browse
-                  </button>
+                <div className="mt-2 space-y-2">
+                  <div className="grid gap-2 lg:grid-cols-[1.2fr_1fr_auto]">
+                    <select
+                      value={industryId}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        setIndustryId(next);
+                        setIndustryProductRows([]);
+                        setSelectedProductKey("");
+                        setFinalRows(null);
+                        setFinalNote(null);
+                        loadCodeOptions(next);
+                      }}
+                      className={`${inputClass} mt-0`}
+                    >
+                      <option value="">Select FDA industry</option>
+                      {industryRows.map((industry) => (
+                        <option key={industry.id} value={industry.id}>
+                          {industry.name} - {industry.id}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={industryFilter}
+                      onChange={(event) => setIndustryFilter(event.target.value)}
+                      className={`${inputClass} mt-0`}
+                      placeholder="Filter products"
+                    />
+                    <button
+                      type="button"
+                      onClick={searchIndustry}
+                      disabled={pending || !industryId}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                    >
+                      <Search className="h-4 w-4" />
+                      Load products
+                    </button>
+                  </div>
+
+                  {productChoices.length > 0 && (
+                    <div className="grid gap-2 lg:grid-cols-3">
+                      <select
+                        value={selectedProductKey}
+                        onChange={(event) => {
+                          setSelectedProductKey(event.target.value);
+                          setFinalRows(null);
+                          setFinalNote(null);
+                        }}
+                        className={`${inputClass} mt-0 lg:col-span-3`}
+                      >
+                        <option value="">Select FDA product</option>
+                        {productChoices.map((choice) => (
+                          <option key={choice.key} value={choice.key}>
+                            {choice.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedSubclass}
+                        onChange={(event) => {
+                          setSelectedSubclass(event.target.value);
+                          setFinalRows(null);
+                          setFinalNote(null);
+                        }}
+                        className={`${inputClass} mt-0`}
+                      >
+                        <option value="">Select subclass/container</option>
+                        {subclassOptions.map((option) => (
+                          <option key={option.code} value={option.code}>
+                            {option.name} - {option.code}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedPic}
+                        onChange={(event) => {
+                          setSelectedPic(event.target.value);
+                          setFinalRows(null);
+                          setFinalNote(null);
+                        }}
+                        className={`${inputClass} mt-0`}
+                      >
+                        <option value="">Select PIC/process</option>
+                        {picOptions.map((option) => (
+                          <option key={option.code} value={option.code}>
+                            {option.name} - {option.code}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={findFinalCodes}
+                        disabled={pending || !selectedProductKey}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        <Search className="h-4 w-4" />
+                        Final results
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
               {industryNote && <p className="mt-2 text-xs leading-relaxed text-slate-500">{industryNote}</p>}
+              {finalNote && <p className="mt-2 text-xs leading-relaxed text-slate-500">{finalNote}</p>}
+              {finalRows && finalRows.length > 0 && (
+                <div className="mt-3 max-h-44 overflow-y-auto rounded-md border border-line bg-white">
+                  {finalRows.map((row, index) => {
+                    const rowCode = codeFromRow(row);
+                    return (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => rowCode && setCode(rowCode)}
+                        disabled={!rowCode}
+                        className="grid w-full gap-1 border-b border-line px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:grid-cols-[8rem_1fr]"
+                      >
+                        <span className="font-mono font-semibold text-forest">{rowCode ?? "No full code"}</span>
+                        <span className="text-slate-700">{productLabel(row)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
