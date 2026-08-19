@@ -77,7 +77,9 @@ function CommodityForm({ onClose }: { onClose: () => void }) {
             commodity_class: form.get("commodity_class"),
             plant_part: form.get("plant_part"),
             is_propagative: form.get("is_propagative") === "on",
-            fda_product_code: form.get("fda_product_code"),
+            fda_industry_code: form.get("fda_industry_code"),
+            fda_class_code: form.get("fda_class_code"),
+            fda_product_group: form.get("fda_product_group"),
             notes: form.get("notes"),
           }),
         });
@@ -129,15 +131,38 @@ function CommodityForm({ onClose }: { onClose: () => void }) {
                 .map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}
             </select>
           </label>
-          <label className={labelClass}>
-            FDA product code
-            <input name="fda_product_code" className={inputClass} placeholder="Optional" />
-          </label>
           <label className="flex items-center gap-2 pt-7 text-sm font-medium text-slate-700">
             <input name="is_propagative" type="checkbox" className="h-4 w-4 rounded border-line text-forest" />
             Capable of propagation
           </label>
         </div>
+
+        {/* Only the commodity-level third of a product code. Subclass is the
+            container material and PIC is the process, so both describe a
+            product as packed and are recorded against the product instead. */}
+        <fieldset className="rounded-md border border-line bg-slate-50 p-4">
+          <legend className="px-1 text-sm font-medium text-slate-700">FDA product code (commodity part)</legend>
+          <p className="text-xs leading-relaxed text-slate-500">
+            Optional, and only the part that describes what the thing is. In FDA&apos;s example
+            38BEE27 — canned concentrated tomato soup — that is industry <strong>38</strong>, class{" "}
+            <strong>B</strong> and group <strong>27</strong>. The two middle characters are the
+            metal can and the sterilising retort, which belong to a shipment rather than a commodity.
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <label className={labelClass}>
+              Industry
+              <input name="fda_industry_code" maxLength={2} className={inputClass} placeholder="38" />
+            </label>
+            <label className={labelClass}>
+              Class
+              <input name="fda_class_code" maxLength={1} className={inputClass} placeholder="B" />
+            </label>
+            <label className={labelClass}>
+              Product group
+              <input name="fda_product_group" maxLength={2} className={inputClass} placeholder="27" />
+            </label>
+          </div>
+        </fieldset>
         <label className={labelClass}>
           Taxonomy notes
           <textarea name="notes" rows={3} className={areaClass} placeholder="Distinguishing details or aliases" />

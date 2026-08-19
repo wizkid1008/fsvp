@@ -51,7 +51,9 @@ export async function POST(req: NextRequest) {
     commodity_class?: string;
     plant_part?: string;
     is_propagative?: boolean;
-    fda_product_code?: string;
+    fda_industry_code?: string;
+    fda_class_code?: string;
+    fda_product_group?: string;
     notes?: string;
   };
 
@@ -70,15 +72,50 @@ export async function POST(req: NextRequest) {
   const plantPart = (PARTS as readonly string[]).includes(body.plant_part ?? "")
     ? body.plant_part! : null;
 
+  // Only the commodity-level third of an FDA product code is accepted here.
+  //
+  // Subclass is the container material and PIC is the process, so both belong
+  // to a product as packed rather than to the commodity — they live on
+  // products_verify since migration 024. Taking a full code at this level would
+  // reintroduce the category error that migration set out to fix.
+  const upper = (v: string | undefined) => v?.trim().toUpperCase() || null;
+  const fdaIndustry = upper(body.fda_industry_code);
+  const fdaClass = upper(body.fda_class_code);
+  const fdaGroup = upper(body.fda_product_group);
+
+  if (fdaIndustry && !/^[0-9]{2}$/.test(fdaIndustry)) {
+    return NextResponse.json({ error: "An FDA industry code is two digits, such as 38." }, { status: 400 });
+  }
+  if (fdaClass && !/^[A-Z]$/.test(fdaClass)) {
+    return NextResponse.json({ error: "An FDA class code is a single letter." }, { status: 400 });
+  }
+  if (fdaGroup && !/^[0-9A-Z]{2}$/.test(fdaGroup)) {
+    return NextResponse.json(
+      { error: "An FDA product group is two characters, letters or digits." },
+      { status: 400 }
+    );
+  }
+  // A class letter means nothing without the industry it belongs to — FDA
+  // class codes are only unique within an industry, so a stored class with no
+  // industry is unresolvable rather than partial.
+  if (fdaClass && !fdaIndustry) {
+    return NextResponse.json(
+      { error: "An FDA class code only has meaning inside an industry. Give the industry code too." },
+      { status: 400 }
+    );
+  }
+
   const { data: created, error } = await (admin.from("commodities") as any)
     .insert({
-      common_name:      commonName,
-      scientific_name:  body.scientific_name?.trim() || null,
-      commodity_class:  body.commodity_class,
-      plant_part:       plantPart,
-      is_propagative:   body.is_propagative === true,
-      fda_product_code: body.fda_product_code?.trim() || null,
-      notes:            body.notes?.trim() || null,
+      common_name:       commonName,
+      scientific_name:   body.scientific_name?.trim() || null,
+      commodity_class:   body.commodity_class,
+      plant_part:        plantPart,
+      is_propagative:    body.is_propagative === true,
+      fda_industry_code: fdaIndustry,
+      fda_class_code:    fdaClass,
+      fda_product_group: fdaGroup,
+      notes:             body.notes?.trim() || null,
     })
     .select("id, common_name")
     .single();

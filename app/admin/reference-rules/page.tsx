@@ -7,6 +7,11 @@ import {
   type CommodityOption,
   type CountryOption,
 } from "@/components/admin/ReferenceEntryForms";
+import {
+  ClassificationRequestQueue,
+  type ClassificationRequestQueueRow,
+  type QueueCommodityOption,
+} from "@/components/admin/ClassificationRequestQueue";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
 
@@ -33,7 +38,7 @@ export default async function ReferenceRulesPage() {
   }
   const admin = adminResult.client;
 
-  const [rulesResult, commoditiesResult, countriesResult] = await Promise.all([
+  const [rulesResult, commoditiesResult, countriesResult, requestsResult] = await Promise.all([
     (admin.from("country_commodity_rules_status") as any)
       .select(`
         id, origin_country, origin_region, intended_use, processing_state,
@@ -53,6 +58,15 @@ export default async function ReferenceRulesPage() {
       .select("country_code, country_name")
       .eq("is_active", true)
       .order("country_name"),
+    // Oldest first: a request that has waited longest is a product that has
+    // been stuck longest.
+    (admin.from("commodity_classification_requests") as any)
+      .select(`
+        id, described_as, plant_part, is_propagative, notes, pcb_candidates, created_at,
+        products_verify(product_name), importers(display_name)
+      `)
+      .eq("status", "open")
+      .order("created_at", { ascending: true }),
   ]);
 
   const rawRules = rulesResult.data;
@@ -104,6 +118,25 @@ export default async function ReferenceRulesPage() {
     is_overdue:          Boolean(r.is_overdue),
     source_moved:        Boolean(r.source_moved),
   }));
+  const classificationRequests: ClassificationRequestQueueRow[] =
+    ((requestsResult.data ?? []) as any[]).map((r) => {
+      // pcb_candidates is a snapshot written by the API, not user input, but it
+      // is jsonb and therefore shape-checked rather than trusted.
+      const snapshot = r.pcb_candidates as { searched_for?: string; rows?: unknown } | null;
+      return {
+        id:               r.id,
+        product_name:     r.products_verify?.product_name ?? "Unnamed product",
+        importer_name:    r.importers?.display_name ?? null,
+        described_as:     r.described_as,
+        plant_part:       r.plant_part,
+        is_propagative:   r.is_propagative,
+        notes:            r.notes,
+        pcb_rows:         Array.isArray(snapshot?.rows) ? snapshot!.rows as Array<Record<string, string | null>> : [],
+        pcb_searched_for: snapshot?.searched_for ?? null,
+        created_at:       r.created_at,
+      };
+    });
+
   const currentCount = shaped.filter((rule) => rule.is_current).length;
   const draftCount = shaped.filter((rule) => rule.is_draft).length;
   const overdueCount = shaped.filter((rule) => rule.is_overdue).length;
@@ -125,6 +158,11 @@ export default async function ReferenceRulesPage() {
           />
         }
       />
+      <ClassificationRequestQueue
+        requests={classificationRequests}
+        commodities={(commoditiesResult.data ?? []) as QueueCommodityOption[]}
+      />
+
       <section className="mt-6 rounded-lg border border-line bg-white p-5 shadow-soft">
         <h2 className="text-base font-semibold text-ink">Reference Coverage</h2>
         <p className="mt-1 text-sm text-slate-500">

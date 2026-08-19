@@ -15,6 +15,22 @@ export type ProductCommodityOption = {
   is_propagative: boolean;
 };
 
+/**
+ * The most recent "none of these fit" request for this product, if there is one.
+ *
+ * Kept on the panel rather than a screen of its own because the request only
+ * means anything next to the dropdown that could not answer it.
+ */
+export type ClassificationRequestRow = {
+  id: string;
+  status: "open" | "resolved" | "declined";
+  described_as: string;
+  resolution_note: string | null;
+  resolved_commodity_id: string | null;
+  resolved_commodity_name: string | null;
+  created_at: string;
+};
+
 export type AdmissibilityDeterminationRow = {
   id: string;
   intended_use: string;
@@ -53,6 +69,7 @@ export function AdmissibilityPanel({
   canManage,
   defaultUse,
   defaultState,
+  classificationRequest,
 }: {
   productId: string;
   productName: string;
@@ -65,13 +82,25 @@ export function AdmissibilityPanel({
   canManage: boolean;
   defaultUse: string;
   defaultState: string;
+  classificationRequest: ClassificationRequestRow | null;
 }) {
   const router = useRouter();
-  const [classification, setClassification] = useState(commodityId ?? "");
+  // An administrator who has answered a request has already done the choosing.
+  // Pre-selecting their commodity leaves the importer with one click, without
+  // taking the classification decision away from them.
+  const [classification, setClassification] = useState(
+    commodityId ?? (classificationRequest?.status === "resolved"
+      ? classificationRequest.resolved_commodity_id ?? ""
+      : "")
+  );
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<string[]>([]);
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const [requesting, setRequesting] = useState(false);
+  const [pcbRows, setPcbRows] = useState<Array<Record<string, string | null>> | null>(null);
+  const [pcbNote, setPcbNote] = useState<string | null>(null);
 
   const heading = useMemo(() => {
     if (blockers.some((block) => block.code === "prohibited")) {
@@ -103,6 +132,69 @@ export function AdmissibilityPanel({
           return;
         }
         setSuccess(`Classified as ${json.commodity_name ?? "the selected commodity"}.`);
+        router.refresh();
+      } catch {
+        setError("Could not reach the server.");
+      }
+    });
+  }
+
+  /**
+   * Look the description up in FDA's product code vocabulary.
+   *
+   * Advisory only — these are FDA product NAMES, not commodities and not an
+   * admissibility answer. They are here so the importer and the administrator
+   * end up describing the same thing in the same words.
+   */
+  function lookupPcb(term: string) {
+    setPcbRows(null);
+    setPcbNote(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/commodities/pcb-search?name=${encodeURIComponent(term)}`);
+        const json = await res.json().catch(() => ({})) as {
+          error?: string;
+          rows?: Array<Record<string, string | null>>;
+        };
+        if (!res.ok) {
+          setPcbNote(json.error ?? "FDA's product name lookup is unavailable.");
+          return;
+        }
+        setPcbRows(json.rows ?? []);
+        if ((json.rows ?? []).length === 0) setPcbNote("FDA has no product name matching that.");
+      } catch {
+        setPcbNote("Could not reach the server.");
+      }
+    });
+  }
+
+  function requestClassification(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setReasons([]);
+    setSuccess(null);
+    const form = new FormData(event.currentTarget);
+
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/commodities/classification-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            product_id: productId,
+            described_as: form.get("described_as"),
+            plant_part: form.get("plant_part") || undefined,
+            is_propagative: form.get("is_propagative") === "on",
+            notes: form.get("notes"),
+          }),
+        });
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        if (!res.ok) {
+          setError(json.error ?? "Could not raise the request.");
+          return;
+        }
+        setRequesting(false);
+        setSuccess("Request sent. This product stays unclassified until it is answered — which is accurate.");
         router.refresh();
       } catch {
         setError("Could not reach the server.");
@@ -224,6 +316,145 @@ export function AdmissibilityPanel({
               Save classification
             </button>
           </div>
+
+          {/* The dead end this closes: with no option but the dropdown, an
+              importer whose product is not in the taxonomy either abandons it
+              or picks the nearest wrong commodity. The second is worse — the
+              determination that follows resolves against a rule for a different
+              commodity and still arrives with a citation and an expiry. */}
+          {classificationRequest?.status === "open" ? (
+            <div className="mt-3 rounded-md border border-line bg-slate-50 px-4 py-3">
+              <p className="text-sm font-semibold text-ink">A classification request is open</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                You described this as &ldquo;{classificationRequest.described_as}&rdquo; on{" "}
+                {classificationRequest.created_at.slice(0, 10)}. An administrator adds the commodity;
+                until then this product stays unclassified, which is the accurate state rather than
+                an obstructive one.
+              </p>
+            </div>
+          ) : classificationRequest?.status === "resolved" ? (
+            <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <p className="text-sm font-semibold text-emerald-900">
+                An administrator added {classificationRequest.resolved_commodity_name ?? "a commodity"}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-emerald-900">
+                It is selected above. Classifying is still yours to do — the responsibility for the
+                movement sits with you, not with whoever maintains the taxonomy.
+              </p>
+              {classificationRequest.resolution_note && (
+                <p className="mt-2 text-xs leading-relaxed text-emerald-900">
+                  Note: {classificationRequest.resolution_note}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mt-3">
+              {classificationRequest?.status === "declined" && (
+                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-amber-900">Your last request was declined</p>
+                  <p className="mt-1 text-sm leading-relaxed text-amber-900">
+                    {classificationRequest.resolution_note}
+                  </p>
+                </div>
+              )}
+              {!requesting ? (
+                <button
+                  type="button"
+                  onClick={() => setRequesting(true)}
+                  className="text-sm font-semibold text-forest hover:underline"
+                >
+                  None of these describe this product
+                </button>
+              ) : (
+                <form onSubmit={requestClassification} className="rounded-md border border-line bg-slate-50 p-4">
+                  <h4 className="text-sm font-semibold text-ink">Ask for a commodity to be added</h4>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Describe the material as it actually enters. Plant part and propagative status are
+                    part of a commodity&apos;s identity, so say them if you know them — mango fruit and
+                    mango leaves are different regulatory questions.
+                  </p>
+
+                  <label className={`${labelClass} mt-3`}>
+                    What is it? <span className="text-red-500">*</span>
+                    <input
+                      name="described_as"
+                      required
+                      minLength={2}
+                      className={inputClass}
+                      placeholder={`e.g. ${productName}`}
+                      onBlur={(event) => {
+                        const value = event.currentTarget.value.trim();
+                        if (value.length >= 2) lookupPcb(value);
+                      }}
+                    />
+                  </label>
+
+                  {(pcbRows || pcbNote) && (
+                    <div className="mt-2 rounded-md border border-line bg-white p-3">
+                      <p className="text-xs font-semibold text-slate-600">
+                        FDA product names matching that
+                      </p>
+                      {pcbNote && <p className="mt-1 text-xs text-slate-500">{pcbNote}</p>}
+                      {pcbRows && pcbRows.length > 0 && (
+                        <>
+                          <ul className="mt-1 max-h-32 space-y-0.5 overflow-y-auto text-xs text-slate-700">
+                            {pcbRows.slice(0, 12).map((row, i) => (
+                              <li key={i}>• {Object.values(row).filter(Boolean).join(" — ")}</li>
+                            ))}
+                          </ul>
+                          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                            FDA&apos;s wording, shown so you and the administrator describe the same
+                            thing. These are product names, not commodities and not an admissibility
+                            answer.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className={labelClass}>
+                      Plant part
+                      <select name="plant_part" className={inputClass} defaultValue="">
+                        <option value="">Not sure</option>
+                        {["not_applicable", "fruit", "leaf", "root", "seed", "stem", "flower", "whole_plant", "bulb", "tuber"]
+                          .map((value) => (
+                            <option key={value} value={value}>{value.replace(/_/g, " ")}</option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-2 pt-7 text-sm font-medium text-slate-700">
+                      <input name="is_propagative" type="checkbox" className="h-4 w-4 rounded border-line text-forest" />
+                      Capable of growing
+                    </label>
+                  </div>
+
+                  <label className={`${labelClass} mt-3`}>
+                    Anything else that identifies it
+                    <textarea
+                      name="notes"
+                      rows={2}
+                      className="mt-1.5 w-full rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-forest"
+                      placeholder="Processing, variety, how it is packed"
+                    />
+                  </label>
+
+                  <div className="mt-3 flex gap-2">
+                    <button type="submit" disabled={pending} className={buttonClass}>
+                      {pending ? "Sending…" : "Send request"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRequesting(false)}
+                      className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
         </div>
       )}
 

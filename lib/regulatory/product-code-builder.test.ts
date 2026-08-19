@@ -4,6 +4,7 @@ import {
   listIndustries,
   PcbError,
   pcbCredentialsFromEnv,
+  reconcileWithCommodity,
   searchPartialCodes,
   searchProductsByName,
   verifyProductCode,
@@ -250,5 +251,38 @@ describe("decomposeProductCode", () => {
     expect(decomposeProductCode("AABEE27").status).toBe("unparseable");
     expect(decomposeProductCode("384EE27").status).toBe("unparseable");
     expect(decomposeProductCode("38BE*27").status).toBe("unparseable");
+  });
+});
+
+describe("reconcileWithCommodity", () => {
+  const soup = { industry: "38", class: "B", group: "27" };
+  const parts = { industry: "38", class: "B", subclass: "E", pic: "E", product: "27" };
+
+  it("is silent when the code and the commodity agree", () => {
+    expect(reconcileWithCommodity(parts, soup)).toEqual([]);
+  });
+
+  it("treats missing commodity values as nothing to disagree with", () => {
+    // Neither side has asserted anything, so there is no conflict. Warning here
+    // would push people to fill fields with guesses to silence it.
+    expect(reconcileWithCommodity(parts, {})).toEqual([]);
+    expect(reconcileWithCommodity(parts, { industry: null, class: null, group: null })).toEqual([]);
+  });
+
+  it("ignores subclass and PIC entirely", () => {
+    // They describe the container and the process, so a commodity has no
+    // opinion about them and cannot disagree.
+    const glass = { ...parts, subclass: "A", pic: "C" };
+    expect(reconcileWithCommodity(glass, soup)).toEqual([]);
+  });
+
+  it("reports every disagreement, not just the first", () => {
+    const mismatches = reconcileWithCommodity(parts, { industry: "16", class: "C", group: "99" });
+    expect(mismatches).toHaveLength(3);
+    expect(mismatches[0]).toContain("industry");
+  });
+
+  it("compares case- and whitespace-insensitively", () => {
+    expect(reconcileWithCommodity(parts, { industry: " 38 ", class: "b", group: "27" })).toEqual([]);
   });
 });

@@ -71,6 +71,20 @@ export type ProductVerify = {
   shelf_life: string | null;
   packaging_information: string | null;
   allergen_information: string | null;
+  /**
+   * The as-packed half of an FDA product code — migration 024.
+   *
+   * Subclass is the container material and PIC is the process, so both belong
+   * to a particular product as packed rather than to its commodity: the same
+   * commodity in metal and in glass carries different subclasses. The full
+   * code lives here for the same reason — it is only meaningful once packing
+   * is known, and it is what appears on an ACE entry line.
+   */
+  fda_subclass_code: string | null;
+  fda_pic_code: string | null;
+  fda_product_code: string | null;
+  /** Null means nobody has checked the code, which is not the same as wrong. */
+  fda_product_code_verified_at: string | null;
   readiness_score: number | null;
   approval_status: "pending" | "approved" | "conditionally_approved" | "improvement_required" | "not_approved";
   rule_version_id: string | null;
@@ -708,9 +722,53 @@ export type Commodity = {
     | "whole_plant" | "bulb" | "tuber" | "not_applicable" | null;
   /** Propagative material is regulated far more strictly than the same species as food. */
   is_propagative: boolean;
-  fda_product_code: string | null;
+  /**
+   * The commodity-level third of an FDA product code — migration 024.
+   *
+   * Subclass and PIC are absent on purpose: they encode the container material
+   * and the process, so they describe a product as packed rather than a
+   * commodity, and live on `products_verify`. One commodity has many valid full
+   * codes, which is why there is no `fda_product_code` here any more.
+   */
+  fda_industry_code: string | null;
+  fda_class_code: string | null;
+  fda_product_group: string | null;
   notes: string | null;
   active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * An importer saying no commodity in the taxonomy describes their product.
+ *
+ * Exists so the alternative to an unusable dropdown is not picking the nearest
+ * wrong commodity — a determination made against the wrong commodity still
+ * arrives with a citation and an expiry and reads as authoritative. See
+ * migration 024.
+ */
+export type CommodityClassificationRequest = {
+  id: string;
+  importer_id: string;
+  product_id: string;
+  requested_by_profile_id: string | null;
+  described_as: string;
+  plant_part:
+    | "fruit" | "leaf" | "root" | "seed" | "stem" | "flower"
+    | "whole_plant" | "bulb" | "tuber" | "not_applicable" | null;
+  is_propagative: boolean | null;
+  notes: string | null;
+  /** What FDA's Product Code Builder returned at request time. Evidence, not a proposal. */
+  pcb_candidates: Json | null;
+  status: "open" | "resolved" | "declined";
+  /**
+   * Resolving does NOT classify the product — the US importer still does that,
+   * because that is where FSVP puts the responsibility.
+   */
+  resolved_commodity_id: string | null;
+  resolution_note: string | null;
+  resolved_by_profile_id: string | null;
+  resolved_at: string | null;
   created_at: string;
   updated_at: string;
 };

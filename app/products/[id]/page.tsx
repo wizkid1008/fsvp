@@ -5,8 +5,10 @@ import { ProductScoreCard } from "@/components/products/ProductScoreCard";
 import {
   AdmissibilityPanel,
   type AdmissibilityDeterminationRow,
+  type ClassificationRequestRow,
   type ProductCommodityOption,
 } from "@/components/products/AdmissibilityPanel";
+import { ProductFdaCodeCard } from "@/components/products/ProductFdaCodeCard";
 import { RequiredEvidenceChecklist } from "@/components/evidence/RequiredEvidenceChecklist";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -40,7 +42,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     role === "supplier" ? resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) : null;
 
   const { data: product } = await (supabase.from("products_verify") as any)
-    .select("id, product_name, approval_status, supplier_id, facility_id, commodity_id, country_of_origin, intended_use, raw_or_processed, suppliers(company_name), facilities_verify(facility_name), commodities(common_name, scientific_name, plant_part, is_propagative)")
+    .select("id, product_name, approval_status, supplier_id, facility_id, commodity_id, country_of_origin, intended_use, raw_or_processed, fda_product_code, fda_subclass_code, fda_pic_code, fda_product_code_verified_at, suppliers(company_name), facilities_verify(facility_name), commodities(common_name, scientific_name, plant_part, is_propagative)")
     .eq("id", params.id)
     .maybeSingle();
 
@@ -48,7 +50,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
 
   const isSupplierView = role === "supplier" || role === "exporter";
 
-  const [commoditiesResult, determinationsResult, scoreStatusMap, admissibilityBlocks] = await Promise.all([
+  const [commoditiesResult, determinationsResult, scoreStatusMap, admissibilityBlocks, requestResult] = await Promise.all([
     (supabase.from("commodities") as any)
       .select("id, common_name, scientific_name, plant_part, is_propagative")
       .eq("active", true)
@@ -66,6 +68,14 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           commodityId: product.commodity_id,
           countryOfOrigin: product.country_of_origin,
         }),
+    // Only the latest matters. A declined request followed by a better one
+    // should show the newer answer, not the older refusal.
+    (supabase.from("commodity_classification_requests") as any)
+      .select("id, status, described_as, resolution_note, resolved_commodity_id, created_at, commodities:resolved_commodity_id(common_name)")
+      .eq("product_id", params.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const scoredStatus = scoreStatusMap.get(params.id) ?? product.approval_status ?? "pending";
@@ -84,6 +94,22 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       ].filter(Boolean).join(" ")
     : null;
   const canManageAdmissibility = realRole === "us_importer" && Boolean(profile?.importer_id);
+
+  const rawRequest = requestResult?.data as
+    | (Omit<ClassificationRequestRow, "resolved_commodity_name"> & { commodities: { common_name: string } | null })
+    | null
+    | undefined;
+  const classificationRequest: ClassificationRequestRow | null = rawRequest
+    ? {
+        id: rawRequest.id,
+        status: rawRequest.status,
+        described_as: rawRequest.described_as,
+        resolution_note: rawRequest.resolution_note,
+        resolved_commodity_id: rawRequest.resolved_commodity_id,
+        resolved_commodity_name: rawRequest.commodities?.common_name ?? null,
+        created_at: rawRequest.created_at,
+      }
+    : null;
   const defaultUse = product.intended_use === "ready_to_eat"
     ? "consumption"
     : ["further_processed", "ingredient"].includes(product.intended_use ?? "")
@@ -123,6 +149,20 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               canManage={canManageAdmissibility}
               defaultUse={defaultUse}
               defaultState=""
+              classificationRequest={classificationRequest}
+            />
+          )}
+
+          {!isSupplierView && (
+            <ProductFdaCodeCard
+              productId={params.id}
+              canManage={canManageAdmissibility}
+              current={{
+                code:        product.fda_product_code,
+                subclass:    product.fda_subclass_code,
+                pic:         product.fda_pic_code,
+                verified_at: product.fda_product_code_verified_at,
+              }}
             />
           )}
 

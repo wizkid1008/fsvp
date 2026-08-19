@@ -454,3 +454,49 @@ export function decomposeProductCode(code: string): Decomposition {
     ],
   };
 }
+
+/**
+ * Checks a decomposed code against what the commodity taxonomy says the thing
+ * is, and reports every disagreement rather than the first.
+ *
+ * This is the only cross-check the split makes possible, and it is worth having
+ * precisely because the two halves are maintained by different people: an
+ * administrator sets the commodity's industry and class, an importer files the
+ * full code from their broker. When those disagree, one of them is about a
+ * different product — a code filed against the wrong commodity is the entry-line
+ * equivalent of a determination made against the wrong commodity.
+ *
+ * Missing values on either side are not disagreements. Nothing has been
+ * asserted, so nothing can conflict; saying otherwise would push people to fill
+ * fields with guesses to silence a warning.
+ */
+export function reconcileWithCommodity(
+  parts: ProductCodeParts,
+  commodity: { industry?: string | null; class?: string | null; group?: string | null }
+): string[] {
+  const out: string[] = [];
+  const norm = (v: string | null | undefined) => v?.trim().toUpperCase() || null;
+
+  const industry = norm(commodity.industry);
+  const klass = norm(commodity.class);
+  const group = norm(commodity.group);
+
+  if (industry && industry !== parts.industry) {
+    out.push(
+      `The code's industry is ${parts.industry}, but this commodity is recorded under FDA ` +
+      `industry ${industry}. One of them is about a different product.`
+    );
+  }
+  if (klass && klass !== parts.class) {
+    out.push(
+      `The code's class is ${parts.class}, but this commodity is recorded under FDA class ${klass}.`
+    );
+  }
+  if (group && group !== parts.product) {
+    out.push(
+      `The code's product group is ${parts.product}, but this commodity is recorded as FDA ` +
+      `product group ${group}.`
+    );
+  }
+  return out;
+}
