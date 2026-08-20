@@ -13,7 +13,7 @@
  * the container and PIC encodes the process and the taxonomy knows neither.
  */
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, HelpCircle, Search } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -82,9 +82,6 @@ export function ProductFdaCodeCard({
 }) {
   const router = useRouter();
   const [code, setCode] = useState(current.code ?? "");
-  const [lookupTerm, setLookupTerm] = useState(productName);
-  const [lookupRows, setLookupRows] = useState<Array<Record<string, string | null>> | null>(null);
-  const [lookupNote, setLookupNote] = useState<string | null>(null);
   const [industryRows, setIndustryRows] = useState<Array<{ id: string; name: string }> | null>(null);
   const [industryId, setIndustryId] = useState("");
   const [industryFilter, setIndustryFilter] = useState(productName);
@@ -106,6 +103,15 @@ export function ProductFdaCodeCard({
   const [note, setNote] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  useEffect(() => {
+    if (canManage && industryRows === null) loadIndustries();
+  }, [canManage, industryRows]);
+
+  useEffect(() => {
+    if (!industryId || !selectedProduct) return;
+    findFinalCodes(selectedProduct, selectedSubclass, selectedPic);
+  }, [industryId, selectedProductKey, selectedSubclass, selectedPic]);
+
   function codeFromRow(row: Record<string, string | null>): string | null {
     const direct = Object.entries(row).find(([key, value]) =>
       Boolean(
@@ -121,63 +127,10 @@ export function ProductFdaCodeCard({
     return values.find((value) => /^[0-9]{2}[A-Z][0-9A-Z-]{2,4}$/i.test(value.trim()))?.toUpperCase() ?? null;
   }
 
-  function partialCodeFromRow(row: Record<string, string | null>): string | null {
-    const industry = rowValue(row, [/industry.*(id|code)/i, /^industry$/i]);
-    const klass = rowValue(row, [/class.*(id|code)$/i, /^class$/i]);
-    const group = rowValue(row, [/product.*group/i, /group.*code/i]);
-    if (!industry && !klass && !group) return null;
-    return [
-      industry ? industry.padStart(2, "0") : "??",
-      klass?.toUpperCase() ?? "?",
-      "…",
-      group?.toUpperCase() ?? "??",
-    ].join("");
-  }
-
   const productChoices = industryProductRows
     .map(productChoiceFromRow)
     .filter((choice): choice is ProductChoice => Boolean(choice));
   const selectedProduct = productChoices.find((choice) => choice.key === selectedProductKey) ?? null;
-
-  function lookup() {
-    const term = lookupTerm.trim();
-    if (term.length < 2) {
-      setLookupNote("Enter at least two characters.");
-      return;
-    }
-    setLookupRows(null);
-    setLookupNote(null);
-    setError(null);
-    setReasons([]);
-
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/products/fda-code/search?name=${encodeURIComponent(term)}`);
-        const json = await res.json().catch(() => ({})) as {
-          error?: string;
-          rows?: Array<Record<string, string | null>>;
-          truncated?: boolean;
-          tried?: string[];
-        };
-        if (!res.ok) {
-          setLookupNote(json.error ?? "FDA Product Code Builder lookup is unavailable.");
-          return;
-        }
-        const rows = json.rows ?? [];
-        setLookupRows(rows);
-        const tried = (json.tried ?? []).filter(Boolean).join(", ");
-        setLookupNote(
-          rows.length === 0
-            ? `FDA returned no product names. Tried: ${tried || term}. Try a broader term, such as coffee.`
-            : json.truncated
-              ? "Showing the first matches. Narrow the search if needed."
-              : null
-        );
-      } catch {
-        setLookupNote("Could not reach the server.");
-      }
-    });
-  }
 
   function loadIndustries() {
     setIndustryNote(null);
@@ -232,13 +185,11 @@ export function ProductFdaCodeCard({
     });
   }
 
-  function searchIndustry() {
-    if (!industryId) {
+  function searchIndustry(nextIndustryId = industryId, nextFilter = industryFilter) {
+    if (!nextIndustryId) {
       setIndustryNote("Choose an FDA industry first.");
       return;
     }
-    setLookupRows(null);
-    setLookupNote(null);
     setIndustryNote(null);
     setIndustryProductRows([]);
     setSelectedProductKey("");
@@ -247,8 +198,8 @@ export function ProductFdaCodeCard({
     setError(null);
     setReasons([]);
 
-    const params = new URLSearchParams({ industry: industryId });
-    if (industryFilter.trim()) params.set("filter", industryFilter.trim());
+    const params = new URLSearchParams({ industry: nextIndustryId });
+    if (nextFilter.trim()) params.set("filter", nextFilter.trim());
 
     startTransition(async () => {
       try {
@@ -267,7 +218,7 @@ export function ProductFdaCodeCard({
         }
         const rows = json.rows ?? [];
         setIndustryProductRows(rows);
-        const hasFilter = industryFilter.trim().length > 0;
+        const hasFilter = nextFilter.trim().length > 0;
         setIndustryNote(
           rows.length === 0
             ? hasFilter
@@ -285,8 +236,12 @@ export function ProductFdaCodeCard({
     });
   }
 
-  function findFinalCodes() {
-    if (!industryId || !selectedProduct) {
+  function findFinalCodes(
+    product: ProductChoice | null = selectedProduct,
+    nextSubclass = selectedSubclass,
+    nextPic = selectedPic
+  ) {
+    if (!industryId || !product) {
       setFinalNote("Choose an FDA industry and product first.");
       return;
     }
@@ -297,11 +252,11 @@ export function ProductFdaCodeCard({
 
     const params = new URLSearchParams({
       industry: industryId,
-      class: selectedProduct.classCode,
-      group: selectedProduct.group,
+      class: product.classCode,
+      group: product.group,
     });
-    if (selectedSubclass) params.set("subclass", selectedSubclass);
-    if (selectedPic) params.set("pic", selectedPic);
+    if (nextSubclass) params.set("subclass", nextSubclass);
+    if (nextPic) params.set("pic", nextPic);
 
     startTransition(async () => {
       try {
@@ -411,209 +366,164 @@ export function ProductFdaCodeCard({
       {canManage && (
         <div className="mt-4 border-t border-line pt-4">
           <p className="text-xs leading-relaxed text-slate-500">
-            Use the code from the entry line or broker when you have it. If not, search FDA Product
-            Code Builder by product name, then confirm the result against packaging and processing
-            details before recording it.
+            Use the code from the entry line or broker when you have it. If not, browse FDA's
+            industry tables in order: industry, product code name, then packaging and process
+            details. The final code still has to match the actual entry-line product.
           </p>
 
           <div className="mt-3 rounded-md border border-line bg-slate-50 p-3">
-            <label className={labelClass}>
-              Search FDA Product Code Builder
-              <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
-                <input
-                  value={lookupTerm}
-                  onChange={(event) => setLookupTerm(event.target.value)}
-                  className={`${inputClass} mt-0 flex-1`}
-                  placeholder="Green coffee beans"
-                />
-                <button
-                  type="button"
-                  onClick={lookup}
-                  disabled={pending || lookupTerm.trim().length < 2}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                >
-                  <Search className="h-4 w-4" />
-                  Search FDA
-                </button>
-              </div>
-            </label>
-
-            {lookupNote && <p className="mt-2 text-xs leading-relaxed text-slate-500">{lookupNote}</p>}
-
-            {lookupRows && lookupRows.length > 0 && (
-              <div className="mt-3 max-h-56 overflow-y-auto rounded-md border border-line bg-white">
-                {lookupRows.map((row, index) => {
-                  const rowCode = codeFromRow(row);
-                  const partialCode = partialCodeFromRow(row);
-                  return (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => {
-                        if (rowCode) {
-                          setCode(rowCode);
-                          setLookupNote(null);
-                        } else {
-                          setLookupNote(
-                            "That FDA result identifies the product family, but not the full entry-line code. " +
-                            "Confirm subclass and process with the entry or broker before recording."
-                          );
-                        }
-                      }}
-                      className="grid w-full gap-1 border-b border-line px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:grid-cols-[8rem_1fr]"
-                    >
-                      <span className="font-mono font-semibold text-forest">{rowCode ?? partialCode ?? "Reference"}</span>
-                      <span className="text-slate-700">{productLabel(row)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="mt-4 border-t border-line pt-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="space-y-4">
+              <div>
                 <p className="text-sm font-semibold text-ink">Browse by FDA industry</p>
-                {!industryRows && (
+                <div className="mt-2 grid gap-2 lg:grid-cols-[1.2fr_1fr_auto]">
+                  <select
+                    value={industryId}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setIndustryId(next);
+                      setIndustryProductRows([]);
+                      setSelectedProductKey("");
+                      setFinalRows(null);
+                      setFinalNote(null);
+                      loadCodeOptions(next);
+                      if (next) searchIndustry(next, industryFilter);
+                    }}
+                    className={`${inputClass} mt-0`}
+                    disabled={!industryRows}
+                  >
+                    <option value="">{industryRows ? "Select FDA industry" : "Loading FDA industries..."}</option>
+                    {(industryRows ?? []).map((industry) => (
+                      <option key={industry.id} value={industry.id}>
+                        {industry.name} - {industry.id}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={industryFilter}
+                    onChange={(event) => setIndustryFilter(event.target.value)}
+                    className={`${inputClass} mt-0`}
+                    placeholder="Filter product code names"
+                  />
                   <button
                     type="button"
-                    onClick={loadIndustries}
-                    disabled={pending}
-                    className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                    onClick={() => searchIndustry()}
+                    disabled={pending || !industryId}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                   >
-                    Load industries
+                    <Search className="h-4 w-4" />
+                    Apply filter
                   </button>
-                )}
+                </div>
               </div>
 
-              {industryRows && (
-                <div className="mt-2 space-y-2">
-                  <div className="grid gap-2 lg:grid-cols-[1.2fr_1fr_auto]">
+              {industryId && (
+                <div className="border-t border-line pt-4">
+                  <p className="text-sm font-semibold text-ink">Product code names</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Choose the FDA product name that matches the food as described for entry.
+                  </p>
+                  {productChoices.length > 0 ? (
                     <select
-                      value={industryId}
+                      value={selectedProductKey}
                       onChange={(event) => {
-                        const next = event.target.value;
-                        setIndustryId(next);
-                        setIndustryProductRows([]);
-                        setSelectedProductKey("");
+                        setSelectedProductKey(event.target.value);
                         setFinalRows(null);
                         setFinalNote(null);
-                        loadCodeOptions(next);
                       }}
-                      className={`${inputClass} mt-0`}
+                      className={`${inputClass} mt-2`}
                     >
-                      <option value="">Select FDA industry</option>
-                      {industryRows.map((industry) => (
-                        <option key={industry.id} value={industry.id}>
-                          {industry.name} - {industry.id}
+                      <option value="">Select product code name</option>
+                      {productChoices.map((choice) => (
+                        <option key={choice.key} value={choice.key}>
+                          {choice.label}
                         </option>
                       ))}
                     </select>
-                    <input
-                      value={industryFilter}
-                      onChange={(event) => setIndustryFilter(event.target.value)}
-                      className={`${inputClass} mt-0`}
-                      placeholder="Filter products"
-                    />
-                    <button
-                      type="button"
-                      onClick={searchIndustry}
-                      disabled={pending || !industryId}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                    >
-                      <Search className="h-4 w-4" />
-                      Load products
-                    </button>
-                  </div>
-
-                  {productChoices.length > 0 && (
-                    <div className="grid gap-2 lg:grid-cols-3">
-                      <select
-                        value={selectedProductKey}
-                        onChange={(event) => {
-                          setSelectedProductKey(event.target.value);
-                          setFinalRows(null);
-                          setFinalNote(null);
-                        }}
-                        className={`${inputClass} mt-0 lg:col-span-3`}
-                      >
-                        <option value="">Select FDA product</option>
-                        {productChoices.map((choice) => (
-                          <option key={choice.key} value={choice.key}>
-                            {choice.label}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedSubclass}
-                        onChange={(event) => {
-                          setSelectedSubclass(event.target.value);
-                          setFinalRows(null);
-                          setFinalNote(null);
-                        }}
-                        className={`${inputClass} mt-0`}
-                      >
-                        <option value="">Select subclass/container</option>
-                        {subclassOptions.map((option) => (
-                          <option key={option.code} value={option.code}>
-                            {option.name} - {option.code}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedPic}
-                        onChange={(event) => {
-                          setSelectedPic(event.target.value);
-                          setFinalRows(null);
-                          setFinalNote(null);
-                        }}
-                        className={`${inputClass} mt-0`}
-                      >
-                        <option value="">Select PIC/process</option>
-                        {picOptions.map((option) => (
-                          <option key={option.code} value={option.code}>
-                            {option.name} - {option.code}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={findFinalCodes}
-                        disabled={pending || !selectedProductKey}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                      >
-                        <Search className="h-4 w-4" />
-                        Final results
-                      </button>
-                    </div>
+                  ) : (
+                    <p className="mt-2 rounded-md border border-line bg-white px-3 py-2 text-sm text-slate-500">
+                      {pending ? "Loading product code names..." : "No product code names loaded for this industry yet."}
+                    </p>
                   )}
+                </div>
+              )}
+
+              {selectedProduct && (
+                <div className="border-t border-line pt-4">
+                  <p className="text-sm font-semibold text-ink">Packaging and process details</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Refine the code with subclass/container and PIC/process when those details apply.
+                  </p>
+                  <div className="mt-2 grid gap-2 lg:grid-cols-2">
+                    <select
+                      value={selectedSubclass}
+                      onChange={(event) => {
+                        setSelectedSubclass(event.target.value);
+                        setFinalRows(null);
+                        setFinalNote(null);
+                      }}
+                      className={`${inputClass} mt-0`}
+                    >
+                      <option value="">Any subclass/container</option>
+                      {subclassOptions.map((option) => (
+                        <option key={option.code} value={option.code}>
+                          {option.name} - {option.code}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={selectedPic}
+                      onChange={(event) => {
+                        setSelectedPic(event.target.value);
+                        setFinalRows(null);
+                        setFinalNote(null);
+                      }}
+                      className={`${inputClass} mt-0`}
+                    >
+                      <option value="">Any PIC/process</option>
+                      {picOptions.map((option) => (
+                        <option key={option.code} value={option.code}>
+                          {option.name} - {option.code}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
               {industryNote && <p className="mt-2 text-xs leading-relaxed text-slate-500">{industryNote}</p>}
               {finalNote && <p className="mt-2 text-xs leading-relaxed text-slate-500">{finalNote}</p>}
               {finalRows && finalRows.length > 0 && (
-                <div className="mt-3 max-h-44 overflow-y-auto rounded-md border border-line bg-white">
-                  {finalRows.map((row, index) => {
-                    const rowCode = codeFromRow(row);
-                    return (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => rowCode && setCode(rowCode)}
-                        disabled={!rowCode}
-                        className="grid w-full gap-1 border-b border-line px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:grid-cols-[8rem_1fr]"
-                      >
-                        <span className="font-mono font-semibold text-forest">{rowCode ?? "No full code"}</span>
-                        <span className="text-slate-700">{productLabel(row)}</span>
-                      </button>
-                    );
-                  })}
+                <div className="border-t border-line pt-4">
+                  <p className="text-sm font-semibold text-ink">Matching product codes</p>
+                  <div className="mt-2 max-h-44 overflow-y-auto rounded-md border border-line bg-white">
+                    {finalRows.map((row, index) => {
+                      const rowCode = codeFromRow(row);
+                      return (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => rowCode && setCode(rowCode)}
+                          disabled={!rowCode}
+                          className="grid w-full gap-1 border-b border-line px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:grid-cols-[8rem_1fr]"
+                        >
+                          <span className="font-mono font-semibold text-forest">{rowCode ?? "No full code"}</span>
+                          <span className="text-slate-700">{productLabel(row)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <div className="mt-4 border-t border-line pt-4">
+            <label className={labelClass}>Already have the entry-line product code?</label>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              Paste the code from the broker or entry line, then verify it against FDA before saving.
+            </p>
+          </div>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <input
               value={code}
               onChange={(event) => setCode(event.target.value.toUpperCase())}
