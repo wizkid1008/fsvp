@@ -52,6 +52,13 @@ function productLabel(row: Record<string, string | null>): string {
   return Object.values(row).map(cellText).filter(Boolean).join(" — ");
 }
 
+function visibleRowFields(row: Record<string, string | null>): Array<[string, string]> {
+  return Object.entries(row)
+    .map(([key, value]) => [key, cellText(value)?.trim() ?? ""] as [string, string])
+    .filter(([, value]) => value.length > 0)
+    .slice(0, 10);
+}
+
 function productCodeFromRow(row: Record<string, string | null>): string | null {
   const direct = Object.entries(row).find(([key, value]) =>
     Boolean(
@@ -459,9 +466,47 @@ export function ProductFdaCodeCard({
                       ))}
                     </select>
                   ) : (
-                    <p className="mt-2 rounded-md border border-line bg-white px-3 py-2 text-sm text-slate-500">
-                      {pending ? "Loading product code names..." : "No product code names loaded for this industry yet."}
-                    </p>
+                    <div className="mt-2 rounded-md border border-line bg-white px-3 py-2 text-sm text-slate-500">
+                      {pending ? (
+                        "Loading product code names..."
+                      ) : industryProductRows.length > 0 ? (
+                        <div className="space-y-3">
+                          <div>
+                            <p className="font-semibold text-ink">
+                              FDA returned {industryProductRows.length} row{industryProductRows.length === 1 ? "" : "s"}.
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed">
+                              These rows did not expose the class and product-group values this picker needs yet.
+                              Showing the returned fields so we can map the next step correctly.
+                            </p>
+                          </div>
+                          <div className="max-h-72 space-y-2 overflow-y-auto">
+                            {industryProductRows.slice(0, 5).map((row, rowIndex) => {
+                              const fields = visibleRowFields(row);
+                              return (
+                                <div key={rowIndex} className="rounded-md border border-line bg-slate-50 p-2">
+                                  <p className="text-xs font-semibold text-slate-500">FDA row {rowIndex + 1}</p>
+                                  {fields.length > 0 ? (
+                                    <div className="mt-1 space-y-1">
+                                      {fields.map(([key, value]) => (
+                                        <div key={key} className="grid gap-1 sm:grid-cols-[10rem_1fr]">
+                                          <span className="font-mono text-[11px] text-slate-500">{key}</span>
+                                          <span className="text-xs text-slate-700">{value}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="mt-1 text-xs text-slate-500">This row had no displayable values.</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        "No product code names loaded for this industry yet."
+                      )}
+                    </div>
                   )}
                 </div>
               )}
