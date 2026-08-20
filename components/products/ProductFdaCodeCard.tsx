@@ -52,19 +52,46 @@ function productLabel(row: Record<string, string | null>): string {
   return Object.values(row).map(cellText).filter(Boolean).join(" — ");
 }
 
+function productCodeFromRow(row: Record<string, string | null>): string | null {
+  const direct = Object.entries(row).find(([key, value]) =>
+    Boolean(
+      cellText(value) &&
+      /code/i.test(key) &&
+      !/id/i.test(key) &&
+      /^[0-9]{2}[A-Z][0-9A-Z-]{2,4}$/i.test(cellText(value)!)
+    )
+  )?.[1];
+  if (direct) return String(direct).toUpperCase();
+
+  const values = Object.values(row).map(cellText).filter((value): value is string => Boolean(value));
+  return values.find((value) => /^[0-9]{2}[A-Z][0-9A-Z-]{2,4}$/i.test(value.trim()))?.toUpperCase() ?? null;
+}
+
+function normalizeProductGroup(value: string | null): string {
+  const v = value?.trim().toUpperCase() ?? "";
+  if (/^[A-Z0-9]{2}$/.test(v)) return v;
+  if (/^[0-9]{2}[A-Z][0-9A-Z-]{2,4}$/.test(v)) return v.slice(-2);
+  return "";
+}
+
 function productChoiceFromRow(row: Record<string, string | null>): ProductChoice | null {
   const text = Object.values(row).map(cellText).filter(Boolean).join(" ");
   const paren = text.match(/\(([A-Z])-([A-Z0-9]{2})\)/i);
+  const fullCode = productCodeFromRow(row);
   const classCode = (
     rowValue(row, [/^class(_code|_id)?$/i, /product.*class/i]) ??
+    fullCode?.[2] ??
     paren?.[1] ??
     ""
   ).toUpperCase();
-  const group = (
-    rowValue(row, [/product.*group/i, /^group(_code|_id)?$/i]) ??
+
+  const group = normalizeProductGroup(
+    rowValue(row, [/product.*group/i, /^group(_code|_id)?$/i, /^product(_code|_id)?$/i, /product.*(code|id)$/i]) ??
+    fullCode ??
     paren?.[2] ??
     ""
-  ).toUpperCase();
+  );
+
   if (!/^[A-Z]$/.test(classCode) || !/^[A-Z0-9]{2}$/.test(group)) return null;
   return { key: `${classCode}-${group}-${productLabel(row)}`, label: productLabel(row), classCode, group };
 }
@@ -113,18 +140,7 @@ export function ProductFdaCodeCard({
   }, [industryId, selectedProductKey, selectedSubclass, selectedPic]);
 
   function codeFromRow(row: Record<string, string | null>): string | null {
-    const direct = Object.entries(row).find(([key, value]) =>
-      Boolean(
-        cellText(value) &&
-        /code/i.test(key) &&
-        !/id/i.test(key) &&
-        /^[0-9]{2}[A-Z][0-9A-Z-]{2,4}$/i.test(cellText(value)!)
-      )
-    )?.[1];
-    if (direct) return String(direct).toUpperCase();
-
-    const values = Object.values(row).map(cellText).filter((value): value is string => Boolean(value));
-    return values.find((value) => /^[0-9]{2}[A-Z][0-9A-Z-]{2,4}$/i.test(value.trim()))?.toUpperCase() ?? null;
+    return productCodeFromRow(row);
   }
 
   const productChoices = industryProductRows
@@ -217,6 +233,7 @@ export function ProductFdaCodeCard({
           return;
         }
         const rows = json.rows ?? [];
+        const choices = rows.map(productChoiceFromRow).filter(Boolean);
         setIndustryProductRows(rows);
         const hasFilter = nextFilter.trim().length > 0;
         setIndustryNote(
@@ -224,6 +241,8 @@ export function ProductFdaCodeCard({
             ? hasFilter
               ? "FDA returned no products in that industry for the filter. Try removing a word."
               : `FDA returned ${json.source_count ?? 0} products for that industry. Try another industry.`
+            : choices.length === 0
+              ? "FDA returned broader rows for that industry, but none carried the class and product-group codes needed for the next step. Try clearing the filter or choose another industry."
             : json.fallback
               ? "No exact filter match. Showing broader results from the selected industry."
             : json.truncated
