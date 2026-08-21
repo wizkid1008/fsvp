@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   listProductsForIndustry,
-  listProductCodesForIndustry,
   pcbCredentialsFromEnv,
   PcbError,
 } from "@/lib/regulatory/product-code-builder";
@@ -36,10 +35,10 @@ function normalizeRow(row: Record<string, unknown>): Record<string, string | nul
 }
 
 function rowKey(row: Record<string, string | null>): string {
-  const codeish = Object.entries(row).find(([key, value]) =>
-    Boolean(value && /(product.*code|product.*id|code|id)/i.test(key))
+  const productish = Object.entries(row).find(([key, value]) =>
+    Boolean(value && /(product.*id|product.*code|product.*name|name|description)/i.test(key))
   )?.[1];
-  return codeish ?? JSON.stringify(row);
+  return productish ?? JSON.stringify(row);
 }
 
 export async function GET(req: NextRequest) {
@@ -76,15 +75,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const productRows = (await listProductsForIndustry(Number(industry), creds)).map(normalizeRow);
-    let codeRows: Array<Record<string, string | null>> = [];
-    try {
-      codeRows = (await listProductCodesForIndustry(Number(industry), creds)).map(normalizeRow);
-    } catch {
-      // Some industries do not return useful rows from the full-code endpoint.
-      // The product-family endpoint still mirrors FDA's industry browse path.
-    }
     const byKey = new Map<string, Record<string, string | null>>();
-    for (const row of [...productRows, ...codeRows]) {
+    for (const row of productRows) {
       const key = rowKey(row);
       if (!byKey.has(key)) byKey.set(key, row);
     }
