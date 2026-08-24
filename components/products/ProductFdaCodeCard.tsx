@@ -25,7 +25,7 @@ export type ProductFdaCode = {
   verified_at: string | null;
 };
 
-type FdaOption = { code: string; name: string };
+type FdaOption = { code: string; name: string | null };
 type ProductChoice = { key: string; label: string; classCode: string; group: string };
 
 const inputClass =
@@ -604,7 +604,7 @@ export function ProductFdaCodeCard({
                       <option value="">Any subclass/container</option>
                       {subclassOptions.map((option) => (
                         <option key={option.code} value={option.code}>
-                          {option.name} - {option.code}
+                          {option.name ? `${option.name} - ${option.code}` : option.code}
                         </option>
                       ))}
                     </select>
@@ -620,7 +620,7 @@ export function ProductFdaCodeCard({
                       <option value="">Any PIC/process</option>
                       {picOptions.map((option) => (
                         <option key={option.code} value={option.code}>
-                          {option.name} - {option.code}
+                          {option.name ? `${option.name} - ${option.code}` : option.code}
                         </option>
                       ))}
                     </select>
