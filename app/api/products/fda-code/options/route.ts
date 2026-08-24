@@ -4,13 +4,66 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
+  listPics,
   listPicsForIndustry,
+  listSubclasses,
   listSubclassesForIndustry,
   pcbCredentialsFromEnv,
   PcbError,
+  type PcbRow,
 } from "@/lib/regulatory/product-code-builder";
 
 export const runtime = "edge";
+
+type TableResult = {
+  rows: PcbRow[];
+  scope: "industry" | "global";
+  error: string | null;
+};
+
+/**
+ * An FDA reference table, industry-scoped when that works and unfiltered when
+ * it does not.
+ *
+ * The industry-scoped endpoints are not dependable. /productcodeindustry/{id}
+ * was removed in 6b0985d for returning nothing useful, and the subclass and
+ * PIC ones appear to behave the same way -- both dropdowns have been empty
+ * with no rows to parse. /subclass and /pic are the same taxonomy unfiltered,
+ * so a handful of options that do not apply to this industry is a far smaller
+ * fault than a control with nothing in it. The code the user finally records
+ * is verified against FDA either way, so a slightly wide list cannot make a
+ * wrong code look right.
+ *
+ * Never rejects. Which table answered, and why the first did not, come back as
+ * data so the card can say so.
+ */
+async function tableWithFallback(
+  scoped: () => Promise<PcbRow[]>,
+  unfiltered: () => Promise<PcbRow[]>
+): Promise<TableResult> {
+  const describe = (err: unknown) =>
+    err instanceof PcbError ? err.message : "FDA could not be reached.";
+
+  let scopedError: string | null = null;
+  try {
+    const rows = await scoped();
+    if (rows.length > 0) return { rows, scope: "industry", error: null };
+    scopedError = "FDA returned no industry-scoped rows for this table.";
+  } catch (err) {
+    scopedError = describe(err);
+  }
+
+  try {
+    const rows = await unfiltered();
+    return { rows, scope: "global", error: rows.length > 0 ? null : scopedError };
+  } catch (err) {
+    return {
+      rows: [],
+      scope: "global",
+      error: [scopedError, describe(err)].filter(Boolean).join(" "),
+    };
+  }
+}
 
 /**
  * The single character FDA uses for this element.
@@ -90,47 +143,41 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Settled, not all: these are two independent FDA tables and Promise.all
-  // made either one's failure erase the other's rows, so a subclass fault
-  // emptied the PIC dropdown too. Each table now reports for itself, and a
-  // table failure is data about FDA rather than a 502 from us -- the error
-  // fetchTable raises names the path, HTTP status, APIRETURNCODE and FDA's
-  // own message, which is the whole diagnosis.
-  {
-    const [subclassSettled, picSettled] = await Promise.allSettled([
-      listSubclassesForIndustry(Number(industry), creds),
-      listPicsForIndustry(Number(industry), creds),
-    ]);
+  // tableWithFallback never rejects, so one table cannot erase the other --
+  // Promise.all previously threw the whole request when either endpoint
+  // failed, emptying both dropdowns at once.
+  const [subclassTable, picTable] = await Promise.all([
+    tableWithFallback(
+      () => listSubclassesForIndustry(Number(industry), creds),
+      () => listSubclasses(creds)
+    ),
+    tableWithFallback(
+      () => listPicsForIndustry(Number(industry), creds),
+      () => listPics(creds)
+    ),
+  ]);
 
-    const failure = (settled: PromiseSettledResult<unknown>) =>
-      settled.status === "rejected"
-        ? settled.reason instanceof PcbError
-          ? settled.reason.message
-          : "FDA's Product Code Builder could not be reached."
-        : null;
+  const subclasses = subclassTable.rows.map((row) => shape(row, "subclass")).filter(Boolean);
+  const pics = picTable.rows.map((row) => shape(row, "pic")).filter(Boolean);
 
-    const subclassRows = subclassSettled.status === "fulfilled" ? subclassSettled.value : [];
-    const picRows = picSettled.status === "fulfilled" ? picSettled.value : [];
-    const subclasses = subclassRows.map((row) => shape(row, "subclass")).filter(Boolean);
-    const pics = picRows.map((row) => shape(row, "pic")).filter(Boolean);
-
-    return NextResponse.json({
-      ok: true,
-      subclasses,
-      pics,
-      // Diagnostics. FDA does not document these tables' column names and they
-      // differ per table, so when nothing shapes, the raw rows are the only
-      // way to see why -- the same panel that identified PRODCLASS and
-      // GROUPCODE on the product step. Counts distinguish "FDA sent nothing"
-      // from "FDA sent rows we could not read", which are different faults.
-      source: {
-        subclass_rows: subclassRows.length,
-        pic_rows: picRows.length,
-        subclass_error: failure(subclassSettled),
-        pic_error: failure(picSettled),
-        sample_subclass: subclassRows.slice(0, 3),
-        sample_pic: picRows.slice(0, 3),
-      },
-    });
-  }
+  return NextResponse.json({
+    ok: true,
+    subclasses,
+    pics,
+    // Diagnostics. FDA does not document these tables' column names and they
+    // differ per table, so when nothing shapes, the raw rows are the only way
+    // to see why -- the same panel that identified PRODCLASS and GROUPCODE on
+    // the product step. The counts and scope separate three different faults:
+    // FDA sent nothing, FDA sent rows we could not read, or FDA refused.
+    source: {
+      subclass_rows: subclassTable.rows.length,
+      pic_rows: picTable.rows.length,
+      subclass_scope: subclassTable.scope,
+      pic_scope: picTable.scope,
+      subclass_error: subclassTable.error,
+      pic_error: picTable.error,
+      sample_subclass: subclassTable.rows.slice(0, 3),
+      sample_pic: picTable.rows.slice(0, 3),
+    },
+  });
 }

@@ -30,6 +30,8 @@ type FdaOption = { code: string; name: string | null };
 type OptionsSource = {
   subclass_rows: number;
   pic_rows: number;
+  subclass_scope?: "industry" | "global";
+  pic_scope?: "industry" | "global";
   subclass_error?: string | null;
   pic_error?: string | null;
   sample_subclass: Array<Record<string, unknown>>;
@@ -313,7 +315,15 @@ export function ProductFdaCodeCard({
           (message): message is string => Boolean(message)
         );
 
-        if (refusals.length > 0) {
+        if (json.source?.subclass_scope === "global" || json.source?.pic_scope === "global") {
+          // Say so rather than pretending the list is industry-specific: it is
+          // wider than industry 34, and the user is choosing from it.
+          setOptionsNote(
+            "FDA returned nothing for this industry's subclass/PIC tables, so these lists are " +
+              "FDA's full subclass and PIC taxonomy. Some entries will not apply to this industry."
+          );
+          setOptionsSource(json.source ?? null);
+        } else if (refusals.length > 0) {
           // Reported even when the other table succeeded: a half-filled pair
           // of dropdowns is not obviously broken, which is how this stayed
           // hidden.
@@ -651,6 +661,10 @@ export function ProductFdaCodeCard({
                     answer both from the container and processing this shipment actually arrives
                     with. Leaving either on &quot;Any&quot; shows every code for the product.
                   </p>
+                  {optionsNote && (
+                    <p className="mt-2 text-xs leading-relaxed text-amber-700">{optionsNote}</p>
+                  )}
+
                   <div className="mt-2 grid gap-2 lg:grid-cols-2">
                     <select
                       value={selectedSubclass}
@@ -685,10 +699,6 @@ export function ProductFdaCodeCard({
                       ))}
                     </select>
                   </div>
-
-                  {optionsNote && (
-                    <p className="mt-2 text-xs leading-relaxed text-amber-700">{optionsNote}</p>
-                  )}
 
                   {optionsSource && subclassOptions.length === 0 && picOptions.length === 0 && (
                     <div className="mt-2 space-y-3 rounded-md border border-line bg-white p-3">
