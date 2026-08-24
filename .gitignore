@@ -15,3 +15,9 @@ types/database.generated.ts
 
 # Word lock files, created while a .docx in the repo is open
 ~$*
+
+# Local pnpm state. Cloudflare Pages picks its package manager from the
+# lockfile: committing this one flips the build from npm to pnpm, and
+# next-on-pages then fails to find the vercel binary.
+pnpm-lock.yaml
+pnpm-workspace.yaml
