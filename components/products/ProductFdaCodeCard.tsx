@@ -110,6 +110,22 @@ function productCodeFromRow(row: Record<string, string | null>): string | null {
   return values.find((value) => /^[0-9]{2}[A-Z][0-9A-Z-]{2,4}$/i.test(value.trim()))?.toUpperCase() ?? null;
 }
 
+/**
+ * The subclass and PIC characters carried by a full product code.
+ *
+ * Positions are fixed: two digits of industry, one class letter, the last two
+ * are the product group, and whatever is left in the middle is subclass then
+ * PIC -- the same reading parseProductCode uses. Only a seven-character code
+ * is used here: at six the middle is a single character that FDA's format
+ * cannot assign to one element or the other, and guessing would offer a
+ * container code as a process code.
+ */
+function elementsFromCode(code: string | null): { subclass: string; pic: string } | null {
+  const c = code?.trim().toUpperCase() ?? "";
+  if (!/^[0-9]{2}[A-Z][A-Z0-9-]{4}$/.test(c)) return null;
+  return { subclass: c[3], pic: c[4] };
+}
+
 function normalizeProductGroup(value: string | null): string {
   const v = value?.trim().toUpperCase() ?? "";
   if (/^[A-Z0-9]{2}$/.test(v)) return v;
@@ -176,6 +192,8 @@ export function ProductFdaCodeCard({
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<string[]>([]);
   const [note, setNote] = useState<string | null>(null);
+  const [derivedSubclasses, setDerivedSubclasses] = useState<string[]>([]);
+  const [derivedPics, setDerivedPics] = useState<string[]>([]);
   const [optionsNote, setOptionsNote] = useState<string | null>(null);
   const [optionsSource, setOptionsSource] = useState<OptionsSource | null>(null);
   const [recordedSubclassName, setRecordedSubclassName] = useState<string | null>(null);
@@ -241,6 +259,22 @@ export function ProductFdaCodeCard({
   function codeFromRow(row: Record<string, string | null>): string | null {
     return productCodeFromRow(row);
   }
+
+  /**
+   * What the two selects actually offer.
+   *
+   * FDA's named options when its tables answer; otherwise the letters derived
+   * from the returned codes, unnamed. An unnamed letter that filters correctly
+   * beats an empty control, and the recorded code is verified against FDA
+   * either way.
+   */
+  function mergeOptions(fromFda: FdaOption[], derived: string[]): FdaOption[] {
+    if (fromFda.length > 0) return fromFda;
+    return derived.map((code) => ({ code, name: null }));
+  }
+
+  const subclassChoices = mergeOptions(subclassOptions, derivedSubclasses);
+  const picChoices = mergeOptions(picOptions, derivedPics);
 
   const productChoices = industryProductRows
     .map(productChoiceFromRow)
@@ -315,7 +349,18 @@ export function ProductFdaCodeCard({
           (message): message is string => Boolean(message)
         );
 
-        if (json.source?.subclass_scope === "global" || json.source?.pic_scope === "global") {
+        if (subclasses.length === 0 && pics.length === 0) {
+          // The selects fall back to values derived from the returned codes,
+          // so this explains the bare letters rather than reporting a failure
+          // the user cannot act on. The raw-row panel below still carries
+          // FDA's own message when there is nothing to fall back to.
+          setOptionsNote(
+            "FDA's subclass and PIC name tables did not answer, so these lists are the values " +
+              "carried by the codes FDA returned for this product. They filter correctly, but " +
+              "are shown as letters rather than names."
+          );
+          setOptionsSource(json.source ?? null);
+        } else if (json.source?.subclass_scope === "global" || json.source?.pic_scope === "global") {
           // Say so rather than pretending the list is industry-specific: it is
           // wider than industry 34, and the user is choosing from it.
           setOptionsNote(
@@ -435,6 +480,23 @@ export function ProductFdaCodeCard({
         }
         const rows = json.rows ?? [];
         setFinalRows(rows);
+
+        // Derive the pickable subclass and PIC values from the codes FDA just
+        // returned. These are the combinations that actually exist for this
+        // product, which is better than any reference table could give -- and
+        // it needs no further call, so it works while FDA's subclass and PIC
+        // tables do not.
+        //
+        // Only from the unfiltered result set: once a subclass is chosen the
+        // results narrow, and re-deriving would delete the other options from
+        // the control the user is standing in.
+        if (!nextSubclass && !nextPic) {
+          const elements = rows
+            .map((row) => elementsFromCode(productCodeFromRow(row)))
+            .filter((parts): parts is { subclass: string; pic: string } => Boolean(parts));
+          setDerivedSubclasses([...new Set(elements.map((parts) => parts.subclass))].sort());
+          setDerivedPics([...new Set(elements.map((parts) => parts.pic))].sort());
+        }
         setFinalNote(
           rows.length === 0
             ? "FDA returned no final codes for that combination. Try changing subclass or PIC."
@@ -676,7 +738,7 @@ export function ProductFdaCodeCard({
                       className={`${inputClass} mt-0`}
                     >
                       <option value="">Any subclass/container</option>
-                      {subclassOptions.map((option) => (
+                      {subclassChoices.map((option) => (
                         <option key={option.code} value={option.code}>
                           {option.name ? `${option.name} - ${option.code}` : option.code}
                         </option>
@@ -692,7 +754,7 @@ export function ProductFdaCodeCard({
                       className={`${inputClass} mt-0`}
                     >
                       <option value="">Any PIC/process</option>
-                      {picOptions.map((option) => (
+                      {picChoices.map((option) => (
                         <option key={option.code} value={option.code}>
                           {option.name ? `${option.name} - ${option.code}` : option.code}
                         </option>
@@ -700,7 +762,7 @@ export function ProductFdaCodeCard({
                     </select>
                   </div>
 
-                  {optionsSource && subclassOptions.length === 0 && picOptions.length === 0 && (
+                  {optionsSource && subclassChoices.length === 0 && picChoices.length === 0 && (
                     <div className="mt-2 space-y-3 rounded-md border border-line bg-white p-3">
                       {([
                         ["Subclass", optionsSource.sample_subclass, optionsSource.subclass_rows],
