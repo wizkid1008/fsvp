@@ -17,6 +17,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, HelpCircle, Search } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { subclassName } from "@/lib/regulatory/product-code-elements";
 
 export type ProductFdaCode = {
   code: string | null;
@@ -211,6 +212,10 @@ export function ProductFdaCodeCard({
     const industry = current.code?.slice(0, 2) ?? "";
     if (!/^\d{2}$/.test(industry) || (!current.subclass && !current.pic)) return;
 
+    // Name it from the local container table first, so a recorded code reads
+    // properly even if FDA never answers.
+    setRecordedSubclassName(subclassName(current.subclass));
+
     let cancelled = false;
     (async () => {
       try {
@@ -223,7 +228,9 @@ export function ProductFdaCodeCard({
         if (cancelled) return;
         const nameFor = (options: FdaOption[] | undefined, code: string | null) =>
           options?.find((option) => option.code.toUpperCase() === code?.toUpperCase())?.name ?? null;
-        setRecordedSubclassName(nameFor(json.subclasses, current.subclass));
+        setRecordedSubclassName(
+          nameFor(json.subclasses, current.subclass) ?? subclassName(current.subclass)
+        );
         setRecordedPicName(nameFor(json.pics, current.pic));
       } catch {
         // Leave the letters as they are.
@@ -268,13 +275,20 @@ export function ProductFdaCodeCard({
    * beats an empty control, and the recorded code is verified against FDA
    * either way.
    */
-  function mergeOptions(fromFda: FdaOption[], derived: string[]): FdaOption[] {
+  function mergeOptions(
+    fromFda: FdaOption[],
+    derived: string[],
+    nameFor: (code: string) => string | null
+  ): FdaOption[] {
     if (fromFda.length > 0) return fromFda;
-    return derived.map((code) => ({ code, name: null }));
+    return derived.map((code) => ({ code, name: nameFor(code) }));
   }
 
-  const subclassChoices = mergeOptions(subclassOptions, derivedSubclasses);
-  const picChoices = mergeOptions(picOptions, derivedPics);
+  const subclassChoices = mergeOptions(subclassOptions, derivedSubclasses, subclassName);
+  // No name function for PIC: FDA defines its process codes per industry, and
+  // no general table covers what industry 34 returns. A letter says little; a
+  // wrong name would say something false.
+  const picChoices = mergeOptions(picOptions, derivedPics, () => null);
 
   const productChoices = industryProductRows
     .map(productChoiceFromRow)
