@@ -30,6 +30,8 @@ type FdaOption = { code: string; name: string | null };
 type OptionsSource = {
   subclass_rows: number;
   pic_rows: number;
+  subclass_error?: string | null;
+  pic_error?: string | null;
   sample_subclass: Array<Record<string, unknown>>;
   sample_pic: Array<Record<string, unknown>>;
 };
@@ -216,6 +218,19 @@ export function ProductFdaCodeCard({
     if (canManage && industryRows === null) loadIndustries();
   }, [canManage, industryRows]);
 
+  /**
+   * Options follow the selected industry.
+   *
+   * Previously loaded only from the industry select onChange, so any path that
+   * set industryId without a user picking it -- restored state, or pressing
+   * Apply filter, which reloads products only -- left both dropdowns empty
+   * with nothing having been requested.
+   */
+  useEffect(() => {
+    loadCodeOptions(industryId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [industryId]);
+
   useEffect(() => {
     if (!industryId || !selectedProduct) return;
     findFinalCodes(selectedProduct, selectedSubclass, selectedPic);
@@ -294,7 +309,17 @@ export function ProductFdaCodeCard({
         setSubclassOptions(subclasses);
         setPicOptions(pics);
 
-        if (subclasses.length === 0 && pics.length === 0) {
+        const refusals = [json.source?.subclass_error, json.source?.pic_error].filter(
+          (message): message is string => Boolean(message)
+        );
+
+        if (refusals.length > 0) {
+          // Reported even when the other table succeeded: a half-filled pair
+          // of dropdowns is not obviously broken, which is how this stayed
+          // hidden.
+          setOptionsNote("FDA refused part of the subclass/PIC lookup. " + refusals.join(" "));
+          setOptionsSource(json.source ?? null);
+        } else if (subclasses.length === 0 && pics.length === 0) {
           const rows = (json.source?.subclass_rows ?? 0) + (json.source?.pic_rows ?? 0);
           setOptionsNote(
             rows > 0
@@ -513,7 +538,6 @@ export function ProductFdaCodeCard({
                       setSelectedProductKey("");
                       setFinalRows(null);
                       setFinalNote(null);
-                      loadCodeOptions(next);
                       if (next) searchIndustry(next, industryFilter);
                     }}
                     className={`${inputClass} mt-0`}

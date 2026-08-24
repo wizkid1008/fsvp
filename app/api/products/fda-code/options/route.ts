@@ -90,11 +90,27 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  try {
-    const [subclassRows, picRows] = await Promise.all([
+  // Settled, not all: these are two independent FDA tables and Promise.all
+  // made either one's failure erase the other's rows, so a subclass fault
+  // emptied the PIC dropdown too. Each table now reports for itself, and a
+  // table failure is data about FDA rather than a 502 from us -- the error
+  // fetchTable raises names the path, HTTP status, APIRETURNCODE and FDA's
+  // own message, which is the whole diagnosis.
+  {
+    const [subclassSettled, picSettled] = await Promise.allSettled([
       listSubclassesForIndustry(Number(industry), creds),
       listPicsForIndustry(Number(industry), creds),
     ]);
+
+    const failure = (settled: PromiseSettledResult<unknown>) =>
+      settled.status === "rejected"
+        ? settled.reason instanceof PcbError
+          ? settled.reason.message
+          : "FDA's Product Code Builder could not be reached."
+        : null;
+
+    const subclassRows = subclassSettled.status === "fulfilled" ? subclassSettled.value : [];
+    const picRows = picSettled.status === "fulfilled" ? picSettled.value : [];
     const subclasses = subclassRows.map((row) => shape(row, "subclass")).filter(Boolean);
     const pics = picRows.map((row) => shape(row, "pic")).filter(Boolean);
 
@@ -110,14 +126,11 @@ export async function GET(req: NextRequest) {
       source: {
         subclass_rows: subclassRows.length,
         pic_rows: picRows.length,
+        subclass_error: failure(subclassSettled),
+        pic_error: failure(picSettled),
         sample_subclass: subclassRows.slice(0, 3),
         sample_pic: picRows.slice(0, 3),
       },
     });
-  } catch (err) {
-    const message = err instanceof PcbError
-      ? err.message
-      : "FDA's Product Code Builder could not be reached.";
-    return NextResponse.json({ error: message }, { status: 502 });
   }
 }
