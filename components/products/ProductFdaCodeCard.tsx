@@ -38,17 +38,29 @@ function cellText(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value);
 }
 
+/**
+ * First populated cell whose column name matches, in PATTERN order.
+ *
+ * Pattern order is priority, not row order. FDA returns both `PRODID` (an
+ * internal row id) and `GROUPCODE` (the two characters that belong in the
+ * code), and `PRODID` comes first in the row, so a row-first scan takes the
+ * id and throws the real group away.
+ */
 function rowValue(row: Record<string, string | null>, patterns: RegExp[]): string | null {
-  return Object.entries(row).find(([key, value]) =>
-    Boolean(cellText(value) && patterns.some((pattern) => pattern.test(key)))
-  )?.[1] ?? null;
+  const entries = Object.entries(row);
+  for (const pattern of patterns) {
+    const hit = entries.find(([key, value]) => Boolean(cellText(value) && pattern.test(key)))?.[1];
+    if (hit) return hit;
+  }
+  return null;
 }
 
 function productLabel(row: Record<string, string | null>): string {
-  const preferred = Object.entries(row).find(([key, value]) =>
-    Boolean(cellText(value) && /(product|name|description)/i.test(key) && !/code/i.test(key))
-  )?.[1];
-  if (preferred) return String(preferred);
+  // FDA abbreviates its column names (PRODDESC, not PRODUCT_DESCRIPTION), and
+  // the numeric PRODID would win a looser "prod" match, so description and
+  // name columns are asked for first.
+  const preferred = rowValue(row, [/(desc|name)/i, /^prod(uct)?$/i]);
+  if (preferred && !/^\d+$/.test(preferred.trim())) return preferred;
   return Object.values(row).map(cellText).filter(Boolean).join(" — ");
 }
 
@@ -86,14 +98,19 @@ function productChoiceFromRow(row: Record<string, string | null>): ProductChoice
   const paren = text.match(/\(([A-Z])-([A-Z0-9]{2})\)/i);
   const fullCode = productCodeFromRow(row);
   const classCode = (
-    rowValue(row, [/^class(_code|_id)?$/i, /product.*class/i]) ??
+    rowValue(row, [/^class(_code|_id)?$/i, /prod(uct)?.*class/i]) ??
     fullCode?.[2] ??
     paren?.[1] ??
     ""
   ).toUpperCase();
 
   const group = normalizeProductGroup(
-    rowValue(row, [/product.*group/i, /^group(_code|_id)?$/i, /^product(_code|_id)?$/i, /product.*(code|id)$/i]) ??
+    rowValue(row, [
+      /^group(_?code|_?id)?$/i,
+      /prod(uct)?.*group/i,
+      /^prod(uct)?(_?code|_?id)?$/i,
+      /prod(uct)?.*(code|id)$/i,
+    ]) ??
     fullCode ??
     paren?.[2] ??
     ""
