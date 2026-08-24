@@ -204,7 +204,23 @@ export function RequirementItemRow({
               <input ref={inputRef} type="file" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
             </div>
 
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && (
+              <div>
+                <p className="text-xs text-red-600">{error}</p>
+                {/* An applicability block is not a failure the user can fix
+                    here, and saying so without saying where to go leaves a
+                    dead end. /fsvp-records/new already pairs this message
+                    with the same link. */}
+                {/applicab|FSVP applies/i.test(error) && (
+                  <a
+                    href="/applicability"
+                    className="mt-1 inline-block text-xs font-semibold text-forest hover:underline"
+                  >
+                    Determine applicability
+                  </a>
+                )}
+              </div>
+            )}
 
             {file && (
               <div className="flex justify-end gap-2">
