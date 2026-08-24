@@ -26,6 +26,13 @@ export type ProductFdaCode = {
 };
 
 type FdaOption = { code: string; name: string | null };
+
+type OptionsSource = {
+  subclass_rows: number;
+  pic_rows: number;
+  sample_subclass: Array<Record<string, unknown>>;
+  sample_pic: Array<Record<string, unknown>>;
+};
 type ProductChoice = { key: string; label: string; classCode: string; group: string };
 
 const inputClass =
@@ -165,6 +172,8 @@ export function ProductFdaCodeCard({
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<string[]>([]);
   const [note, setNote] = useState<string | null>(null);
+  const [optionsNote, setOptionsNote] = useState<string | null>(null);
+  const [optionsSource, setOptionsSource] = useState<OptionsSource | null>(null);
   const [recordedSubclassName, setRecordedSubclassName] = useState<string | null>(null);
   const [recordedPicName, setRecordedPicName] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -248,11 +257,22 @@ export function ProductFdaCodeCard({
     });
   }
 
+  /**
+   * Load the subclass and PIC options for an industry.
+   *
+   * Failures report into optionsNote, not industryNote. The industry onChange
+   * handler calls this and then searchIndustry, which clears industryNote and
+   * overwrites it with the product-search result -- so every failure reported
+   * here was erased before it could render, and an empty pair of dropdowns
+   * was the only symptom.
+   */
   function loadCodeOptions(nextIndustryId: string) {
     setSubclassOptions([]);
     setPicOptions([]);
     setSelectedSubclass("");
     setSelectedPic("");
+    setOptionsNote(null);
+    setOptionsSource(null);
     if (!nextIndustryId) return;
     startTransition(async () => {
       try {
@@ -261,15 +281,31 @@ export function ProductFdaCodeCard({
           error?: string;
           subclasses?: FdaOption[];
           pics?: FdaOption[];
+          source?: OptionsSource;
         };
         if (!res.ok) {
-          setIndustryNote(json.error ?? "FDA subclass and PIC options are unavailable.");
+          setOptionsNote(json.error ?? "FDA subclass and PIC options are unavailable.");
+          setOptionsSource(json.source ?? null);
           return;
         }
-        setSubclassOptions(json.subclasses ?? []);
-        setPicOptions(json.pics ?? []);
+
+        const subclasses = json.subclasses ?? [];
+        const pics = json.pics ?? [];
+        setSubclassOptions(subclasses);
+        setPicOptions(pics);
+
+        if (subclasses.length === 0 && pics.length === 0) {
+          const rows = (json.source?.subclass_rows ?? 0) + (json.source?.pic_rows ?? 0);
+          setOptionsNote(
+            rows > 0
+              ? "FDA returned " + rows + " subclass/PIC rows for this industry, but none carried a " +
+                "readable one-character code. The fields FDA sent are shown below."
+              : "FDA returned no subclass or PIC rows for this industry."
+          );
+          setOptionsSource(json.source ?? null);
+        }
       } catch {
-        setIndustryNote("Could not reach the server.");
+        setOptionsNote("Could not reach the server.");
       }
     });
   }
@@ -625,6 +661,37 @@ export function ProductFdaCodeCard({
                       ))}
                     </select>
                   </div>
+
+                  {optionsNote && (
+                    <p className="mt-2 text-xs leading-relaxed text-amber-700">{optionsNote}</p>
+                  )}
+
+                  {optionsSource && subclassOptions.length === 0 && picOptions.length === 0 && (
+                    <div className="mt-2 space-y-3 rounded-md border border-line bg-white p-3">
+                      {([
+                        ["Subclass", optionsSource.sample_subclass, optionsSource.subclass_rows],
+                        ["PIC", optionsSource.sample_pic, optionsSource.pic_rows],
+                      ] as Array<[string, Array<Record<string, unknown>>, number]>).map(
+                        ([label, rows, total]) => (
+                          <div key={label}>
+                            <p className="text-xs font-semibold text-slate-500">
+                              {label}: FDA returned {total} row{total === 1 ? "" : "s"}
+                            </p>
+                            {(rows ?? []).map((row, rowIndex) => (
+                              <div key={rowIndex} className="mt-1 space-y-1 border-l-2 border-line pl-2">
+                                {Object.entries(row ?? {}).map(([key, value]) => (
+                                  <div key={key} className="grid gap-1 sm:grid-cols-[10rem_1fr]">
+                                    <span className="font-mono text-[11px] text-slate-500">{key}</span>
+                                    <span className="text-xs text-slate-700">{String(value ?? "")}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

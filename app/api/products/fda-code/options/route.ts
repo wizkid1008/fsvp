@@ -95,10 +95,24 @@ export async function GET(req: NextRequest) {
       listSubclassesForIndustry(Number(industry), creds),
       listPicsForIndustry(Number(industry), creds),
     ]);
+    const subclasses = subclassRows.map((row) => shape(row, "subclass")).filter(Boolean);
+    const pics = picRows.map((row) => shape(row, "pic")).filter(Boolean);
+
     return NextResponse.json({
       ok: true,
-      subclasses: subclassRows.map((row) => shape(row, "subclass")).filter(Boolean),
-      pics: picRows.map((row) => shape(row, "pic")).filter(Boolean),
+      subclasses,
+      pics,
+      // Diagnostics. FDA does not document these tables' column names and they
+      // differ per table, so when nothing shapes, the raw rows are the only
+      // way to see why -- the same panel that identified PRODCLASS and
+      // GROUPCODE on the product step. Counts distinguish "FDA sent nothing"
+      // from "FDA sent rows we could not read", which are different faults.
+      source: {
+        subclass_rows: subclassRows.length,
+        pic_rows: picRows.length,
+        sample_subclass: subclassRows.slice(0, 3),
+        sample_pic: picRows.slice(0, 3),
+      },
     });
   } catch (err) {
     const message = err instanceof PcbError
