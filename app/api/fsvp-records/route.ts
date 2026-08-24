@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { fetchDetermination, recordCreationBlock } from "@/lib/fsvp/applicability";
+import { ruleVersionBlock } from "@/lib/fsvp/rule-version";
 
 export const runtime = "edge";
 
@@ -38,13 +39,12 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminSupabaseClient();
 
-  // Validate the rule version is published
-  const { data: ruleVer } = await (admin.from("rule_versions") as any)
-    .select("status")
-    .eq("id", rule_version_id)
-    .maybeSingle();
-  if (!ruleVer || ruleVer.status !== "published") {
-    return NextResponse.json({ error: "rule_version_id must reference a published rule version." }, { status: 400 });
+  // Validate the rule version is published AND belongs to a rule set that can
+  // govern an FSVP record. Checking only "published" let any set through --
+  // a facility-scoped version would have been accepted here.
+  const ruleBlock = await ruleVersionBlock(admin, rule_version_id);
+  if (ruleBlock) {
+    return NextResponse.json({ error: ruleBlock }, { status: 400 });
   }
 
   // Validate the supplier/facility/product graph. Previously none of this was

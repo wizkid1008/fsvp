@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { fetchDetermination, recordCreationBlock } from "@/lib/fsvp/applicability";
+import { fetchGoverningRuleVersion } from "@/lib/fsvp/rule-version";
 import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 
 export const runtime = "edge";
@@ -91,15 +92,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: ruleVersion } = await (admin.from("rule_versions") as any)
-      .select("id")
-      .eq("status", "published")
-      .order("version_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!ruleVersion?.id) {
-      return NextResponse.json({ error: "No published rule version is available." }, { status: 400 });
+    const ruleVersion = await fetchGoverningRuleVersion(admin);
+    if (!ruleVersion.ok) {
+      return NextResponse.json({ error: ruleVersion.error }, { status: 400 });
     }
 
     const created = await (admin.from("fsvp_records") as any)
@@ -108,7 +103,7 @@ export async function POST(req: NextRequest) {
         supplier_id: product.supplier_id,
         facility_id: product.facility_id,
         product_id: product.id,
-        rule_version_id: ruleVersion.id,
+        rule_version_id: ruleVersion.version.id,
         status: "draft",
         created_by_profile_id: user.id,
       })
@@ -141,7 +136,7 @@ export async function POST(req: NextRequest) {
           supplier_id: product.supplier_id,
           facility_id: product.facility_id,
           product_id: product.id,
-          rule_version_id: ruleVersion.id,
+          rule_version_id: ruleVersion.version.id,
           source: "product_hazard_analysis_create",
         },
       });
