@@ -532,7 +532,15 @@ export function ProductFdaCodeCard({
                 <div className="border-t border-line pt-4">
                   <p className="text-sm font-semibold text-ink">Packaging and process details</p>
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    Refine the code with subclass/container and PIC/process when those details apply.
+                    These two describe the shipment as packed, not the food itself.{" "}
+                    <span className="font-medium text-slate-700">Subclass</span> is the container it
+                    arrives in &mdash; metal, glass, plastic, bulk.{" "}
+                    <span className="font-medium text-slate-700">PIC</span> is how it was processed
+                    &mdash; commercially sterile, frozen, dried, raw. FDA&apos;s own worked example is
+                    38BEE27, canned tomato soup, where subclass E is METAL (the can) and PIC E is
+                    COMMERCIALLY STERILE (the retort). The same soup in glass is a different code, so
+                    answer both from the container and processing this shipment actually arrives
+                    with. Leaving either on &quot;Any&quot; shows every code for the product.
                   </p>
                   <div className="mt-2 grid gap-2 lg:grid-cols-2">
                     <select
