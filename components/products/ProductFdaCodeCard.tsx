@@ -64,6 +64,19 @@ function productLabel(row: Record<string, string | null>): string {
   return Object.values(row).map(cellText).filter(Boolean).join(" — ");
 }
 
+/**
+ * A recorded code element as a person can read it.
+ *
+ * FDA stores these as single letters, and a letter on its own tells whoever
+ * opens this record nothing -- "G" is not an answer to "what container".
+ * The name carries the meaning; the letter is kept because that is what
+ * appears on the entry line.
+ */
+function elementText(code: string | null, name: string | null): string {
+  if (!code) return "—";
+  return name ? `${name} (${code})` : code;
+}
+
 function visibleRowFields(row: Record<string, string | null>): Array<[string, string]> {
   return Object.entries(row)
     .map(([key, value]) => [key, cellText(value)?.trim() ?? ""] as [string, string])
@@ -152,7 +165,43 @@ export function ProductFdaCodeCard({
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<string[]>([]);
   const [note, setNote] = useState<string | null>(null);
+  const [recordedSubclassName, setRecordedSubclassName] = useState<string | null>(null);
+  const [recordedPicName, setRecordedPicName] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  /**
+   * Name the recorded subclass and PIC.
+   *
+   * The industry is the first two characters of the code, which is the only
+   * key FDA's reference tables need. Failure is silent on purpose: the names
+   * are a courtesy and the letters are still correct without them.
+   */
+  useEffect(() => {
+    const industry = current.code?.slice(0, 2) ?? "";
+    if (!/^\d{2}$/.test(industry) || (!current.subclass && !current.pic)) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/products/fda-code/options?industry=${industry}`);
+        if (!res.ok) return;
+        const json = (await res.json().catch(() => ({}))) as {
+          subclasses?: FdaOption[];
+          pics?: FdaOption[];
+        };
+        if (cancelled) return;
+        const nameFor = (options: FdaOption[] | undefined, code: string | null) =>
+          options?.find((option) => option.code.toUpperCase() === code?.toUpperCase())?.name ?? null;
+        setRecordedSubclassName(nameFor(json.subclasses, current.subclass));
+        setRecordedPicName(nameFor(json.pics, current.pic));
+      } catch {
+        // Leave the letters as they are.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [current.code, current.subclass, current.pic]);
 
   useEffect(() => {
     if (canManage && industryRows === null) loadIndustries();
@@ -397,11 +446,11 @@ export function ProductFdaCodeCard({
           </div>
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Subclass (container)</dt>
-            <dd className="mt-1 font-medium text-ink">{current.subclass ?? "—"}</dd>
+            <dd className="mt-1 font-medium text-ink">{elementText(current.subclass, recordedSubclassName)}</dd>
           </div>
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">PIC (process)</dt>
-            <dd className="mt-1 font-medium text-ink">{current.pic ?? "—"}</dd>
+            <dd className="mt-1 font-medium text-ink">{elementText(current.pic, recordedPicName)}</dd>
           </div>
         </dl>
       )}
