@@ -54,3 +54,46 @@ export function subclassName(code: string | null | undefined): string | null {
   const key = code?.trim().toUpperCase() ?? "";
   return SUBCLASS_NAMES[key] ?? null;
 }
+
+/**
+ * Process codes published by FDA for CFSAN food products.
+ *
+ * PARTIAL, AND THAT IS THE POINT. FDA defines process codes per industry and
+ * publishes the authoritative table only through the Product Code Builder,
+ * which refuses automated clients. This is the CFSAN food set, corroborated by
+ * two independent publications that agree with each other and with FDA's own
+ * worked example -- 38BEE27, where PIC E is COMMERCIALLY STERILE.
+ *
+ * Industry 34 uses D, E, F, H, P, R, U, W, X and Y. Seven are named below.
+ * U, W and X are deliberately ABSENT: no source consulted defines them for
+ * CFSAN, and a plausible-sounding process name on a real entry-line code is
+ * the failure this client's header exists to prevent. They render as bare
+ * letters until FDA's table for the industry can be read.
+ *
+ * Sources: CBP CSMS# 16-000549; FDA's published PIC definitions.
+ */
+export const PIC_NAMES: Record<string, string> = {
+  B: "Raw or fresh, ambient (not chilled or frozen)",
+  C: "Raw or fresh, refrigerated",
+  D: "Raw or fresh, frozen",
+  E: "Commercially sterile (hermetically sealed, then heated)",
+  F: "Aseptic pack (pre-sterilised container)",
+  H: "Dried, naturally or by heat, cold or chemicals",
+  I: "Acidified",
+  N: "Heat treated (baked, blanched, cooked, fried, boiled)",
+  O: "Pasteurised",
+  P: "Cultured, fermented, brined, pickled, smoked or cured",
+  R: "Irradiated",
+  S: "Ultrapasteurised",
+  T: "Packaged, not commercially sterile",
+  Y: "Not elsewhere classified",
+};
+
+/**
+ * The process name for a PIC letter, or null when no consulted FDA source
+ * defines it. Null is a real answer here: see PIC_NAMES.
+ */
+export function picName(code: string | null | undefined): string | null {
+  const key = code?.trim().toUpperCase() ?? "";
+  return PIC_NAMES[key] ?? null;
+}

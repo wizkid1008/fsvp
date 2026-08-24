@@ -17,7 +17,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, HelpCircle, Search } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { subclassName } from "@/lib/regulatory/product-code-elements";
+import { picName, subclassName } from "@/lib/regulatory/product-code-elements";
 
 export type ProductFdaCode = {
   code: string | null;
@@ -215,6 +215,7 @@ export function ProductFdaCodeCard({
     // Name it from the local container table first, so a recorded code reads
     // properly even if FDA never answers.
     setRecordedSubclassName(subclassName(current.subclass));
+    setRecordedPicName(picName(current.pic));
 
     let cancelled = false;
     (async () => {
@@ -231,7 +232,7 @@ export function ProductFdaCodeCard({
         setRecordedSubclassName(
           nameFor(json.subclasses, current.subclass) ?? subclassName(current.subclass)
         );
-        setRecordedPicName(nameFor(json.pics, current.pic));
+        setRecordedPicName(nameFor(json.pics, current.pic) ?? picName(current.pic));
       } catch {
         // Leave the letters as they are.
       }
@@ -285,10 +286,9 @@ export function ProductFdaCodeCard({
   }
 
   const subclassChoices = mergeOptions(subclassOptions, derivedSubclasses, subclassName);
-  // No name function for PIC: FDA defines its process codes per industry, and
-  // no general table covers what industry 34 returns. A letter says little; a
-  // wrong name would say something false.
-  const picChoices = mergeOptions(picOptions, derivedPics, () => null);
+  // picName covers the CFSAN food set and returns null for the rest, so an
+  // undefined process shows as a bare letter rather than a guessed name.
+  const picChoices = mergeOptions(picOptions, derivedPics, picName);
 
   const productChoices = industryProductRows
     .map(productChoiceFromRow)
