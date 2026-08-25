@@ -3,7 +3,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { fetchDetermination, recordCreationBlock } from "@/lib/fsvp/applicability";
+import {
+  fetchDetermination,
+  isHardRecordCreationBlock,
+  recordCreationBlock,
+} from "@/lib/fsvp/applicability";
 import { ruleVersionBlock } from "@/lib/fsvp/rule-version";
 
 export const runtime = "edge";
@@ -105,15 +109,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Does FSVP apply to this food at all? § 1.501 exempts whole categories, and
-  // an exempt pair does not need a record — the determination IS the record.
-  // This also catches a pair nobody has determined yet, and one whose
-  // determination has lapsed, which need different messages.
+  // an exempt pair does not need a record — the determination IS the record,
+  // so opening one contradicts the importer's own filing.
+  //
+  // An undetermined or lapsed pair is a different matter: the step is
+  // outstanding, not answered. A draft record claims nothing, and
+  // ./[id]/approve/route.ts re-reads the determination and refuses to approve
+  // without a live one, so the work can be started without it being relied on.
   const determination = await fetchDetermination(admin, profile.importer_id, supplier_id, product_id);
   const block = recordCreationBlock(determination);
-  if (block) {
+  if (block && isHardRecordCreationBlock(block)) {
     return NextResponse.json(
-      { error: block, outcome: determination?.outcome ?? null },
-      { status: determination?.outcome === "exempt" ? 409 : 400 }
+      { error: block.message, outcome: determination?.outcome ?? null },
+      { status: 409 }
     );
   }
 

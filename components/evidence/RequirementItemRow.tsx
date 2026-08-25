@@ -53,11 +53,14 @@ export function RequirementItemRow({
     productId: string;
     existingHref: string | null;
     /**
-     * Set when creation is known to be refused. Carries why, and the screen
-     * that clears it — a blocker naming a step the reader cannot reach from
-     * where they are standing is only half a gate.
+     * An outstanding applicability step, when there is one. Carries why, and
+     * the screen that clears it — a blocker naming a step the reader cannot
+     * reach from where they are standing is only half a gate.
+     *
+     * `hard` separates "this cannot be created" from "this can be drafted, but
+     * something is outstanding". Only the first replaces the button.
      */
-    blocked?: { reason: string; href: string; cta: string } | null;
+    blocked?: { reason: string; href: string; cta: string; hard: boolean } | null;
   };
 }) {
   const router = useRouter();
@@ -162,7 +165,7 @@ export function RequirementItemRow({
         </div>
         <StatusBadge tone={statusTone(status)}>{statusLabel(status)}</StatusBadge>
         {createAction && !isAccepted && (
-          createAction.blocked ? (
+          createAction.blocked?.hard ? (
             <a
               href={createAction.blocked.href}
               className="inline-flex h-7 items-center gap-1 rounded-md border border-forest px-2.5 text-xs font-semibold text-forest hover:bg-emerald-50"
@@ -192,13 +195,24 @@ export function RequirementItemRow({
         )}
       </div>
 
-      {/* Stated up front rather than after a click that was always going to
-          fail. Not red: nothing has gone wrong, there is simply a step in
-          front of this one. The way out is the button above — repeating it
-          here would give one row two of the same link. */}
+      {/* Stated up front rather than after a click. Not red: nothing has gone
+          wrong, there is simply a step outstanding — and for a soft block the
+          work can be started anyway, which is why Create is still there.
+          The link appears here only when the button above is not already it. */}
       {createAction?.blocked && !isAccepted && (
         <div className="border-t border-line bg-slate-50 px-4 py-2 text-xs text-slate-600">
           {createAction.blocked.reason}
+          {!createAction.blocked.hard && (
+            <>
+              {" "}
+              <a
+                href={createAction.blocked.href}
+                className="font-semibold text-forest hover:underline"
+              >
+                {createAction.blocked.cta}
+              </a>
+            </>
+          )}
         </div>
       )}
 

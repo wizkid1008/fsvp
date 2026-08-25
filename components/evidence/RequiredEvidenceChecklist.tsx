@@ -142,18 +142,16 @@ export async function RequiredEvidenceChecklist({
   } | null;
 
   /**
-   * Why "Create" cannot succeed yet, worked out here rather than discovered by
-   * clicking.
+   * What applicability says about this product, worked out here rather than
+   * discovered by clicking.
    *
-   * Creating a hazard analysis opens an FSVP record, and
-   * /api/product-hazard-analysis/start refuses that until a qualified
-   * individual has determined how FSVP applies to the pair. The row used to
-   * offer the button anyway and report the refusal afterwards, which left the
-   * reader holding a message about a screen they had no way to reach.
+   * Usually this is a notice rather than a wall: an undetermined pair may
+   * still be drafted against, and Create stays. Only an EXEMPT determination
+   * stops the record, because § 1.501 says an exempt food does not need one —
+   * see lib/fsvp/applicability.ts for why the two are not the same thing.
    *
-   * Only asked when there is no record yet: an existing one was already past
-   * this check when it was created, and the button opens it rather than
-   * creating anything.
+   * Only asked when there is no record yet: an existing one is opened by the
+   * button rather than created, so nothing about it is conditional on this.
    */
   const creationBlock =
     linkType === "product" && allowGeneratedActions && !fsvpRecordId && importerId
