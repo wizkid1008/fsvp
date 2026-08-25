@@ -1,4 +1,5 @@
 import { RequirementItemRow } from "./RequirementItemRow";
+import { fetchDetermination, recordCreationAction } from "@/lib/fsvp/applicability";
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -28,6 +29,7 @@ export async function RequiredEvidenceChecklist({
   supplierId,
   supabase,
   allowGeneratedActions = false,
+  importerId = null,
 }: {
   linkType: "supplier" | "facility" | "product";
   /** The supplier id when linkType is "supplier" — the company IS the entity. */
@@ -35,6 +37,12 @@ export async function RequiredEvidenceChecklist({
   supplierId: string;
   supabase: SupabaseLike;
   allowGeneratedActions?: boolean;
+  /**
+   * The viewing importer, when there is one. Only used to work out ahead of
+   * time whether "Create" can succeed — without it the button is offered as
+   * before, which is no worse than not knowing.
+   */
+  importerId?: string | null;
 }) {
   const { data: pubVersion } = await (supabase.from("rule_versions") as any)
     .select("id")
@@ -133,6 +141,27 @@ export async function RequiredEvidenceChecklist({
     fsvp_plan_hazard_items?: Array<{ id: string }>;
   } | null;
 
+  /**
+   * Why "Create" cannot succeed yet, worked out here rather than discovered by
+   * clicking.
+   *
+   * Creating a hazard analysis opens an FSVP record, and
+   * /api/product-hazard-analysis/start refuses that until a qualified
+   * individual has determined how FSVP applies to the pair. The row used to
+   * offer the button anyway and report the refusal afterwards, which left the
+   * reader holding a message about a screen they had no way to reach.
+   *
+   * Only asked when there is no record yet: an existing one was already past
+   * this check when it was created, and the button opens it rather than
+   * creating anything.
+   */
+  const creationBlock =
+    linkType === "product" && allowGeneratedActions && !fsvpRecordId && importerId
+      ? recordCreationAction(
+          await fetchDetermination(supabase, importerId, supplierId, entityId)
+        )
+      : null;
+
   function generatedStatusFor(item: RawItem): string | null {
     if (linkType !== "product" || !hazardAnalysis) return null;
     if (item.item_key === "product_hazard_analysis_doc") {
@@ -157,6 +186,7 @@ export async function RequiredEvidenceChecklist({
     return {
       productId: entityId,
       existingHref: fsvpRecordId ? `/fsvp-records/${fsvpRecordId}#hazard-analysis` : null,
+      blocked: creationBlock,
     };
   }
 

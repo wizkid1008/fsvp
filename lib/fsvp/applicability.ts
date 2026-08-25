@@ -310,3 +310,35 @@ export function recordCreationBlock(d: LiveDetermination | null): string | null 
   }
   return null;
 }
+
+/** A refusal the reader can act on: why, and the screen that clears it. */
+export type RecordCreationAction = {
+  reason: string;
+  href: string;
+  cta: string;
+};
+
+/**
+ * The same block as `recordCreationBlock`, paired with somewhere to go.
+ *
+ * Separated from the component that renders it for the reason
+ * lib/auth/entity-access.ts gives: a decision tangled up with Supabase calls
+ * is a decision nothing can test. This one is pure, so the table of cases
+ * lives in applicability.test.ts.
+ *
+ * Everything routes to /applicability, including the exempt case — the
+ * determination is on that screen whether the reader needs to make one or
+ * only to read it. Only the label changes, because telling someone to
+ * "determine applicability" for a food already determined exempt asks for
+ * work that is done.
+ */
+export function recordCreationAction(d: LiveDetermination | null): RecordCreationAction | null {
+  const reason = recordCreationBlock(d);
+  if (!reason) return null;
+
+  return {
+    reason,
+    href: "/applicability",
+    cta: d?.outcome === "exempt" ? "View determination" : "Determine applicability",
+  };
+}

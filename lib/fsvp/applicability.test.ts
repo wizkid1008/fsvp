@@ -5,7 +5,9 @@ import {
   basisSpec,
   isApplicabilityOutcome,
   isDeterminationLive,
+  recordCreationAction,
   validateBasis,
+  type LiveDetermination,
 } from "./applicability";
 
 describe("APPLICABILITY_BASES", () => {
@@ -120,5 +122,46 @@ describe("isDeterminationLive", () => {
     expect(
       isDeterminationLive({ expires_at: "2030-01-01", superseded_at: "2026-07-01T00:00:00Z" }, on)
     ).toBe(false);
+  });
+});
+
+describe("recordCreationAction", () => {
+  const base: LiveDetermination = {
+    id: "d1",
+    outcome: "in_scope",
+    basis: "standard",
+    citation: "21 CFR 1.502",
+    rationale: "Because.",
+    expires_at: null,
+    superseded_at: null,
+    determined_at: "2026-01-01T00:00:00Z",
+  };
+
+  it("sends someone with no determination to make one", () => {
+    const action = recordCreationAction(null);
+    expect(action?.href).toBe("/applicability");
+    expect(action?.cta).toBe("Determine applicability");
+    expect(action?.reason).toMatch(/Determine whether FSVP applies/);
+  });
+
+  // The determination IS the record for an exempt food, so asking the reader
+  // to go and determine it would be asking for work already done.
+  it("sends someone with an exempt food to read the determination", () => {
+    const action = recordCreationAction({ ...base, outcome: "exempt", basis: "seafood_haccp" });
+    expect(action?.href).toBe("/applicability");
+    expect(action?.cta).toBe("View determination");
+    expect(action?.reason).toMatch(/exempt from FSVP/);
+  });
+
+  it("treats a lapsed determination as needing a new one", () => {
+    const action = recordCreationAction({ ...base, expires_at: "2000-01-01" });
+    expect(action?.cta).toBe("Determine applicability");
+    expect(action?.reason).toMatch(/expired/);
+  });
+
+  // No block means no banner and no substituted link — the Create button has
+  // to stay a Create button, or the row stops being able to do its job.
+  it("returns nothing when creation is not blocked", () => {
+    expect(recordCreationAction(base)).toBeNull();
   });
 });

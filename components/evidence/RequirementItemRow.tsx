@@ -52,6 +52,12 @@ export function RequirementItemRow({
   createAction?: {
     productId: string;
     existingHref: string | null;
+    /**
+     * Set when creation is known to be refused. Carries why, and the screen
+     * that clears it — a blocker naming a step the reader cannot reach from
+     * where they are standing is only half a gate.
+     */
+    blocked?: { reason: string; href: string; cta: string } | null;
   };
 }) {
   const router = useRouter();
@@ -156,15 +162,24 @@ export function RequirementItemRow({
         </div>
         <StatusBadge tone={statusTone(status)}>{statusLabel(status)}</StatusBadge>
         {createAction && !isAccepted && (
-          <button
-            type="button"
-            onClick={startGeneratedHazardAnalysis}
-            disabled={creating}
-            className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-          >
-            <PenLine className="h-3 w-3" />
-            {creating ? "Opening..." : createAction.existingHref ? "Open" : "Create"}
-          </button>
+          createAction.blocked ? (
+            <a
+              href={createAction.blocked.href}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-forest px-2.5 text-xs font-semibold text-forest hover:bg-emerald-50"
+            >
+              {createAction.blocked.cta}
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={startGeneratedHazardAnalysis}
+              disabled={creating}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              <PenLine className="h-3 w-3" />
+              {creating ? "Opening..." : createAction.existingHref ? "Open" : "Create"}
+            </button>
+          )
         )}
         {!isAccepted && (
           <button
@@ -176,6 +191,16 @@ export function RequirementItemRow({
           </button>
         )}
       </div>
+
+      {/* Stated up front rather than after a click that was always going to
+          fail. Not red: nothing has gone wrong, there is simply a step in
+          front of this one. The way out is the button above — repeating it
+          here would give one row two of the same link. */}
+      {createAction?.blocked && !isAccepted && (
+        <div className="border-t border-line bg-slate-50 px-4 py-2 text-xs text-slate-600">
+          {createAction.blocked.reason}
+        </div>
+      )}
 
       {createError && (
         <div className="border-t border-line bg-amber-50 px-4 py-2 text-xs text-amber-900">
@@ -204,23 +229,12 @@ export function RequirementItemRow({
               <input ref={inputRef} type="file" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
             </div>
 
-            {error && (
-              <div>
-                <p className="text-xs text-red-600">{error}</p>
-                {/* An applicability block is not a failure the user can fix
-                    here, and saying so without saying where to go leaves a
-                    dead end. /fsvp-records/new already pairs this message
-                    with the same link. */}
-                {/applicab|FSVP applies/i.test(error) && (
-                  <a
-                    href="/applicability"
-                    className="mt-1 inline-block text-xs font-semibold text-forest hover:underline"
-                  >
-                    Determine applicability
-                  </a>
-                )}
-              </div>
-            )}
+            {/* Upload failures only. The applicability link that used to be
+                sniffed out of this message with a regex has moved to the
+                blocked banner above: /api/documents/upload never returns an
+                applicability message, so the test could not fire here — the
+                message it was written for comes from the CREATE path. */}
+            {error && <p className="text-xs text-red-600">{error}</p>}
 
             {file && (
               <div className="flex justify-end gap-2">

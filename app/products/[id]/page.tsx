@@ -201,6 +201,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               supplierId={product.supplier_id}
               supabase={supabase}
               allowGeneratedActions={!isSupplierView}
+              importerId={profile?.importer_id ?? null}
             />
           </section>
 
