@@ -59,19 +59,35 @@ export default function NewFsvpRecordPage() {
       : products;
 
   // Whether FSVP applies decides whether a record may exist at all. The API
-  // enforces this; surfacing it here means the block is visible before submit
-  // rather than arriving as a 409.
+  // enforces this; surfacing it here means it is visible before submit rather
+  // than arriving as a 409.
+  //
+  // Only the exempt case stops the record. The other two are outstanding
+  // steps, not answers — the record can be drafted, and approval refuses
+  // separately until a qualified individual has determined the pair. See
+  // lib/fsvp/applicability.ts.
   const determination = productId ? determinations.find((d) => d.product_id === productId) : undefined;
   const today = new Date().toISOString().slice(0, 10);
-  const applicabilityBlock = !productId
+  const applicabilityNotice = !productId
     ? null
     : !determination
-    ? "Nobody has determined whether FSVP applies to this food. A qualified individual must do that before a record can be opened."
+    ? {
+        hard: false,
+        message:
+          "Nobody has determined whether FSVP applies to this food. A qualified individual must do that before the record can be approved.",
+      }
     : determination.outcome === "exempt"
-    ? `This food is exempt from FSVP under ${determination.citation}, so it does not need a record. The determination is the record.`
+    ? {
+        hard: true,
+        message: `This food is exempt from FSVP under ${determination.citation}, so it does not need a record. The determination is the record.`,
+      }
     : determination.expires_at && determination.expires_at < today
-    ? `The applicability determination for this food expired on ${determination.expires_at}. A qualified individual must make a current one first.`
+    ? {
+        hard: false,
+        message: `The applicability determination for this food expired on ${determination.expires_at}. A qualified individual must make a current one before the record can be approved.`,
+      }
     : null;
+  const applicabilityBlock = applicabilityNotice?.hard ? applicabilityNotice.message : null;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -166,15 +182,23 @@ export default function NewFsvpRecordPage() {
           {facilityId && filteredProducts.length === 0 && (
             <p className="mt-1 text-xs text-amber-600">No products found for this facility.</p>
           )}
-          {applicabilityBlock && (
-            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-              <p className="text-xs text-amber-900">{applicabilityBlock}</p>
+          {applicabilityNotice && (
+            <div
+              className={`mt-2 rounded-md border px-3 py-2 ${
+                applicabilityNotice.hard
+                  ? "border-amber-200 bg-amber-50"
+                  : "border-line bg-slate-50"
+              }`}
+            >
+              <p className={`text-xs ${applicabilityNotice.hard ? "text-amber-900" : "text-slate-600"}`}>
+                {applicabilityNotice.message}
+              </p>
               <a href="/applicability" className="mt-1 inline-block text-xs font-semibold text-forest hover:underline">
                 Go to FSVP Applicability →
               </a>
             </div>
           )}
-          {productId && !applicabilityBlock && determination && (
+          {productId && !applicabilityNotice && determination && (
             <p className="mt-2 text-xs text-slate-500">
               {determination.outcome === "modified" ? "Modified requirements" : "Subject to FSVP"} ·{" "}
               {determination.citation}

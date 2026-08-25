@@ -290,32 +290,71 @@ export async function fetchDetermination(
   return (data as LiveDetermination | null) ?? null;
 }
 
-/** Why a determination stops an FSVP record existing, or null if it does not. */
-export function recordCreationBlock(d: LiveDetermination | null): string | null {
+export type RecordCreationBlock = {
+  code: "determination_missing" | "determination_expired" | "exempt";
+  message: string;
+};
+
+/**
+ * Not knowing something is not the same as knowing it is not allowed.
+ *
+ * Only an EXEMPT determination stops a record existing. The other two say a
+ * step is outstanding, and a draft record with a draft hazard analysis makes
+ * no compliance claim while it is — the approval gate refuses independently
+ * (app/api/fsvp-records/[id]/approve/route.ts re-reads the determination and
+ * will not approve without a live one), so blocking creation as well protected
+ * nothing and stopped the work from being started.
+ *
+ * Exempt is different in kind. It is not a missing input but a determination
+ * the importer already made: § 1.501 says an exempt food does not need an
+ * FSVP record, so opening one contradicts their own filing.
+ *
+ * Deliberately the same shape as lib/admissibility/gate.ts, which learned this
+ * distinction first — missing is soft there too, and only `prohibited` is
+ * hard. One pattern for "we do not know yet" versus "we know, and the answer
+ * is no" is worth more than two.
+ */
+export function isHardRecordCreationBlock(block: RecordCreationBlock): boolean {
+  return block.code === "exempt";
+}
+
+/** What a determination says about opening a record, or null if it says nothing. */
+export function recordCreationBlock(d: LiveDetermination | null): RecordCreationBlock | null {
   if (!d) {
-    return "Determine whether FSVP applies to this food before opening a record for it.";
+    return {
+      code: "determination_missing",
+      message:
+        "Nobody has determined whether FSVP applies to this food. A qualified individual " +
+        "must do that before the record can be approved.",
+    };
   }
   if (d.outcome === "exempt") {
     const spec = basisSpec(d.basis);
-    return (
-      `This food is exempt from FSVP${spec ? ` — ${spec.label}` : ""} under ${d.citation}, ` +
-      "so it does not need an FSVP record. The determination is the record."
-    );
+    return {
+      code: "exempt",
+      message:
+        `This food is exempt from FSVP${spec ? ` — ${spec.label}` : ""} under ${d.citation}, ` +
+        "so it does not need an FSVP record. The determination is the record.",
+    };
   }
   if (!isDeterminationLive(d)) {
-    return (
-      `The applicability determination for this food expired on ${d.expires_at}. ` +
-      "A qualified individual must make a current one before the record can proceed."
-    );
+    return {
+      code: "determination_expired",
+      message:
+        `The applicability determination for this food expired on ${d.expires_at}. ` +
+        "A qualified individual must make a current one before the record can be approved.",
+    };
   }
   return null;
 }
 
-/** A refusal the reader can act on: why, and the screen that clears it. */
+/** An outstanding step the reader can act on: why, and the screen that clears it. */
 export type RecordCreationAction = {
   reason: string;
   href: string;
   cta: string;
+  /** True when this stops creation, rather than merely warning about it. */
+  hard: boolean;
 };
 
 /**
@@ -333,12 +372,13 @@ export type RecordCreationAction = {
  * work that is done.
  */
 export function recordCreationAction(d: LiveDetermination | null): RecordCreationAction | null {
-  const reason = recordCreationBlock(d);
-  if (!reason) return null;
+  const block = recordCreationBlock(d);
+  if (!block) return null;
 
   return {
-    reason,
+    reason: block.message,
     href: "/applicability",
-    cta: d?.outcome === "exempt" ? "View determination" : "Determine applicability",
+    cta: block.code === "exempt" ? "View determination" : "Determine applicability",
+    hard: isHardRecordCreationBlock(block),
   };
 }

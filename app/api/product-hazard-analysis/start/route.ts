@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { fetchDetermination, recordCreationBlock } from "@/lib/fsvp/applicability";
+import {
+  fetchDetermination,
+  isHardRecordCreationBlock,
+  recordCreationBlock,
+} from "@/lib/fsvp/applicability";
 import { fetchGoverningRuleVersion } from "@/lib/fsvp/rule-version";
 import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 
@@ -83,12 +87,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Only an exempt determination stops the record existing. An undetermined
+    // or lapsed pair may be drafted against — the approval route re-reads the
+    // determination and refuses without a live one, so nothing can be relied
+    // on before a qualified individual has done the work.
     const determination = await fetchDetermination(admin, profile.importer_id, product.supplier_id, product.id);
     const block = recordCreationBlock(determination);
-    if (block) {
+    if (block && isHardRecordCreationBlock(block)) {
       return NextResponse.json(
-        { error: block, outcome: determination?.outcome ?? null },
-        { status: determination?.outcome === "exempt" ? 409 : 400 }
+        { error: block.message, outcome: determination?.outcome ?? null },
+        { status: 409 }
       );
     }
 

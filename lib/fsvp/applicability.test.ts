@@ -5,6 +5,7 @@ import {
   basisSpec,
   isApplicabilityOutcome,
   isDeterminationLive,
+  isHardRecordCreationBlock,
   recordCreationAction,
   validateBasis,
   type LiveDetermination,
@@ -137,31 +138,46 @@ describe("recordCreationAction", () => {
     determined_at: "2026-01-01T00:00:00Z",
   };
 
-  it("sends someone with no determination to make one", () => {
+  // Soft: the step is outstanding, not answered. Approval refuses separately,
+  // so the work can be drafted while a qualified individual gets to it.
+  it("warns about an undetermined pair without stopping it", () => {
     const action = recordCreationAction(null);
+    expect(action?.hard).toBe(false);
     expect(action?.href).toBe("/applicability");
     expect(action?.cta).toBe("Determine applicability");
-    expect(action?.reason).toMatch(/Determine whether FSVP applies/);
+    expect(action?.reason).toMatch(/before the record can be approved/);
   });
 
-  // The determination IS the record for an exempt food, so asking the reader
-  // to go and determine it would be asking for work already done.
-  it("sends someone with an exempt food to read the determination", () => {
+  it("warns about a lapsed determination without stopping it", () => {
+    const action = recordCreationAction({ ...base, expires_at: "2000-01-01" });
+    expect(action?.hard).toBe(false);
+    expect(action?.cta).toBe("Determine applicability");
+    expect(action?.reason).toMatch(/expired/);
+  });
+
+  // Hard, and the only one: § 1.501 says an exempt food does not need a
+  // record, so opening one contradicts the importer's own determination. The
+  // link reads "view" because the work is done, not outstanding.
+  it("stops an exempt food and sends the reader to read why", () => {
     const action = recordCreationAction({ ...base, outcome: "exempt", basis: "seafood_haccp" });
+    expect(action?.hard).toBe(true);
     expect(action?.href).toBe("/applicability");
     expect(action?.cta).toBe("View determination");
     expect(action?.reason).toMatch(/exempt from FSVP/);
   });
 
-  it("treats a lapsed determination as needing a new one", () => {
-    const action = recordCreationAction({ ...base, expires_at: "2000-01-01" });
-    expect(action?.cta).toBe("Determine applicability");
-    expect(action?.reason).toMatch(/expired/);
-  });
-
-  // No block means no banner and no substituted link — the Create button has
-  // to stay a Create button, or the row stops being able to do its job.
-  it("returns nothing when creation is not blocked", () => {
+  it("says nothing at all about a live in-scope determination", () => {
     expect(recordCreationAction(base)).toBeNull();
+  });
+});
+
+describe("isHardRecordCreationBlock", () => {
+  // The whole point of the split: not knowing is not the same as knowing the
+  // answer is no. Getting this backwards either walls off the workflow or
+  // lets a record exist for a food the importer has itself declared exempt.
+  it("is hard for exempt and soft for the two unanswered cases", () => {
+    expect(isHardRecordCreationBlock({ code: "exempt", message: "" })).toBe(true);
+    expect(isHardRecordCreationBlock({ code: "determination_missing", message: "" })).toBe(false);
+    expect(isHardRecordCreationBlock({ code: "determination_expired", message: "" })).toBe(false);
   });
 });
