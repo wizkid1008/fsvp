@@ -50,6 +50,64 @@ automated:
 If APHIS ever publishes an API or bulk export, this section is the first thing
 to revisit. Worth asking: `acirdatabase.comments@usda.gov`.
 
+### 2.1 Probed against the live site, 2026-08-25
+
+The paragraphs above were written without trying. They are right about the
+absence of an API and wrong about how closed the site is, which changes the
+cost of curation even though it does not change the conclusion.
+
+**ACIR serves fully to an automated browser.** No login, no CAPTCHA, no bot
+wall. The seven category searches are deep-linkable
+(`/s/acir-global-search-not-for-planting` and siblings), as are
+`/s/acir-treatment-search`, `/s/taxon-search`, `/s/acir-port-group` and
+`/s/acir-regions`.
+
+**Search results carry facets that nearly match our columns** — Admissibility,
+Intended Use, Plant Part, Process Type, PortGroup, Article Type against our
+`admissibility`, `intended_use`, `processing_state`, `designated_ports`.
+
+**Every result set exports as CSV**, and the export includes a `Document URL`
+column deep-linking each requirement document. So `source_url` — which
+`/api/reference-rules` refuses a rule without — comes straight out of the
+export rather than being copied by hand.
+
+**But the CSV is an index, not the rules.** Its columns are Document Name, Port
+Group, Plant Parts, Process Type, Article Type, Document URL. Nothing in it
+says permitted or prohibited, and no permit, phyto or treatment flag appears.
+Those live only on the detail page. A CSV is a worklist, not a data source, and
+anything built on the assumption that it can be loaded into
+`country_commodity_rules` will be loading document titles.
+
+**The detail pages are readable and structured.** A worked example —
+`/s/acir-document-detail?rowId=a0jSJ00000S9m8aYAB&…`, "Dried Products from the
+Malvales Order", published 2025-10-20 — carries Commodities (including
+*Theobroma cacao*), Plant Part, Processed State, Intended Use, Region, Port
+Groups, numbered Import Requirements ("No permit is required for this
+commodity", "subject to inspection at the port of entry and all general
+requirements of 7 CFR 319.56-3"), and an Authority block giving the CFR subpart
+with a statute URL. That is a rule row's worth of content, and the citation it
+yields is in the exact shape `lib/regulatory/ecfr.ts` already parses.
+
+Two limits found in the same pass. **Some content is gated**: "Officer
+Instructions" says *Regulatory Officials Login to ACIR to see more*, so an
+anonymous read is not the whole document. And the **`View` button in the
+results table failed reproducibly** with a Salesforce error
+(`this.formatResults is not a function`, descriptor `c:cirdPortalResultsPdf`)
+across two fresh sessions — though the inputs were being set by script, which
+can leave a Lightning component's state incomplete, so this may be an artefact
+rather than an ACIR fault. It does not block anything: the `Document URL` from
+the CSV reaches the same page directly.
+
+**Everything is inside shadow DOM.** It is a Salesforce Lightning Web
+Components app, so ordinary automation and accessibility trees see almost
+nothing — the home page looks like four links until the shadow roots are walked
+by hand. That is the fragility this section warns about, and it argues for
+assisted curation (a person runs the search, exports, and reads the detail
+page) over any unattended scraper.
+
+Not checked, and worth checking before anything more systematic than a person
+clicking through: ACIR's `robots.txt` and terms of use.
+
 ---
 
 ## 3. What can be automated
