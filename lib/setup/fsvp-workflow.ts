@@ -1,4 +1,4 @@
-import { evaluateAdmissibility, hardAdmissibilityBlocks, type AdmissibilityBlock } from "@/lib/admissibility/gate";
+import { evaluateAdmissibility, type AdmissibilityBlock } from "@/lib/admissibility/gate";
 import { fetchDetermination, isDeterminationLive, type LiveDetermination } from "@/lib/fsvp/applicability";
 import { evaluateGates, type GateBlock } from "@/lib/fsvp/gates";
 import { evaluateAttestations, type AttestationEvaluation, type AttestationInput } from "@/lib/fsvp/qi-attestation";
@@ -259,10 +259,23 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ),
   });
 
+  // EVERY block counts here, including the soft one — and that is the whole
+  // difference between this screen and the gates.
+  //
+  // `determination_missing` is soft on purpose: an undetermined food may still
+  // be drafted against, and hard-blocking it would wall off every product while
+  // the reference layer is empty. But soft means "does not stop approval", not
+  // "is not outstanding work", and this page exists to list outstanding work.
+  // Filtering it out left the step named "Determine admissibility" able to
+  // report only failures belonging to OTHER steps, so a product whose
+  // admissibility had never been determined read as Complete — while the
+  // product page called it pending, entry readiness called it a blocker, and
+  // the dashboard counted it as a gap. Four screens, and the one an importer
+  // opens to find out what to do next was the one that was wrong.
   const admissibilityBlockers: SetupBlocker[] = [];
   for (const product of input.products) {
     const blocks = input.admissibilityByProductId.get(product.id) ?? [];
-    for (const [index, item] of hardAdmissibilityBlocks(blocks).entries()) {
+    for (const [index, item] of blocks.entries()) {
       admissibilityBlockers.push(blocker(
         `admissibility-${product.id}-${item.code}-${index}`,
         `${productLabel(product)}: ${item.message}`,
@@ -283,7 +296,9 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ...STEP_COPY.admissibility,
     blockers: admissibilityBlockers,
     progress: progress(
-      countWhere(input.products, (p) => hardAdmissibilityBlocks(input.admissibilityByProductId.get(p.id) ?? []).length === 0),
+      // Counted the same way, for the same reason: a product nobody has
+      // determined is not a product this step is done with.
+      countWhere(input.products, (p) => (input.admissibilityByProductId.get(p.id) ?? []).length === 0),
       input.products.length
     ),
   });

@@ -136,6 +136,55 @@ describe("buildCompleteFsvpSetupPlan", () => {
     expect(plan.progressPercent).toBeLessThan(100);
   });
 
+  // The soft block belongs in the gates, not on the page that lists what is
+  // left to do. Pinned because reaching for hardAdmissibilityBlocks() here is
+  // the natural thing to write — every other consumer of these blocks does,
+  // correctly — and doing it made the step named "Determine admissibility"
+  // report Complete for a product nobody had determined.
+  it("counts an undetermined product as outstanding, not complete", () => {
+    const input = cleanInput();
+    input.admissibilityByProductId = new Map([[
+      "product-1",
+      [{
+        code: "determination_missing",
+        message: "No admissibility determination has been made for this product.",
+      }],
+    ]]);
+
+    const plan = buildCompleteFsvpSetupPlan(input);
+    const admissibility = plan.steps.find((step) => step.id === "admissibility")!;
+
+    expect(admissibility.blockers).toHaveLength(1);
+    expect(admissibility.blockers[0]).toMatchObject({
+      href: "/products/product-1",
+      actionLabel: "Determine admissibility",
+    });
+    expect(admissibility.progress).toEqual({ done: 0, total: 1 });
+  });
+
+  it("agrees with the product page rather than contradicting it", () => {
+    // Same product, same state, four screens. /products/[id] shows
+    // "Admissibility pending", /entry-readiness raises a blocker and the
+    // dashboard counts a reference gap — so this one must not say Complete.
+    const input = cleanInput();
+    input.admissibilityByProductId = new Map([[
+      "product-1",
+      [{ code: "determination_missing", message: "No determination." }],
+    ]]);
+
+    const plan = buildCompleteFsvpSetupPlan(input);
+
+    expect(plan.progressPercent).toBeLessThan(100);
+  });
+
+  it("still counts a determined product as done", () => {
+    const plan = buildCompleteFsvpSetupPlan(cleanInput());
+    const admissibility = plan.steps.find((step) => step.id === "admissibility")!;
+
+    expect(admissibility.blockers).toHaveLength(0);
+    expect(admissibility.progress).toEqual({ done: 1, total: 1 });
+  });
+
   it("treats a step with nothing to iterate over as unstarted, not complete", () => {
     const input = cleanInput();
     input.suppliers = [];
