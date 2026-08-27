@@ -103,6 +103,7 @@ export default async function ShipmentReadinessPage() {
     { data: rawApplicability },
     { data: rawScreenings },
     { data: rawDocuments },
+    { data: rawRuleCommodities },
   ] = await Promise.all([
     productIds.length
       ? (admin.from("fsvp_records") as any)
@@ -137,7 +138,20 @@ export default async function ShipmentReadinessPage() {
           .eq("evidence_status", "accepted")
           .is("soft_deleted_at", null)
       : Promise.resolve({ data: [] }),
+    // Which commodities the reference layer can actually answer for. Without
+    // this the row would tell an importer to "Determine admissibility" for a
+    // commodity that has no rule to determine against — an instruction with no
+    // button behind it.
+    productIds.length
+      ? (admin.from("country_commodity_rules") as any)
+          .select("commodity_id")
+          .is("superseded_at", null)
+      : Promise.resolve({ data: [] }),
   ]);
+
+  const commoditiesWithRules = new Set(
+    ((rawRuleCommodities ?? []) as Array<{ commodity_id: string }>).map((r) => r.commodity_id)
+  );
 
   const today = new Date().toISOString().slice(0, 10);
   const recordsByProduct = new Map(
@@ -176,7 +190,13 @@ export default async function ShipmentReadinessPage() {
 
     if (!product.commodity_id) blockers.push("Classify commodity");
     if (!product.country_of_origin) blockers.push("Record origin");
-    if (!admissibility) blockers.push("Determine admissibility");
+    if (!admissibility) {
+      blockers.push(
+        product.commodity_id && !commoditiesWithRules.has(product.commodity_id)
+          ? "Awaiting reference rule (platform)"
+          : "Determine admissibility"
+      );
+    }
     if (!applicability) blockers.push("Determine FSVP applicability");
     if (!record) blockers.push("Create FSVP record");
     if (record && !["importer_approved", "conditionally_approved"].includes(record.status)) blockers.push("Approve FSVP record");

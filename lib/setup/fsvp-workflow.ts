@@ -276,11 +276,22 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
   for (const product of input.products) {
     const blocks = input.admissibilityByProductId.get(product.id) ?? [];
     for (const [index, item] of blocks.entries()) {
+      // The action has to name something the reader can actually do. When the
+      // reference layer has no rule for the commodity, "Determine
+      // admissibility" is an instruction to press a button that is no longer
+      // there — the work belongs to an administrator, and all the importer can
+      // usefully do is read why.
+      const actionLabel =
+        item.code === "not_classified"
+          ? "Classify product"
+          : item.code === "awaiting_reference_rule"
+            ? "See what is waiting"
+            : "Determine admissibility";
       admissibilityBlockers.push(blocker(
         `admissibility-${product.id}-${item.code}-${index}`,
         `${productLabel(product)}: ${item.message}`,
         `/products/${product.id}`,
-        item.code === "not_classified" ? "Classify product" : "Determine admissibility"
+        actionLabel
       ));
     }
   }

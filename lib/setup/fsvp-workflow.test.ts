@@ -177,6 +177,28 @@ describe("buildCompleteFsvpSetupPlan", () => {
     expect(plan.progressPercent).toBeLessThan(100);
   });
 
+  it("does not tell an importer to determine what only the platform can unblock", () => {
+    // Listing the work is right; naming an action with no button behind it is
+    // not. When no rule is on file the product page withholds the form, so the
+    // step points at the explanation instead of at a dead control.
+    const input = cleanInput();
+    input.admissibilityByProductId = new Map([[
+      "product-1",
+      [{
+        code: "awaiting_reference_rule",
+        message: "No country-commodity rule is on file for this commodity.",
+      }],
+    ]]);
+
+    const plan = buildCompleteFsvpSetupPlan(input);
+    const admissibility = plan.steps.find((step) => step.id === "admissibility")!;
+
+    expect(admissibility.blockers).toHaveLength(1);
+    expect(admissibility.blockers[0].actionLabel).toBe("See what is waiting");
+    // Still outstanding — it is simply outstanding on somebody else.
+    expect(admissibility.progress).toEqual({ done: 0, total: 1 });
+  });
+
   it("still counts a determined product as done", () => {
     const plan = buildCompleteFsvpSetupPlan(cleanInput());
     const admissibility = plan.steps.find((step) => step.id === "admissibility")!;

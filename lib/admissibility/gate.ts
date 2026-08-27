@@ -18,6 +18,7 @@ export type AdmissibilityBlock = {
     | "not_classified"
     | "no_origin"
     | "determination_missing"
+    | "awaiting_reference_rule"
     | "determination_unavailable"
     | "determination_expired"
     | "rule_superseded"
@@ -31,8 +32,13 @@ export type AdmissibilityContext = {
   countryOfOrigin: string | null;
 };
 
+/**
+ * Both soft codes mean "not answered yet" rather than "answered, and the answer
+ * is no". Neither stops a file being built; the difference between them is only
+ * WHO is being waited on, which matters to the screens that hand out work.
+ */
 export function isHardAdmissibilityBlock(block: AdmissibilityBlock): boolean {
-  return block.code !== "determination_missing";
+  return block.code !== "determination_missing" && block.code !== "awaiting_reference_rule";
 }
 
 export function hardAdmissibilityBlocks(blocks: AdmissibilityBlock[]): AdmissibilityBlock[] {
@@ -96,6 +102,35 @@ export async function evaluateAdmissibility(
   }>;
 
   if (determinations.length === 0) {
+    // Nothing determined — but there are two reasons for that, and telling them
+    // apart decides who gets handed the work.
+    //
+    // If the reference layer holds no rule for this commodity, the importer
+    // cannot determine anything: the resolver has nothing to resolve against
+    // and the product page no longer offers the button. Saying "determine
+    // admissibility" to them would name an action they cannot take, which is
+    // the dead end this codebase keeps having to undo. The outstanding work is
+    // an administrator's.
+    const { count, error: ruleError } = await (supabase.from("country_commodity_rules") as any)
+      .select("id", { count: "exact", head: true })
+      .eq("commodity_id", ctx.commodityId)
+      .is("superseded_at", null);
+
+    // Only a confirmed zero reassigns the work. If the count could not be read
+    // we do not know whose turn it is, and telling the importer to wait on an
+    // administrator who has nothing to do would be worse than asking them to
+    // try — the try at least produces a real error.
+    if (!ruleError && count === 0) {
+      return [{
+        code: "awaiting_reference_rule",
+        message:
+          "No country-commodity rule is on file for this commodity, so admissibility cannot be " +
+          "determined yet. A platform administrator adds the rule after checking APHIS ACIR. " +
+          "This does not stop the rest of the file — admissibility is required before the food " +
+          "enters, not before the record is built.",
+      }];
+    }
+
     return [{
       code: "determination_missing",
       message:
