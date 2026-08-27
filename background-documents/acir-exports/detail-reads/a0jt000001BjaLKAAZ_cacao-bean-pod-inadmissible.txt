@@ -1,0 +1,43 @@
+Source: https://acir.aphis.usda.gov/s/acir-document-detail?rowId=a0jt000001BjaLKAAZ&Document_Type=Commodity%20Import%20Requirements
+Retrieved: 2026-08-27
+Method: shadow-root text walk, own text nodes only, document order
+
+*** WARNING: the Import Requirements block below is MISREAD. It is kept in its
+*** broken form deliberately, as the evidence for curation doc §2.3.
+
+--- Header ---
+Commodity Import Requirements
+Cacao Bean Pod from Inadmissible Countries into All Ports
+
+Commodities: Theobroma cacao
+Common/Approved Name: Cacao Bean Pod
+Port Groups: All Ports
+Countries: (scroll-thru alphabetical list) ~190 countries enumerated, from
+  Afghanistan to Zimbabwe. Notably ABSENT, i.e. the countries that DO have
+  access, are the ones with their own documents in the worklist — Mexico,
+  Brazil, Ecuador, Peru, Costa Rica, and the Caribbean states.
+Plant Part: All Plant Parts Including Seed
+Processed State: Fresh, Fresh Cut
+Intended Use: Not for Planting or Propagation
+
+--- Import Requirements (AS EXTRACTED — MEANING INVERTED) ---
+This commodity from the countries listed in this document. Therefore, IMPORT
+PERMITS BE ISSUED AT THIS TIME. The National Plant Protection Organization
+(NPPO) of the exporting country must make a formal request, and APHIS must
+scientifically review the phytosanitary impact of the request, and solicit
+public comment before market access can be granted. Contact the NPPO at:
+does not currently have market access
+WILL NOT
+https://www.ippc.int/en/countries/all/contactpoints/
+
+--- Import Requirements (AS THE PAGE READS) ---
+This commodity does not currently have market access from the countries listed
+in this document. Therefore, IMPORT PERMITS WILL NOT BE ISSUED AT THIS TIME.
+[...remainder as above.]
+
+The two emphasised fragments are separate inline elements and were emitted
+after the sentence containing them. Read in document order, a prohibition
+becomes a permission.
+
+--- Authority ---
+7 CFR 319.Subpart L — Subpart L-Fruits and Vegetables

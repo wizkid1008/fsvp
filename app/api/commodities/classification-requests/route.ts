@@ -18,8 +18,8 @@ import { pcbCredentialsFromEnv, searchProductsByName } from "@/lib/regulatory/pr
 export const runtime = "edge";
 
 const PARTS = [
-  "fruit", "leaf", "root", "seed", "stem", "flower",
-  "whole_plant", "bulb", "tuber", "not_applicable",
+  "fruit", "leaf", "root", "seed", "pod", "stem", "flower",
+  "whole_plant", "bulb", "tuber", "all_including_seed", "not_applicable",
 ] as const;
 
 const CLASSES = [

@@ -24,8 +24,12 @@ import { conditionsOf, resolveRule, type RuleRow } from "@/lib/admissibility/res
 
 export const runtime = "edge";
 
+// What an importer may ASK about, so `any` is absent and so is
+// `not_for_propagation` — a shipment has one purpose, and "not for
+// propagation" is a category a rule draws, not a purpose anybody declares.
+// `fresh_cut` is here because ACIR publishes rules against it (migration 026).
 const USES = ["consumption", "processing", "propagation", "research"] as const;
-const STATES = ["fresh", "frozen", "dried", "cooked", "canned", "other"] as const;
+const STATES = ["fresh", "fresh_cut", "frozen", "dried", "cooked", "canned", "other"] as const;
 
 /** A determination is valid for a year, then capped to the rule's review date. */
 const VALIDITY_DAYS = 365;
@@ -125,7 +129,7 @@ export async function POST(req: NextRequest) {
   // exactly the cases it exists to catch.
   const { data: rules, error: rulesError } = await (admin.from("country_commodity_rules") as any)
     .select(
-      "id, commodity_id, origin_country, origin_region, intended_use, processing_state, " +
+      "id, commodity_id, origin_scope, origin_country, origin_region, intended_use, processing_state, " +
       "admissibility, permit_required, phyto_required, treatment_required, peq_required, " +
       "additional_declarations, designated_ports, conditions_text, citation, source_url, " +
       "reviewed_at, review_due_at, effective_from, effective_to, superseded_at, " +

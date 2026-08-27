@@ -22,8 +22,8 @@ const CLASSES = [
 ] as const;
 
 const PARTS = [
-  "fruit", "leaf", "root", "seed", "stem", "flower",
-  "whole_plant", "bulb", "tuber", "not_applicable",
+  "fruit", "leaf", "root", "seed", "pod", "stem", "flower",
+  "whole_plant", "bulb", "tuber", "all_including_seed", "not_applicable",
 ] as const;
 
 export async function POST(req: NextRequest) {

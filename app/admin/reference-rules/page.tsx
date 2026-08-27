@@ -41,11 +41,11 @@ export default async function ReferenceRulesPage() {
   const [rulesResult, commoditiesResult, countriesResult, requestsResult] = await Promise.all([
     (admin.from("country_commodity_rules_status") as any)
       .select(`
-        id, origin_country, origin_region, intended_use, processing_state,
+        id, origin_scope, origin_country, origin_region, intended_use, processing_state,
         admissibility, citation, source_url,
         verification_status, verified_at, verified_against, verified_by_profile_id,
         created_by_profile_id, review_due_at, days_until_review,
-        is_current, is_draft, is_overdue, source_moved,
+        is_current, is_draft, is_overdue, source_moved, has_unstated_requirements,
         commodities(common_name, plant_part)
       `)
       .is("superseded_at", null)
@@ -98,8 +98,14 @@ export default async function ReferenceRulesPage() {
                             ? `(${r.commodities.plant_part})` : ""]
                           .filter(Boolean).join(" "),
     // A region-scoped rule is shown as such: it is the one shape the resolver
-    // cannot evaluate, so it should be visibly different here too.
-    origin:              r.origin_country ?? `${r.origin_region} (region — not auto-resolvable)`,
+    // cannot evaluate, so it should be visibly different here too. A global one
+    // is named too, for the opposite reason — it resolves everywhere, and a
+    // reader scanning the column would otherwise see a blank.
+    origin:              r.origin_scope === "country"
+                           ? r.origin_country
+                           : r.origin_scope === "region"
+                           ? `${r.origin_region} (region — not auto-resolvable)`
+                           : "Every origin",
     intended_use:        r.intended_use,
     processing_state:    r.processing_state,
     admissibility:       r.admissibility,
@@ -117,6 +123,7 @@ export default async function ReferenceRulesPage() {
     is_draft:            Boolean(r.is_draft),
     is_overdue:          Boolean(r.is_overdue),
     source_moved:        Boolean(r.source_moved),
+    has_unstated_requirements: Boolean(r.has_unstated_requirements),
   }));
   const classificationRequests: ClassificationRequestQueueRow[] =
     ((requestsResult.data ?? []) as any[]).map((r) => {

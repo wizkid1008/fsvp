@@ -105,8 +105,81 @@ by hand. That is the fragility this section warns about, and it argues for
 assisted curation (a person runs the search, exports, and reads the detail
 page) over any unattended scraper.
 
-Not checked, and worth checking before anything more systematic than a person
-clicking through: ACIR's `robots.txt` and terms of use.
+ACIR's `robots.txt` **allows everything** — `User-agent: *`, `Allow: /`, one
+disallow on Salesforce's `forgotpassword.jsp`, no crawl-delay. It also
+advertises `/s/sitemap.xml`, which §2.1 did not know about. That sitemap is
+**taxa only**: 22 shards of 20,000 `cird-taxon` URLs each, roughly 440,000
+records covering the whole biological taxonomy down to arthropod classes, and
+no requirement documents at all. So it is not a shortcut to the rules, and the
+`Document URL` column of a CSV export remains the only route to a detail page.
+
+### 2.2 What a detail page actually contains, and where it stops fitting
+
+Three documents were read in full on 2026-08-27, through the shadow roots, to
+find out whether a rule row can be built from one: `Dried Cocoa Leaves from All
+Countries`, `Cacao Bean Pod (Pod) from Mexico`, and `Cacao Bean Pod from
+Inadmissible Countries`. They extract cleanly. The substance is there — the
+Mexico document gives Commodities (*Theobroma cacao*), Plant Part, Processed
+State, Intended Use, Port Groups, the country, two numbered Import
+Requirements ("An Import Permit is required", "subject to inspection at the
+port of entry and all general requirements of 7 CFR 319.56-3") and an
+Authority block naming 7 CFR 319 Subpart L.
+
+**But `country_commodity_rules` cannot hold it faithfully.** Five mismatches,
+found by trying rather than by reading the schema:
+
+1. **`plant_part` has no `pod`.** ACIR's Plant Part for the cacao documents is
+   literally "Pod", and 32 of the 41 rows in the cocoa worklist are pods. The
+   prohibition document says "All Plant Parts Including Seed", which is also
+   unrepresentable. A pod is not a fruit for APHIS purposes, and coercing it
+   into `fruit` would silently widen every rule built from these documents.
+
+2. **`processing_state` is single-valued; ACIR is not.** The Mexico document's
+   Processed State is "Fresh, Fresh Cut" — one document, two states, and
+   `fresh_cut` is not in the enum. Either one document becomes two rule rows,
+   or "fresh cut" is dropped on entry.
+
+3. **`intended_use` cannot say "Not for Planting or Propagation".** That is
+   ACIR's *primary* search axis — it is the name of the category the whole
+   export came from — and it is the negation of an enum value rather than one
+   of them. Entering it as `any` asserts the rule covers propagative material,
+   which is the opposite of what the document says.
+
+4. **There is no scope for "all countries" or "everywhere else".** The schema
+   requires a country XOR a region. "Dried Cocoa Leaves from All Countries" has
+   neither. Worse, `Cacao Bean Pod from Inadmissible Countries` is a
+   prohibition stated by *enumerating roughly 190 countries* — so one document
+   becomes 190 rows, and the day APHIS grants one of them market access, 189
+   rows are still right and one is silently wrong.
+
+5. **The schema cannot say "the document does not mention this."**
+   `phyto_required boolean not null default false` has no third state, so a
+   document that is simply silent about phytosanitary certificates becomes a
+   rule asserting that none is required. That is the confident wrong answer
+   this table was designed to prevent, arriving through the type system rather
+   than through carelessness. The Mexico document says nothing about phyto.
+
+### 2.3 The flattening hazard, demonstrated
+
+The prohibition document is the strongest argument in this file for assisted
+curation, because it broke in exactly the way §2 warned about, in the first
+attempt, without anyone trying to make it break.
+
+Read through the DOM, its operative sentence came out as:
+
+> This commodity from the countries listed in this document. Therefore, IMPORT
+> PERMITS BE ISSUED AT THIS TIME.
+
+The words "does not currently have market access" and "WILL NOT" sit in
+separate inline elements and were emitted *after* the sentence that contains
+them. Flattened, the text reads as though permits are issued. **A naive
+transcription of a prohibition produced a permission.**
+
+Nothing about this is exotic — it is ordinary rich text with emphasis in it,
+and any extraction that concatenates nodes in document order is exposed to it.
+It is the reason `conditions_text` must be captured with its emphasis intact
+and read by a person against the rendered page, and the reason no extraction
+of these pages may ever write anything but a draft.
 
 ---
 
@@ -186,16 +259,27 @@ made them.
 
 ## 5. Sequencing
 
-1. **Schema for verification and change detection** — draft/verified state, who
-   verified against what, the CFR part for change detection. Before any data.
-2. **Seed a small set as `draft`.** Anything transcribed by an AI from agency
+Steps 1, 3, 4 and 5 below are **done** — 014 built the verification lifecycle,
+`/admin/reference-rules` is the maintenance screen, and `lib/regulatory/ecfr.ts`
+does change detection against the live eCFR versioner. What is left is data,
+and §2.2 found that the schema is not yet able to receive it honestly.
+
+1. ~~**Schema for verification and change detection**~~ — migration 014.
+2. **Schema fidelity to the source** (new, and now first). A rule row must be
+   able to say what an ACIR document says: pods, "not for planting", two
+   processed states, a scope that is not one country, and above all *silence* —
+   see §2.2. Until then, entering a rule means quietly altering it, and every
+   later verification would be a person confirming a distortion they cannot
+   see, because the screen would show them the distorted version.
+3. **Seed a small set as `draft`.** Anything transcribed by an AI from agency
    pages enters unverified by construction and is worthless until a person
    confirms it. This is not a formality: a plausible-looking wrong treatment
-   schedule is the worst artefact this system can hold.
-3. **The maintenance screen** — what is draft, what is overdue, what changed.
-4. **eCFR change detection** — the automation with the best ratio of value to
-   risk.
-5. Federal Register monitoring, if the API checks out.
+   schedule is the worst artefact this system can hold. §2.3 is what that looks
+   like when it happens.
+4. ~~**The maintenance screen**~~ — `/admin/reference-rules`.
+5. ~~**eCFR change detection**~~ — `lib/regulatory/ecfr.ts`, verified against
+   the live API on 2026-08-14.
+6. Federal Register monitoring, if the API checks out.
 
 ---
 

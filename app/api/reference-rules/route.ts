@@ -21,9 +21,28 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export const runtime = "edge";
 
-const USES = ["any", "consumption", "processing", "propagation", "research"] as const;
-const STATES = ["any", "fresh", "frozen", "dried", "cooked", "canned", "other"] as const;
+const USES = [
+  "any", "consumption", "processing", "propagation", "research", "not_for_propagation",
+] as const;
+const STATES = [
+  "any", "fresh", "fresh_cut", "frozen", "dried", "cooked", "canned", "other",
+] as const;
 const OUTCOMES = ["permitted", "restricted", "prohibited"] as const;
+
+/**
+ * True, false, or null for "the source does not say" — migration 026.
+ *
+ * The old reading was `body.x === true`, which quietly turned an omitted field
+ * into a checked negative. That is the same error the schema made, and it made
+ * it in the layer where a curator would least expect it: leaving a checkbox
+ * alone because the document was silent produced a rule asserting the
+ * requirement does not apply.
+ */
+function tristate(value: unknown): boolean | null {
+  if (value === true) return true;
+  if (value === false) return false;
+  return null;
+}
 
 /**
  * Newly entered rules get a short review window rather than the schema default.
@@ -70,10 +89,12 @@ export async function POST(req: NextRequest) {
     intended_use?: string;
     processing_state?: string;
     admissibility?: string;
-    permit_required?: boolean;
-    phyto_required?: boolean;
-    treatment_required?: boolean;
-    peq_required?: boolean;
+    origin_scope?: string;
+    /** Tri-state. Omitted or null means the source document does not say. */
+    permit_required?: boolean | null;
+    phyto_required?: boolean | null;
+    treatment_required?: boolean | null;
+    peq_required?: boolean | null;
     additional_declarations?: string[];
     designated_ports?: string[];
     conditions_text?: string;
@@ -92,15 +113,45 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Choose the commodity this rule is about." }, { status: 400 });
   }
 
-  // Exactly one scope. A rule that is somehow both "Mexico" and "South America"
-  // cannot be resolved, and the resolver would have to guess.
-  if (Boolean(country) === Boolean(region)) {
+  // Scope is declared, never inferred — migration 026. A rule with no origin
+  // used to be refused outright, which is why "Dried Cocoa Leaves from All
+  // Countries" could not be entered at all. It can now, but only by saying
+  // `global` out loud: an omitted origin must not quietly become a rule about
+  // everywhere, because the rule most likely to be written that way is a
+  // prohibition.
+  const scope = body.origin_scope?.trim() || (country ? "country" : region ? "region" : null);
+
+  if (country && region) {
+    return NextResponse.json(
+      { error: "Give either a country or a region, not both — a rule scoped to both cannot be resolved." },
+      { status: 400 }
+    );
+  }
+
+  if (!scope) {
     return NextResponse.json(
       {
-        error: country
-          ? "Give either a country or a region, not both — a rule scoped to both cannot be resolved."
-          : "Give either a country or a region. A rule with no origin applies to nothing.",
+        error:
+          "Give a country, a region, or state that this rule is global. A rule with no origin and " +
+          "no declared scope applies to nothing.",
       },
+      { status: 400 }
+    );
+  }
+
+  if (!["country", "region", "global"].includes(scope)) {
+    return NextResponse.json({ error: "Scope must be country, region or global." }, { status: 400 });
+  }
+
+  if (scope === "country" && !country) {
+    return NextResponse.json({ error: "A country-scoped rule needs a country." }, { status: 400 });
+  }
+  if (scope === "region" && !region) {
+    return NextResponse.json({ error: "A region-scoped rule needs a region." }, { status: 400 });
+  }
+  if (scope === "global" && (country || region)) {
+    return NextResponse.json(
+      { error: "A global rule covers every origin, so it must not also name one." },
       { status: 400 }
     );
   }
@@ -143,6 +194,10 @@ export async function POST(req: NextRequest) {
     ? "Recorded. Note that region-scoped rules cannot be matched to a country automatically, so " +
       "every movement of this commodity will be sent to manual review until a country-scoped rule " +
       "covers it."
+    : scope === "global"
+    ? "Recorded as a global draft. It will govern every origin for this commodity that no " +
+      "country-scoped rule covers, so check that is what the source document says before anyone " +
+      "verifies it."
     : null;
 
   const { data: commodity } = await (admin.from("commodities") as any)
@@ -160,15 +215,16 @@ export async function POST(req: NextRequest) {
   const { data: created, error } = await (admin.from("country_commodity_rules") as any)
     .insert({
       commodity_id:            commodityId,
+      origin_scope:            scope,
       origin_country:          country,
       origin_region:           region,
       intended_use:            intendedUse,
       processing_state:        processingState,
       admissibility:           body.admissibility,
-      permit_required:         body.permit_required === true,
-      phyto_required:          body.phyto_required === true,
-      treatment_required:      body.treatment_required === true,
-      peq_required:            body.peq_required === true,
+      permit_required:         tristate(body.permit_required),
+      phyto_required:          tristate(body.phyto_required),
+      treatment_required:      tristate(body.treatment_required),
+      peq_required:            tristate(body.peq_required),
       additional_declarations: (body.additional_declarations ?? []).filter((d) => d?.trim()),
       designated_ports:        (body.designated_ports ?? []).filter((p) => p?.trim()),
       conditions_text:         body.conditions_text?.trim() || null,
@@ -210,7 +266,8 @@ export async function POST(req: NextRequest) {
     record_id:        created.id,
     new_value:        {
       commodity: commodity.common_name,
-      origin: country ?? region,
+      origin: country ?? region ?? "all origins",
+      origin_scope: scope,
       intended_use: intendedUse,
       processing_state: processingState,
       admissibility: body.admissibility,

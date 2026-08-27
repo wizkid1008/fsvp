@@ -718,8 +718,8 @@ export type Commodity = {
     | "beverage" | "processed_food" | "supplement" | "other";
   /** Which part enters — APHIS rules differ sharply between fruit and leaf. */
   plant_part:
-    | "fruit" | "leaf" | "root" | "seed" | "stem" | "flower"
-    | "whole_plant" | "bulb" | "tuber" | "not_applicable" | null;
+    | "fruit" | "leaf" | "root" | "seed" | "pod" | "stem" | "flower"
+    | "whole_plant" | "bulb" | "tuber" | "all_including_seed" | "not_applicable" | null;
   /** Propagative material is regulated far more strictly than the same species as food. */
   is_propagative: boolean;
   /**
@@ -758,8 +758,8 @@ export type CommodityClassificationRequest = {
     | "seafood" | "meat_poultry" | "dairy" | "egg"
     | "beverage" | "processed_food" | "supplement" | "other" | null;
   plant_part:
-    | "fruit" | "leaf" | "root" | "seed" | "stem" | "flower"
-    | "whole_plant" | "bulb" | "tuber" | "not_applicable" | null;
+    | "fruit" | "leaf" | "root" | "seed" | "pod" | "stem" | "flower"
+    | "whole_plant" | "bulb" | "tuber" | "all_including_seed" | "not_applicable" | null;
   is_propagative: boolean | null;
   notes: string | null;
   /** What FDA's Product Code Builder returned at request time. Evidence, not a proposal. */
@@ -787,16 +787,34 @@ export type CommodityClassificationRequest = {
 export type CountryCommodityRule = {
   id: string;
   commodity_id: string;
-  /** Exactly one of these two is set. */
+  /**
+   * Declared, never inferred from the columns below — migration 026. A
+   * forgotten origin would otherwise become a rule about everywhere, and the
+   * documents written that way are usually the prohibitions.
+   */
+  origin_scope: "country" | "region" | "global";
+  /** Set according to `origin_scope`; both null when it is `global`. */
   origin_country: string | null;
   origin_region: string | null;
-  intended_use: "any" | "consumption" | "processing" | "propagation" | "research";
-  processing_state: "any" | "fresh" | "frozen" | "dried" | "cooked" | "canned" | "other";
+  /**
+   * `not_for_propagation` is APHIS's own category — everything except planting
+   * stock — and ranks between an exact use and `any`. Migration 026.
+   */
+  intended_use:
+    | "any" | "consumption" | "processing" | "propagation" | "research"
+    | "not_for_propagation";
+  processing_state:
+    | "any" | "fresh" | "fresh_cut" | "frozen" | "dried" | "cooked" | "canned" | "other";
   admissibility: "permitted" | "restricted" | "prohibited";
-  permit_required: boolean;
-  phyto_required: boolean;
-  treatment_required: boolean;
-  peq_required: boolean;
+  /**
+   * Null means the source document does not say — migration 026. It is not
+   * false, and is surfaced to the importer as an open question. A document
+   * that is simply silent about phyto used to be stored as "none required".
+   */
+  permit_required: boolean | null;
+  phyto_required: boolean | null;
+  treatment_required: boolean | null;
+  peq_required: boolean | null;
   additional_declarations: string[] | null;
   designated_ports: string[] | null;
   conditions_text: string | null;
