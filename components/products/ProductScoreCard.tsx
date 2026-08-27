@@ -129,10 +129,16 @@ export async function ProductScoreCard({
   const hardBlocks = hardAdmissibilityBlocks(admissibilityBlocks);
   const admissibilityBlocked = hardBlocks.length > 0;
   const admissibilityPending = !admissibilityBlocked && admissibilityBlocks.some(
-    (block) => block.code === "determination_missing"
+    (block) => block.code === "determination_missing" || block.code === "awaiting_reference_rule"
   );
+  // Both soft codes read as pending, but they are pending on different people,
+  // and a label that says "pending" where nobody on this side can act reads as
+  // an accusation. Name the one that is waiting on the platform.
+  const awaitingRule = admissibilityBlocks.some((block) => block.code === "awaiting_reference_rule");
   const displayLabel = admissibilityBlocked
     ? "Not approvable"
+    : awaitingRule
+      ? "Awaiting reference rule"
     : admissibilityPending
       ? "Admissibility pending"
     : thresholdLabel(matched?.label ?? null, hasDocs);
