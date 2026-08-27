@@ -1,0 +1,35 @@
+Source: https://acir.aphis.usda.gov/s/acir-document-detail?rowId=a0jt000001BjaKkAAJ&Document_Type=Commodity%20Import%20Requirements
+Retrieved: 2026-08-27
+Method: shadow-root text walk, own text nodes only, document order
+
+--- Header ---
+Commodity Import Requirements
+Dried Cocoa Leaves from All Countries into All Ports
+
+Commodities: Theobroma, Theobroma cacao
+Common/Approved Name: Cocoa
+Port Groups: All Ports
+Plant Part: Leaf (Leaves)
+Processed State: Dried
+Intended Use: Not for Planting or Propagation
+Region: All Countries
+
+--- Important Information ---
+This document describes the import requirements for dried cocoa leaves.
+
+--- Import Requirements ---
+1  No permit is required for this commodity. Letter of No Permit Required is
+   optional and may facilitate clearance of the commodity through the port of
+   entry. To obtain a Letter of No Permit Required go to [APHIS eFile].
+2  This commodity is subject to inspection at the port of entry and all
+   general requirements of 7 CFR 319.56-3 and 7 CFR 330.105.
+
+--- Authority ---
+7 CFR 319.Subpart L — Subpart L-Fruits and Vegetables
+https://www.ecfr.gov/cgi-bin/text-idx?SID=9a23ef261556cf11bd3cf842c0316cea&mc=true&node=pt7.5.319&rgn=div5#sp7.5.319.l
+
+--- Notes ---
+Scope is "All Countries" — neither a country nor a region as the schema means
+them. Contrast the cacao pod documents, which are per-country.
+"No permit is required" is an explicit negative, and is different in kind from
+the Mexico document's silence about phyto.

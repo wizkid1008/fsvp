@@ -1,0 +1,39 @@
+Source: https://acir.aphis.usda.gov/s/acir-document-detail?rowId=a0jt000001BjaL8AAJ&Document_Type=Commodity%20Import%20Requirements
+Retrieved: 2026-08-27
+Method: shadow-root text walk, own text nodes only, document order
+
+--- Header ---
+Commodity Import Requirements
+Cacao Bean Pod (Pod) from Mexico into All Ports
+
+Commodities: Theobroma cacao
+Common/Approved Name: Cacao Bean Pod
+Port Groups: All Ports
+Countries: Mexico
+Plant Part: Pod
+Processed State: Fresh, Fresh Cut
+Intended Use: Not for Planting or Propagation
+
+--- Import Requirements ---
+1  An Import Permit is required. To obtain a permit, go to [APHIS eFile].
+2  This commodity is subject to inspection at the port of entry and all
+   general requirements of 7 CFR 319.56-3.
+
+--- Officer Instructions ---
+Regulatory Officials Login to ACIR to see more   [GATED — not read]
+
+--- Authority ---
+7 CFR 319.Subpart L — Subpart L-Fruits and Vegetables
+https://www.ecfr.gov/cgi-bin/text-idx?SID=9a23ef261556cf11bd3cf842c0316cea&mc=true&node=pt7.5.319&rgn=div5#sp7.5.319.l
+
+--- Commodity Information ---
+https://npgsweb.ars-grin.gov/gringlobal/taxonomydetail.aspx?id=101885
+
+--- Related Documents ---
+Regulatory Officials Login to ACIR to see Special Procedure Document(s)  [GATED]
+
+--- Notes ---
+Says nothing about a phytosanitary certificate or treatment. Silence, not a
+negative — see curation doc §2.2 item 5.
+A "Published Date" label renders in the header; its value did not survive the
+text walk and needs reading off the page.
