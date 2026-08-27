@@ -64,7 +64,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     ? await fetchAssignableFacilities(supabase as any, product.supplier_id)
     : [];
 
-  const [commoditiesResult, determinationsResult, scoreStatusMap, admissibilityBlocks, requestResult] = await Promise.all([
+  const [commoditiesResult, determinationsResult, scoreStatusMap, admissibilityBlocks, requestResult, ruleCountResult] = await Promise.all([
     (supabase.from("commodities") as any)
       .select("id, common_name, scientific_name, plant_part, is_propagative")
       .eq("active", true)
@@ -90,7 +90,22 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Is there anything at all to determine against? Counted rather than
+    // resolved: the panel only needs to know whether offering the button could
+    // lead anywhere, and the resolver still applies every refusal it always
+    // did — draft, overdue, region-scoped, source moved — once one exists.
+    product.commodity_id
+      ? (supabase.from("country_commodity_rules") as any)
+          .select("id", { count: "exact", head: true })
+          .eq("commodity_id", product.commodity_id)
+          .is("superseded_at", null)
+      : Promise.resolve({ count: 0 }),
   ]);
+
+  // An unreadable count must not withhold the form — that would turn a
+  // transient read failure into a missing button with no explanation. Only a
+  // confirmed zero hides it.
+  const hasReferenceRule = (ruleCountResult as { count: number | null }).count !== 0;
 
   const scoredStatus = scoreStatusMap.get(params.id) ?? product.approval_status ?? "pending";
   const hardBlocks = hardAdmissibilityBlocks(admissibilityBlocks);
@@ -172,6 +187,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               defaultUse={defaultUse}
               defaultState=""
               classificationRequest={classificationRequest}
+              hasReferenceRule={hasReferenceRule}
             />
           )}
 

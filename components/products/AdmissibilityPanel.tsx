@@ -88,6 +88,7 @@ export function AdmissibilityPanel({
   defaultUse,
   defaultState,
   classificationRequest,
+  hasReferenceRule,
 }: {
   productId: string;
   productName: string;
@@ -101,6 +102,17 @@ export function AdmissibilityPanel({
   defaultUse: string;
   defaultState: string;
   classificationRequest: ClassificationRequestRow | null;
+  /**
+   * Whether the reference layer holds ANY rule for this commodity.
+   *
+   * False means pressing "Determine admissibility" could only ever come back
+   * with "reference rule needed" — the resolver has nothing to resolve
+   * against. Offering a button whose only outcome is a refusal teaches people
+   * that the screen is broken, so the form is withheld and the gap is named
+   * instead. It returns on its own the moment an administrator enters a rule
+   * for this commodity; nothing here needs changing back.
+   */
+  hasReferenceRule: boolean;
 }) {
   const router = useRouter();
   // An administrator who has answered a request has already done the choosing.
@@ -510,7 +522,21 @@ export function AdmissibilityPanel({
         </div>
       )}
 
-      {canManage && commodityId && countryOfOrigin && (
+      {canManage && commodityId && countryOfOrigin && !hasReferenceRule && (
+        <div className="mt-5 border-t border-line pt-5">
+          <h3 className="text-sm font-semibold text-ink">2. Record a determination</h3>
+          <p className="mt-2 rounded-md bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
+            No country-commodity rule is on file for {commodityName ?? "this commodity"} yet, so
+            there is nothing to determine against and this step cannot be completed. A platform
+            administrator adds the rule after checking APHIS ACIR.{" "}
+            <strong>This does not stop the rest of the file.</strong> Carry on — open the FSVP
+            record, gather evidence and complete the determinations. Admissibility is only required
+            before the food actually enters.
+          </p>
+        </div>
+      )}
+
+      {canManage && commodityId && countryOfOrigin && hasReferenceRule && (
         <form onSubmit={determine} className="mt-5 border-t border-line pt-5">
           <h3 className="text-sm font-semibold text-ink">2. Record a determination</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
