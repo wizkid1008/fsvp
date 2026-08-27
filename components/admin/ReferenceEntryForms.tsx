@@ -137,7 +137,11 @@ function CommodityForm({ onClose }: { onClose: () => void }) {
                 Plant part
                 <select name="plant_part" required className={inputClass} defaultValue="">
                   <option value="" disabled>Select plant part</option>
-                  {["not_applicable", "fruit", "leaf", "root", "seed", "stem", "flower", "whole_plant", "bulb", "tuber"]
+                  {/* `pod` and `all_including_seed` are APHIS's own terms —
+                      migration 026. Cacao Bean Pod is a pod, not a fruit, and
+                      calling it one would widen every rule about it. */}
+                  {["not_applicable", "fruit", "leaf", "root", "seed", "pod", "stem", "flower",
+                    "whole_plant", "bulb", "tuber", "all_including_seed"]
                     .map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}
                 </select>
               </label>
@@ -205,7 +209,7 @@ function RuleForm({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [originScope, setOriginScope] = useState<"country" | "region">("country");
+  const [originScope, setOriginScope] = useState<"country" | "region" | "global">("country");
   const [pending, startTransition] = useTransition();
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -216,6 +220,17 @@ function RuleForm({
     const commaList = (name: string) =>
       String(form.get(name) ?? "").split(",").map((value) => value.trim()).filter(Boolean);
 
+    // Three answers, not two. A checkbox could only ever say yes or no, so
+    // leaving one alone because the document was silent used to record "not
+    // required" — the same error the schema made before 026, arriving where a
+    // curator would least suspect it.
+    const stated = (name: string): boolean | null => {
+      const value = form.get(name);
+      if (value === "yes") return true;
+      if (value === "no") return false;
+      return null;
+    };
+
     startTransition(async () => {
       try {
         const res = await fetch("/api/reference-rules", {
@@ -223,15 +238,16 @@ function RuleForm({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             commodity_id: form.get("commodity_id"),
+            origin_scope: originScope,
             origin_country: originScope === "country" ? form.get("origin_country") : null,
             origin_region: originScope === "region" ? form.get("origin_region") : null,
             intended_use: form.get("intended_use"),
             processing_state: form.get("processing_state"),
             admissibility: form.get("admissibility"),
-            permit_required: form.get("permit_required") === "on",
-            phyto_required: form.get("phyto_required") === "on",
-            treatment_required: form.get("treatment_required") === "on",
-            peq_required: form.get("peq_required") === "on",
+            permit_required: stated("permit_required"),
+            phyto_required: stated("phyto_required"),
+            treatment_required: stated("treatment_required"),
+            peq_required: stated("peq_required"),
             additional_declarations: commaList("additional_declarations"),
             designated_ports: commaList("designated_ports"),
             conditions_text: form.get("conditions_text"),
@@ -276,10 +292,12 @@ function RuleForm({
           <div>
             <span className={labelClass}>Origin scope</span>
             <div className="mt-2 flex gap-4 text-sm text-slate-700">
-              {(["country", "region"] as const).map((scope) => (
+              {(["country", "region", "global"] as const).map((scope) => (
                 <label key={scope} className="flex items-center gap-2">
                   <input type="radio" checked={originScope === scope} onChange={() => setOriginScope(scope)} />
-                  {scope === "country" ? "Country" : "Region (manual review)"}
+                  {scope === "country" ? "Country"
+                    : scope === "region" ? "Region (manual review)"
+                    : "Every origin"}
                 </label>
               ))}
             </div>
@@ -294,22 +312,35 @@ function RuleForm({
                 ))}
               </select>
             </label>
-          ) : (
+          ) : originScope === "region" ? (
             <label className={labelClass}>
               Origin region <span className="text-red-500">*</span>
               <input name="origin_region" required className={inputClass} placeholder="South America" />
             </label>
+          ) : (
+            /* Said out loud rather than left blank. A global rule governs every
+               origin no country rule covers, and the documents written that way
+               are usually the prohibitions. */
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              This rule will govern <strong>every origin</strong> for this commodity that no
+              country-scoped rule covers. Use it for a document like &ldquo;from All
+              Countries&rdquo;, or to hold a prohibition that lists the countries which do have
+              access — enter those as country rules and they will take precedence.
+            </div>
           )}
           <label className={labelClass}>
             Intended use <span className="text-red-500">*</span>
             <select name="intended_use" className={inputClass} defaultValue="any">
               {["any", "consumption", "processing", "propagation", "research"].map((value) => <option key={value}>{value}</option>)}
+              {/* APHIS's own category, and the axis every ACIR search is
+                  organised around. Everything except planting stock. */}
+              <option value="not_for_propagation">not_for_propagation</option>
             </select>
           </label>
           <label className={labelClass}>
             Processing state <span className="text-red-500">*</span>
             <select name="processing_state" className={inputClass} defaultValue="any">
-              {["any", "fresh", "frozen", "dried", "cooked", "canned", "other"].map((value) => <option key={value}>{value}</option>)}
+              {["any", "fresh", "fresh_cut", "frozen", "dried", "cooked", "canned", "other"].map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
           <label className={labelClass}>
@@ -336,17 +367,26 @@ function RuleForm({
         </div>
 
         <fieldset>
-          <legend className={labelClass}>Required conditions</legend>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-slate-700 sm:grid-cols-4">
+          <legend className={labelClass}>What the document says about each requirement</legend>
+          <p className="mt-1 text-xs text-slate-600">
+            Answer only what the source actually states. Leaving one on{" "}
+            <em>Does not say</em> is a real answer and is recorded as one — the importer is
+            shown it as an open question rather than being told the requirement does not apply.
+          </p>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
             {[
               ["permit_required", "Import permit"],
               ["phyto_required", "Phytosanitary certificate"],
               ["treatment_required", "Treatment"],
               ["peq_required", "Post-entry quarantine"],
             ].map(([name, label]) => (
-              <label key={name} className="flex items-center gap-2">
-                <input name={name} type="checkbox" className="h-4 w-4 rounded border-line text-forest" />
+              <label key={name} className={labelClass}>
                 {label}
+                <select name={name} className={inputClass} defaultValue="unstated">
+                  <option value="unstated">Does not say</option>
+                  <option value="yes">Required</option>
+                  <option value="no">Explicitly not required</option>
+                </select>
               </label>
             ))}
           </div>

@@ -42,10 +42,11 @@ export async function sweepRuleReviews(admin: AdminClient): Promise<RuleReviewSw
     id: r.id,
     citation: r.citation,
     commodity_name: r.commodities?.common_name ?? null,
-    // A rule carries one or the other, never both — see the CHECK on
-    // country_commodity_rules. Region is the broader statement, so it reads
-    // second only when there is no specific country.
-    origin: r.origin_country ?? r.origin_region ?? null,
+    // A rule names a country, names a region, or covers everywhere — see
+    // origin_scope on country_commodity_rules. Read narrowest first, and give
+    // the global case a name rather than a blank: a review notice saying an
+    // overdue rule applies to nothing in particular is worse than no notice.
+    origin: r.origin_country ?? r.origin_region ?? "every origin",
     review_due_at: r.review_due_at,
     superseded_at: r.superseded_at,
     review_notified_at: r.review_notified_at,

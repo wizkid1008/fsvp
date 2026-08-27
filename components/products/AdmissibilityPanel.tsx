@@ -467,7 +467,8 @@ export function AdmissibilityPanel({
                         Plant part
                         <select name="plant_part" className={inputClass} defaultValue="">
                           <option value="">Not sure</option>
-                          {["not_applicable", "fruit", "leaf", "root", "seed", "stem", "flower", "whole_plant", "bulb", "tuber"]
+                          {["not_applicable", "fruit", "leaf", "root", "seed", "pod", "stem", "flower",
+                            "whole_plant", "bulb", "tuber", "all_including_seed"]
                             .map((value) => (
                               <option key={value} value={value}>{value.replace(/_/g, " ")}</option>
                             ))}
@@ -532,7 +533,7 @@ export function AdmissibilityPanel({
               Processing state
               <select name="processing_state" required className={inputClass} defaultValue={defaultState}>
                 <option value="" disabled>Select processing state</option>
-                {["fresh", "frozen", "dried", "cooked", "canned", "other"].map((value) => <option key={value}>{value}</option>)}
+                {["fresh", "fresh_cut", "frozen", "dried", "cooked", "canned", "other"].map((value) => <option key={value}>{value}</option>)}
               </select>
             </label>
           </div>

@@ -27,6 +27,8 @@ export type ReferenceRuleRow = {
   is_draft: boolean;
   is_overdue: boolean;
   source_moved: boolean;
+  /** At least one requirement its source never spoke to — migration 026. */
+  has_unstated_requirements: boolean;
 };
 
 const btnClass =
@@ -162,6 +164,17 @@ function VerifyForm({
                 Confirm the rule against the agency source, then record what you actually consulted.
                 This is what makes it usable for determinations.
               </p>
+              {/* The silence is a claim like any other, and it is the one most
+                  easily made by accident — by whoever entered the rule leaving
+                  a field alone. It has to be checked, so it has to be said. */}
+              {rule.has_unstated_requirements && (
+                <p className="rounded-md bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
+                  This rule records that its source does <strong>not say</strong> whether one or
+                  more of permit, phytosanitary certificate, treatment or post-entry quarantine
+                  applies. Check that the document really is silent rather than that the field was
+                  left alone — the importer is shown each of these as an open question.
+                </p>
+              )}
               <div>
                 <label className={labelClass} htmlFor="verified_against">What did you check?</label>
                 <textarea
@@ -269,6 +282,13 @@ export function ReferenceRulesClient({
                     </StatusBadge>
                     {reason && <StatusBadge tone={reason.tone}>{reason.label}</StatusBadge>}
                     {!reason && <StatusBadge tone="success">Verified</StatusBadge>}
+                    {/* Not a reason the rule is unusable — a verified rule with
+                        unstated requirements is still relied on. It marks where
+                        the source was silent, which is what a verifier has to
+                        confirm is actually true of the page. */}
+                    {rule.has_unstated_requirements && (
+                      <StatusBadge tone="neutral">Source silent on a requirement</StatusBadge>
+                    )}
                   </div>
                   <p className="mt-1 text-xs text-slate-600">
                     {rule.intended_use}, {rule.processing_state} · {rule.citation}

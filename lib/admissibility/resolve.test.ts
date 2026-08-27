@@ -13,18 +13,21 @@ const PAST = "2026-01-01";
 const FUTURE = "2027-01-01";
 
 function rule(over: Partial<RuleRow> = {}): RuleRow {
-  return {
+  const merged: RuleRow = {
     id: "r1",
     commodity_id: "c-mango",
     // Verified by default so each test can break exactly one thing; the draft
     // and source-moved paths get their own cases below.
     verification_status: "verified",
     source_changed_at: null,
+    origin_scope: "country",
     origin_country: "MX",
     origin_region: null,
     intended_use: "any",
     processing_state: "any",
     admissibility: "permitted",
+    // Explicitly false, not null: the fixture rule is one whose source was read
+    // and said no. Silence gets its own cases — see 026.
     permit_required: false,
     phyto_required: false,
     treatment_required: false,
@@ -40,6 +43,15 @@ function rule(over: Partial<RuleRow> = {}): RuleRow {
     effective_to: null,
     superseded_at: null,
     ...over,
+  };
+
+  // Scope follows the origin columns unless a test sets it, so the cases
+  // written before 026 keep saying what they meant.
+  return {
+    ...merged,
+    origin_scope:
+      over.origin_scope ??
+      (merged.origin_country ? "country" : merged.origin_region ? "region" : "global"),
   };
 }
 
@@ -235,6 +247,92 @@ describe("isCurrent", () => {
   });
 });
 
+// ── Migration 026: holding what ACIR actually says ─────────────────────────
+// Each case here comes from a document in
+// background-documents/acir-exports/detail-reads/ that the schema could not
+// hold before.
+
+describe("global scope", () => {
+  it("evaluates a global rule instead of sending it to manual review", () => {
+    // "Dried Cocoa Leaves from All Countries" is neither a country nor a
+    // region. Unlike "South America", it needs no mapping to be tested — it
+    // covers every origin by definition.
+    const global = rule({ id: "global", origin_country: null, origin_region: null });
+    const r = resolveRule([global], query({ originCountry: "EC" }));
+    expect(r.status).toBe("resolved");
+    if (r.status === "resolved") expect(r.rule.id).toBe("global");
+  });
+
+  it("prefers a country rule over the global rule behind it", () => {
+    // How an enumerated prohibition is held: one global "no market access",
+    // plus a country row for each state that has it. Granting access is one
+    // insert, not an edit to a list of 190.
+    const globalBan = rule({
+      id: "ban", origin_country: null, origin_region: null, admissibility: "prohibited",
+    });
+    const mexico = rule({ id: "mexico", origin_country: "MX", admissibility: "restricted" });
+    const r = resolveRule([globalBan, mexico], query({ originCountry: "MX" }));
+    expect(r.status).toBe("resolved");
+    if (r.status === "resolved") expect(r.rule.admissibility).toBe("restricted");
+  });
+
+  it("falls through to the global prohibition for an origin nobody entered", () => {
+    // The safe direction to fail in: an unlisted country gets the ban, not
+    // silence.
+    const globalBan = rule({
+      id: "ban", origin_country: null, origin_region: null, admissibility: "prohibited",
+    });
+    const mexico = rule({ id: "mexico", origin_country: "MX", admissibility: "restricted" });
+    const r = resolveRule([globalBan, mexico], query({ originCountry: "GH" }));
+    expect(r.status).toBe("resolved");
+    if (r.status === "resolved") expect(r.rule.admissibility).toBe("prohibited");
+  });
+
+  it("still lets an unevaluable region rule block a global one", () => {
+    const region = rule({
+      id: "region", origin_country: null, origin_region: "South America",
+      admissibility: "prohibited",
+    });
+    const global = rule({ id: "global", origin_country: null, origin_region: null });
+    expect(resolveRule([region, global], query({ originCountry: "PE" })).status)
+      .toBe("manual_review");
+  });
+});
+
+describe("not_for_propagation", () => {
+  it("covers consumption, processing and research", () => {
+    const r = rule({ intended_use: "not_for_propagation" });
+    for (const use of ["consumption", "processing", "research"] as const) {
+      expect(resolveRule([r], query({ intendedUse: use })).status).toBe("resolved");
+    }
+  });
+
+  it("does not cover propagation", () => {
+    // The failure this value exists to prevent: entered as `any`, a rule
+    // permitting cacao pods would have appeared to permit importing them to
+    // plant.
+    const r = rule({ intended_use: "not_for_propagation", admissibility: "permitted" });
+    expect(resolveRule([r], query({ intendedUse: "propagation" })).status).toBe("no_rule");
+  });
+
+  it("ranks between an exact use and any use", () => {
+    const exact = rule({ intended_use: "consumption" });
+    const notForProp = rule({ intended_use: "not_for_propagation" });
+    const anyUse = rule({ intended_use: "any" });
+    expect(specificity(exact)).toBeGreaterThan(specificity(notForProp));
+    expect(specificity(notForProp)).toBeGreaterThan(specificity(anyUse));
+  });
+
+  it("still ranks a country rule above any use", () => {
+    const country = rule({ origin_country: "MX", intended_use: "any" });
+    const globalExact = rule({
+      origin_country: null, origin_region: null,
+      intended_use: "consumption", processing_state: "fresh",
+    });
+    expect(specificity(country)).toBeGreaterThan(specificity(globalExact));
+  });
+});
+
 describe("conditionsOf", () => {
   it("turns the boolean flags into things a person can act on", () => {
     const conditions = conditionsOf(rule({
@@ -256,6 +354,37 @@ describe("conditionsOf", () => {
   });
 
   it("returns nothing for an unconditional rule", () => {
+    // Every flag explicitly false — a source that was read and said no.
     expect(conditionsOf(rule())).toEqual([]);
+  });
+
+  it("says so when the source never mentioned a requirement", () => {
+    // The Mexico cacao document says nothing about phyto. Before 026 that was
+    // stored as false and read back as "no phytosanitary certificate
+    // required", which nobody had checked.
+    const conditions = conditionsOf(rule({ phyto_required: null }));
+    expect(conditions).toHaveLength(1);
+    expect(conditions[0]).toContain("does not state");
+    expect(conditions[0]).toContain("phytosanitary");
+  });
+
+  it("does not let silence read as a negative", () => {
+    // The distinction that matters: "Dried Cocoa Leaves" states "No permit is
+    // required", which is a checked negative and stays silent in the output.
+    // A null must not produce the same empty list.
+    const checkedNo = conditionsOf(rule({ permit_required: false }));
+    const unstated = conditionsOf(rule({ permit_required: null }));
+    expect(checkedNo).toEqual([]);
+    expect(unstated).not.toEqual([]);
+  });
+
+  it("raises every unanswered question at once", () => {
+    const conditions = conditionsOf(rule({
+      permit_required: null,
+      phyto_required: null,
+      treatment_required: null,
+      peq_required: null,
+    }));
+    expect(conditions).toHaveLength(4);
   });
 });
