@@ -37,3 +37,24 @@ corrected foreign key can be added. Check the count first if you care:
 select count(*) from corrective_actions c
 where not exists (select 1 from suppliers s where s.id = c.supplier_id);
 ```
+
+## 048_dedupe_rule_sets.sql
+
+Repairs a database that ran `002_reference_data.sql` more than once **without**
+`rule_sets.set_name` being unique — the constraint is declared in
+`migrations/000_baseline.sql` but is absent on databases converged through `045`.
+Each re-run inserted another `FSVP Standard` scoped `all`, and two published
+governing sets make `fetchGoverningRuleVersion` ambiguous, which blocks opening
+an FSVP record (and therefore the Create button on the product checklist).
+
+Run it against an existing database once:
+
+```sql
+\i supabase/upgrade/048_dedupe_rule_sets.sql
+```
+
+It keeps the copy with the most `fsvp_records` attached, falling back to the
+oldest, **archives** the duplicates' published versions rather than deleting or
+repointing them, renames the superseded sets so the unique constraint can be
+restored, and asserts that exactly one published set governs FSVP records before
+committing. Safe to run when there are no duplicates — it reports and exits.

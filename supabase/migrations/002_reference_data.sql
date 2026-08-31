@@ -335,7 +335,10 @@ begin
     'Default FSVP compliance rule set based on 21 CFR Part 1 Subpart L',
     'all'
   )
-  on conflict do nothing
+  -- Explicit target: without the unique constraint on set_name this raises
+  -- rather than silently inserting a second 'FSVP Standard' (see
+  -- upgrade/048_dedupe_rule_sets.sql for the database that happened to).
+  on conflict (set_name) do nothing
   returning id into v_ruleset_id;
 
   if v_ruleset_id is null then
