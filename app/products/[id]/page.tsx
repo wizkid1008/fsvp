@@ -23,6 +23,8 @@ import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import type { StatusTone } from "@/types/platform";
 import { evaluateAdmissibility, hardAdmissibilityBlocks } from "@/lib/admissibility/gate";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
+import { fetchDetermination } from "@/lib/fsvp/applicability";
+import { ApplicabilityCard } from "@/components/fsvp/ApplicabilityCard";
 
 export const runtime = "edge";
 
@@ -146,6 +148,15 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       ? "processing"
       : "";
 
+
+  // How FSVP applies to this food, shown before the work it governs rather than
+  // below it on the record page. Only for the importer who owns the
+  // determination -- an exporter viewing their own product has no standing to
+  // make one, and the pair is keyed on the importer.
+  const applicabilityDetermination =
+    !isSupplierView && profile?.importer_id && product.supplier_id
+      ? await fetchDetermination(supabase, profile.importer_id, product.supplier_id, params.id)
+      : null;
   return (
     <AppShell role={role} realRole={realRole} supplierType={await getSupplierType(supabase as any, ownSupplierId)}>
       <SectionHeader
@@ -161,6 +172,12 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           ← Back to all products
         </Link>
       </div>
+
+      {!isSupplierView && profile?.importer_id && (
+        <div className="mt-6">
+          <ApplicabilityCard determination={applicabilityDetermination} />
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[340px_1fr]">
         <ProductScoreCard productId={params.id} supabase={supabase} admissibilityBlocks={admissibilityBlocks} />

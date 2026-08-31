@@ -26,7 +26,7 @@ import {
   evaluateAttestations,
   hashAttestationContent,
 } from "@/lib/fsvp/qi-attestation";
-import { basisSpec, fetchDetermination, isDeterminationLive, OUTCOME_LABEL } from "@/lib/fsvp/applicability";
+import { fetchDetermination, isDeterminationLive } from "@/lib/fsvp/applicability";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -271,7 +271,6 @@ export default async function FsvpRecordPage({
     admin, record.importer_id, supplier.id, product.id
   );
   const determinationLive = determination ? isDeterminationLive(determination) : false;
-  const determinationSpec = determination ? basisSpec(determination.basis) : null;
 
   const attestationEval = await evaluateAttestations(
     record,
@@ -667,47 +666,6 @@ export default async function FsvpRecordPage({
         {liveSuspension && (
           <SuspensionBanner basis={liveSuspension.basis} reason={liveSuspension.reason} />
         )}
-
-        {/* Applicability */}
-        <section className={`rounded-lg border p-5 shadow-soft ${
-          applicabilityBlock ? "border-amber-200 bg-amber-50" : "border-line bg-white"
-        }`}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-ink">How FSVP Applies</h2>
-              {applicabilityBlock ? (
-                <p className="mt-1 max-w-2xl text-sm text-amber-900">{applicabilityBlock}</p>
-              ) : (
-                <>
-                  <p className="mt-1 text-sm text-slate-700">
-                    <span className="font-semibold">{OUTCOME_LABEL[determination!.outcome]}</span>
-                    {determinationSpec && <> — {determinationSpec.label}</>}
-                    <span className="text-slate-500"> · {determination!.citation}</span>
-                  </p>
-                  {determination!.outcome === "modified" && (
-                    <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                      Under {determination!.citation} this record does not require a hazard analysis
-                      or a foreign supplier evaluation. The verification activities determination is
-                      still required, because the written assurance that replaces them is itself a
-                      verification activity.
-                    </p>
-                  )}
-                  {determination!.expires_at && (
-                    <p className="mt-1 text-xs text-slate-500">
-                      Expires {new Date(determination!.expires_at).toLocaleDateString()}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-            <Link
-              href="/applicability"
-              className="inline-flex h-9 items-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
-            >
-              {determination ? "Review determination" : "Determine applicability"}
-            </Link>
-          </div>
-        </section>
 
         {/* Qualified individual attestations */}
         <section id="qi-attestations" className="rounded-lg border border-line bg-white p-5 shadow-soft">
