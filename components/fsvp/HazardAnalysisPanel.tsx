@@ -177,7 +177,9 @@ export function HazardAnalysisPanel({
   const router = useRouter();
   const [creating, startCreate] = useTransition();
   const [showAddItem, setShowAddItem] = useState(false);
-  const [expanded, setExpanded] = useState(true);
+  // A finished analysis opens closed: the header already says what it is, and
+  // a completed section that still sprawls reads as unfinished work.
+  const [expanded, setExpanded] = useState(analysis?.status !== "final");
   const [error, setError] = useState<string | null>(null);
   const [pendingFinality, startFinality] = useTransition();
 
@@ -295,13 +297,19 @@ export function HazardAnalysisPanel({
               Reassessment: {new Date(analysis.next_reassessment_due_at).toLocaleDateString()}
             </span>
           )}
+          {/* So a closed analysis still says what is inside it. */}
+          {!expanded && (
+            <span className="text-xs text-slate-400">
+              {analysis.items.length} hazard{analysis.items.length === 1 ? "" : "s"} identified
+            </span>
+          )}
         </div>
-        {!readonly && expanded && analysis.status !== "superseded" && (
+        {!readonly && analysis.status !== "superseded" && (
           <div className="flex shrink-0 items-center gap-2">
             {analysis.status === "draft" ? (
               <>
                 <button
-                  onClick={() => setShowAddItem(true)}
+                  onClick={() => { setExpanded(true); setShowAddItem(true); }}
                   className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -326,7 +334,7 @@ export function HazardAnalysisPanel({
               </>
             ) : (
               <button
-                onClick={() => setFinality("reopen")}
+                onClick={() => { setExpanded(true); setFinality("reopen"); }}
                 disabled={pendingFinality}
                 className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
