@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, ShieldAlert, Check, Undo2, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 type HazardItem = {
@@ -179,6 +179,7 @@ export function HazardAnalysisPanel({
   const [showAddItem, setShowAddItem] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingFinality, startFinality] = useTransition();
 
   function createAnalysis() {
     setError(null);
@@ -193,6 +194,45 @@ export function HazardAnalysisPanel({
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to create analysis");
+      }
+    });
+  }
+
+  /**
+   * Finalize, or reopen to correct. Both go through the same PATCH, which
+   * enforces what this cannot: at least one hazard item, an undecided record,
+   * and the caller's tenancy. The button only decides which one to ask for.
+   */
+  function setFinality(action: "finalize" | "reopen") {
+    setError(null);
+    startFinality(async () => {
+      try {
+        const res = await fetch("/api/fsvp/hazard-analyses", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hazard_analysis_id: analysis?.id, action }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update the analysis");
+      }
+    });
+  }
+
+  function removeItem(itemId: string) {
+    setError(null);
+    startFinality(async () => {
+      try {
+        const res = await fetch("/api/fsvp/hazard-items", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: itemId }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to remove the hazard");
       }
     });
   }
@@ -256,16 +296,51 @@ export function HazardAnalysisPanel({
             </span>
           )}
         </div>
-        {!readonly && expanded && (
-          <button
-            onClick={() => setShowAddItem(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add Hazard
-          </button>
+        {!readonly && expanded && analysis.status !== "superseded" && (
+          <div className="flex shrink-0 items-center gap-2">
+            {analysis.status === "draft" ? (
+              <>
+                <button
+                  onClick={() => setShowAddItem(true)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Hazard
+                </button>
+                {/* Disabled rather than hidden when there are no hazards: an
+                    empty § 1.504 analysis is the case the API refuses, and a
+                    button that vanishes teaches nothing about why. */}
+                <button
+                  onClick={() => setFinality("finalize")}
+                  disabled={pendingFinality || analysis.items.length === 0}
+                  title={
+                    analysis.items.length === 0
+                      ? "Add at least one known or reasonably foreseeable hazard first."
+                      : undefined
+                  }
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-forest px-3 text-xs font-semibold text-white hover:bg-[#195f4d] disabled:opacity-50"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  {pendingFinality ? "Saving…" : "Mark Final"}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setFinality("reopen")}
+                disabled={pendingFinality}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                {pendingFinality ? "Reopening…" : "Reopen"}
+              </button>
+            )}
+          </div>
         )}
       </div>
+
+      {error && (
+        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      )}
 
       {expanded && (
         <div className="mt-4 space-y-4">
@@ -324,6 +399,20 @@ export function HazardAnalysisPanel({
                             </StatusBadge>
                           )}
                         </div>
+                        {/* Draft only. A final analysis is what the checklist
+                            and the approval gate read, so it is reopened
+                            first rather than changed underneath them. */}
+                        {!readonly && analysis.status === "draft" && (
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            disabled={pendingFinality}
+                            aria-label={`Remove ${item.hazard_name}`}
+                            title="Remove this hazard"
+                            className="shrink-0 rounded p-1 opacity-50 transition hover:bg-white/60 hover:opacity-100 disabled:opacity-25"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
