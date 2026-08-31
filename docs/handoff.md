@@ -1,8 +1,17 @@
 # FSVP Platform — Development Handoff
 
-Current as of 2026-08-25, `main` @ `3fe0035`. The last two weeks went into the
+Current as of 2026-08-31, `main` @ `11743c0`. The last two weeks went into the
 importer's own path through the product — classification, FDA product codes,
 procedures, product lifecycle — rather than into new compliance depth.
+
+The most recent day of work went somewhere narrower and is worth naming here,
+because it is the shape of what is left. Four screens disagreed about what an
+undetermined admissibility means, and with `country_commodity_rules` empty that
+was every product. Reconciling them split the absence of a determination into
+two codes with different owners — nobody has got to it yet, versus there is
+nothing to get to. No feature was added. That day was spent teaching the
+product to be honest about having no reference data, which is the correct thing
+to have done and is also the ceiling: see §7.3.
 
 ---
 
@@ -45,9 +54,17 @@ This cost an afternoon. See `docs/cloudflare-pages.md`.
   `FDA_PCB_USER`, `FDA_PCB_KEY`, `INGEST_TRIGGER_SECRET`.
 
 A build-scope-only service-role key is `undefined` at request time, so
-`createAdminSupabaseClient()` throws and **all 13 pages that call it break at
+`createAdminSupabaseClient()` throws and **everything that calls it breaks at
 once**. Same symptom if the value merely contains `xxxxx` (treated as a
 placeholder).
+
+That blast radius has grown and is worth re-counting before trusting an old
+number: this entry once said "13 pages", and as of 2026-08-31 **75 files
+construct the admin client — 64 API routes, 7 pages, 4 library modules.** Only
+seven pages break directly; the rest break through the routes they call, which
+is most of the authenticated app. There is no single place to catch this,
+because failing loudly at startup is not available to an edge function that
+only learns its bindings when a request arrives.
 
 **Two things that look like evidence and are not:** `/dashboard` and `/account`
 loading prove nothing — the first only builds the admin client when previewing a
@@ -67,7 +84,7 @@ obvious link to the file that caused it. Both `pnpm-lock.yaml` and
 
 ## 3. Database
 
-Migrations `000`–`025`. `000_baseline.sql` consolidates the original 44
+Migrations `000`–`026`. `000_baseline.sql` consolidates the original 44
 (archived under `supabase/migrations/archive/`).
 
 | Migration | Contents |
@@ -91,8 +108,9 @@ Migrations `000`–`025`. `000_baseline.sql` consolidates the original 44
 | 023 | Retire the legacy flat requirements model |
 | 024 | Split FDA product codes across the tables that own them |
 | 025 | Classification-request classes for "none of these fit" submissions |
+| 026 | Reference-layer source fidelity — hold an ACIR document without altering it |
 
-**Confirm 015–025 are actually applied in production before assuming it.**
+**Confirm 015–026 are actually applied in production before assuming it.**
 Migrations are applied by hand in the Supabase SQL editor and this repo cannot
 see the database. All FSVP data is dummy/seed, so a destructive correction is
 cheap if one turns out to be missing.
@@ -109,8 +127,9 @@ Other traps:
   guarded `add constraint`) so a failed migration can be re-run. Do not assume
   an earlier migration ran: 021 had to stop assuming 003 had.
 - `types/database.ts` is hand-maintained and partly stale — it declares
-  `organization_id` and `foreign_supplier_id` on tables that lack them. Nearly
-  every query uses `as any`, so the type system protects very little.
+  `organization_id` and `foreign_supplier_id` on tables that lack them. There
+  are **804 `as any` casts** across `app/`, `lib/` and `components/` (counted
+  2026-08-31), so the type system protects very little.
   `npm run supabase:types` exists and its output is gitignored; generating types
   properly would turn a class of runtime bug into a compile error.
 
@@ -196,6 +215,19 @@ wired into the product journey. Administrators enter draft rules at
 admissibility from its product page. A missing rule reads as *pending review*,
 not as a verdict, and an importer who finds nothing that fits can submit a
 classification request (migrations 024–025) instead of hitting a dead end.
+
+Because the table is empty, the empty state currently carries more weight than
+the populated one, and it now names its own owner. `evaluateAdmissibility`
+distinguishes `determination_missing` — nobody has done it — from
+`awaiting_reference_rule`, meaning there is no rule to do it against, which is
+the platform's work and not the importer's. Both are soft: an undetermined food
+can still be drafted against, because admissibility is required before the food
+enters, not before the file is built. The "Determine admissibility" form is
+withheld entirely when no rule covers the commodity, since pressing it could
+only ever return a refusal, and it returns on its own once an administrator
+enters one. A *failed* rule count does none of this — it leaves the form up and
+asks the importer to try, because guessing "wait for an administrator" on an
+unreadable read parks them on somebody who may have nothing to do.
 
 **Phase 2 item 11 — FDA facility registration renewal.** The 21 CFR 1.230
 biennial renewal is tracked, and someone can actually enter the date
