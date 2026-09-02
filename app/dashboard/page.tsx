@@ -16,8 +16,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
 import { ProgramStatus } from "@/components/dashboard/ProgramStatus";
-import { RecordProgressList } from "@/components/dashboard/RecordProgressList";
-import { summariseStages } from "@/lib/fsvp/record-stages";
+import { ProductProgressList } from "@/components/dashboard/ProductProgressList";
+import { summariseProducts } from "@/lib/dashboard/product-journey";
 import { WhatNeedsDoing } from "@/components/dashboard/WhatNeedsDoing";
 import { outstandingCount, outstandingWork } from "@/lib/dashboard/outstanding-work";
 import { loadCompleteFsvpSetupPlan } from "@/lib/setup/fsvp-workflow";
@@ -33,14 +33,9 @@ async function ImporterDashboard({
   displayName: string;
   supabase: any;
 }) {
-  const [
-    { count: supplierCount },
-    { data: rawFsvp },
-  ] = await Promise.all([
-    supabase.from("suppliers").select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>,
-    (supabase.from("fsvp_records") as any)
-      .select("id, status, reassessment_due_at, facilities_verify(facility_name), products_verify(product_name)"),
-  ]);
+  const { count: supplierCount } = await (supabase
+    .from("suppliers")
+    .select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>);
 
   const importerId: string | null = profile?.importer_id ?? null;
 
@@ -56,15 +51,9 @@ async function ImporterDashboard({
     .map((r) => r.supplier_id)
     .filter(Boolean);
 
-  const fsvpRows = (rawFsvp ?? []) as Array<{ status: string; reassessment_due_at: string | null }>;
-
   const signals = importerId
     ? await fetchImporterSignals(supabase, importerId, supplierIds)
     : null;
-
-  // The facility and product counts this page used to fetch for itself are on
-  // the plan below, which already loads both to evaluate its gates.
-  const stageSummary = summariseStages(fsvpRows);
 
   /**
    * The gates, from the same planner /setup/fsvp reads.
@@ -113,29 +102,15 @@ async function ImporterDashboard({
         </div>
       </section>
 
-      {/* Before any worklist. The page could say how many records were
-          unsigned and how many products lacked applicability without once
-          saying how many records exist and how many are approved — counts of
-          what is wrong are a worklist, not a status. */}
-      <ProgramStatus summary={stageSummary} />
+      {/* Both in products. This counted records while the gate list beside it
+          counted products, which is why the two sections read as contradicting
+          each other — two denominators, the join never stated. */}
+      <ProgramStatus summary={summariseProducts(plan?.productStandings ?? [])} />
 
       {/* Directly under the overview, because they answer the same question at
           two zoom levels: the track above says how far the programme has got,
-          each row below says how far one record has. Separating them put the
-          per-record bars under three sections of counts, where a reader
-          looking for "where is Cocoa Nibs" would not think to scroll. */}
-      {fsvpRows.length > 0 && (
-        <RecordProgressList
-          records={(rawFsvp ?? []).map((r: any) => ({
-            id: r.id,
-            status: r.status,
-            reassessment_due_at: r.reassessment_due_at,
-            facility_name: r.facilities_verify?.facility_name ?? null,
-            product_name: r.products_verify?.product_name ?? null,
-          }))}
-          unsignedRecordIds={signals?.unsignedRecordIds ?? []}
-        />
-      )}
+          each row below says how far one product has. */}
+      <ProductProgressList standings={plan?.productStandings ?? []} />
 
       {/* One section where there were three — six metric tiles, three "what's
           gating approvals" buckets and a "next step · 4 of 11" card, all the

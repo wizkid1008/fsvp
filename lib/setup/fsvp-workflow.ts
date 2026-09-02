@@ -4,6 +4,7 @@ import { evaluateGates, type GateBlock } from "@/lib/fsvp/gates";
 import { evaluateAttestations, type AttestationEvaluation, type AttestationInput } from "@/lib/fsvp/qi-attestation";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 import { FSVP_SETUP_STEP_COPY as STEP_COPY } from "./fsvp-steps";
+import type { FsvpSetupStepId } from "./fsvp-steps";
 
 export { FSVP_SETUP_STEPS, type FsvpSetupStepId } from "./fsvp-steps";
 
@@ -49,8 +50,28 @@ export type SetupSummary = {
   packages: number;
 };
 
+/**
+ * Where one product stands: the first gate it has not cleared.
+ *
+ * The product is the unit an importer thinks in. A record is an artefact of a
+ * product rather than a peer of it — a product may have no record yet, or
+ * several where it is sourced from more than one facility — so "how far along
+ * are we" is asked and answered per product.
+ */
+export type ProductStanding = {
+  id: string;
+  name: string;
+  supplierName: string | null;
+  /** First gate not cleared. Null once the product is fully through. */
+  gateId: FsvpSetupStepId | null;
+  recordId: string | null;
+  recordStatus: string | null;
+};
+
 export type CompleteFsvpSetupPlan = {
   steps: SetupStep[];
+  /** One entry per active product, in the order the products were loaded. */
+  productStandings: ProductStanding[];
   summary: SetupSummary;
   /** Whole-plan completion, 0–100, weighted by each step's own unit count. */
   progressPercent: number;
@@ -538,8 +559,66 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
   const unitsDone = steps.reduce((sum, step) => sum + step.progress.done, 0);
   const unitsTotal = steps.reduce((sum, step) => sum + step.progress.total, 0);
 
+  /**
+   * Where each product stands, as the first gate it has not cleared.
+   *
+   * The gates above answer "how much work of this kind is left". This answers
+   * the other half — "where is Cocoa Nibs" — and it is per PRODUCT because the
+   * product is the unit an importer thinks in. A record is an artefact of a
+   * product, not a peer of it: a product may have none yet, or more than one
+   * where it is sourced from several facilities.
+   *
+   * The order mirrors the gates, and each test is the same one the
+   * corresponding gate applies, so a product's standing cannot contradict the
+   * stage it is counted under.
+   */
+  const productStandings: ProductStanding[] = input.products.map((product) => {
+    const records = recordsByProductId.get(product.id) ?? [];
+    // Where a product is sourced from several facilities it has several
+    // records. The furthest along is the one that describes the product's
+    // standing; the others surface as their own blockers on the gates above.
+    const record =
+      records.find((r) => r.status === "importer_approved") ??
+      records.find((r) => r.status === "conditionally_approved") ??
+      records[0] ??
+      null;
+
+    const determination = input.determinationsByProductId.get(product.id) ?? null;
+    const live = Boolean(determination && isDeterminationLive(determination));
+    // Computed rather than narrowed inside the chain below, where TypeScript
+    // cannot see that `live` implies `determination` is non-null.
+    const exempt = live && determination?.outcome === "exempt";
+
+    const gateId: FsvpSetupStepId | null =
+      !product.supplier_id || !product.facility_id ? "product"
+      : !product.commodity_id || !product.country_of_origin ? "classification"
+      : (input.admissibilityByProductId.get(product.id) ?? []).length > 0 ? "admissibility"
+      // An exempt food needs no record, so a live exemption clears this gate
+      // rather than parking the product at it forever.
+      : !live || (!exempt && !record) ? "record"
+      : !record ? null
+      : (input.gateBlocksByRecordId.get(record.id) ?? []).some((b) => b.code.startsWith("compliance_screening")) ? "screening"
+      : (input.evidenceByRecordId.get(record.id) ?? 0) === 0 ? "evidence"
+      : (input.attestationsByRecordId.get(record.id)?.reasons ?? []).length > 0 ? "qi"
+      : record.status !== "importer_approved" ? "approval"
+      : !input.packagesByRecordId.has(record.id) ? "package"
+      : null;
+
+    return {
+      id: product.id,
+      name: productLabel(product),
+      supplierName: product.supplier_id
+        ? suppliersById.get(product.supplier_id)?.company_name ?? null
+        : null,
+      gateId,
+      recordId: record?.id ?? null,
+      recordStatus: record?.status ?? null,
+    };
+  });
+
   return {
     steps,
+    productStandings,
     progressPercent: unitsTotal === 0 ? 0 : Math.round((unitsDone / unitsTotal) * 100),
     summary: {
       exporters: input.suppliers.length,
