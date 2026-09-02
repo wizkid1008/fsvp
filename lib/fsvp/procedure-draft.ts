@@ -198,3 +198,70 @@ export function reviewMarkers(sections: ProcedureSection[]): string[] {
     .filter((s) => s.body.includes("[REVIEW:"))
     .map((s) => s.heading);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Resolving the passages a person must answer
+//
+// A [REVIEW:] marker is the honest part of a generated draft — it is where the
+// platform declines to invent a fact about your operation. But left as raw text
+// in a textarea it is also the part that stalls: the marker sits somewhere in a
+// scrolling document, adoption is refused until it is gone, and nothing says
+// where to look. Parsed out, each one becomes a question with a place to write
+// the answer, and answering it edits the document rather than describing an
+// edit for someone else to make.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One passage in a draft that the platform could not write for you. */
+export type ReviewPrompt = {
+  /** The marker exactly as it appears in the text, brackets included. */
+  marker: string;
+  /** What it asks you to supply, whitespace normalised for display. */
+  prompt: string;
+  /** The `## heading` the marker sits under, so you know what it is about. */
+  section: string | null;
+};
+
+/**
+ * Pull the outstanding review passages out of a draft, in document order.
+ *
+ * Reads the live text rather than the generated sections, because by the time
+ * this matters the person has been editing: a marker they already answered is
+ * gone from the text and must be gone from the list too.
+ */
+export function parseReviewPrompts(text: string): ReviewPrompt[] {
+  const pattern = /\[REVIEW:\s*([^\]]*)\]/g;
+  const found: ReviewPrompt[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const headings = text.slice(0, match.index).match(/^##\s+(.+)$/gm);
+    found.push({
+      marker: match[0],
+      prompt: match[1].replace(/\s+/g, " ").trim(),
+      section: headings?.length ? headings[headings.length - 1].replace(/^##\s+/, "").trim() : null,
+    });
+  }
+
+  return found;
+}
+
+/**
+ * Answer one review passage, returning the draft with the marker replaced.
+ *
+ * An empty answer strikes the passage out instead — "we keep no paper
+ * originals" is a legitimate response to a marker that asks about them, and
+ * the document should then say nothing rather than carry an instruction to the
+ * reader. The whitespace that introduced the marker goes with it, so removing a
+ * passage does not leave a hole in the prose around it.
+ */
+export function resolveReviewPrompt(text: string, marker: string, answer: string): string {
+  const at = text.indexOf(marker);
+  if (at === -1) return text;
+
+  const written = answer.trim();
+  if (written) return text.slice(0, at) + written + text.slice(at + marker.length);
+
+  let start = at;
+  while (start > 0 && /\s/.test(text[start - 1])) start -= 1;
+  return text.slice(0, start) + text.slice(at + marker.length);
+}

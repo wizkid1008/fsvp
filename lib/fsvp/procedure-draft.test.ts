@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   draftApprovedSupplierProcedure,
   draftRecordsProcedure,
+  parseReviewPrompts,
+  resolveReviewPrompt,
   reviewMarkers,
   sectionsToText,
   type ProcedureFacts,
@@ -119,5 +121,65 @@ describe("sectionsToText", () => {
   it("keeps headings so the editor and a diff stay readable", () => {
     const text = sectionsToText([{ heading: "Scope", body: "Body." }]);
     expect(text).toBe("## Scope\n\nBody.");
+  });
+});
+
+describe("parseReviewPrompts", () => {
+  it("finds each outstanding passage and names the section it sits under", () => {
+    const text = sectionsToText(draftApprovedSupplierProcedure(facts()));
+    const prompts = parseReviewPrompts(text);
+
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0].section).toBe("Importing before approval is complete");
+    expect(prompts[0].prompt).toContain("who authorises a temporary import");
+    expect(prompts[0].marker.startsWith("[REVIEW:")).toBe(true);
+  });
+
+  it("normalises the wrapped whitespace the draft carries", () => {
+    const prompts = parseReviewPrompts("## Scope\n\n[REVIEW: one\ntwo   three]");
+    expect(prompts[0].prompt).toBe("one two three");
+  });
+
+  it("reports nothing for a draft that has been fully answered", () => {
+    expect(parseReviewPrompts("## Scope\n\nSettled, in full.")).toEqual([]);
+  });
+
+  it("returns a marker with no heading above it rather than skipping it", () => {
+    const prompts = parseReviewPrompts("[REVIEW: say who signs]");
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0].section).toBeNull();
+  });
+});
+
+describe("resolveReviewPrompt", () => {
+  const draft = "## Electronic records\n\nRecords stay legible.\n\n[REVIEW: describe paper originals]";
+
+  it("puts the answer where the marker was", () => {
+    const out = resolveReviewPrompt(draft, "[REVIEW: describe paper originals]", "Originals are held in Ohio.");
+    expect(out).toBe("## Electronic records\n\nRecords stay legible.\n\nOriginals are held in Ohio.");
+    expect(parseReviewPrompts(out)).toEqual([]);
+  });
+
+  it("takes the introducing blank line with a struck-out passage", () => {
+    const out = resolveReviewPrompt(draft, "[REVIEW: describe paper originals]", "   ");
+    expect(out).toBe("## Electronic records\n\nRecords stay legible.");
+  });
+
+  it("resolves one marker without disturbing another", () => {
+    const two = "[REVIEW: first]\n\n[REVIEW: second]";
+    const out = resolveReviewPrompt(two, "[REVIEW: second]", "Answered.");
+    expect(out).toBe("[REVIEW: first]\n\nAnswered.");
+  });
+
+  it("leaves the draft alone when the marker is already gone", () => {
+    expect(resolveReviewPrompt(draft, "[REVIEW: not present]", "x")).toBe(draft);
+  });
+
+  it("clears the adoption block the API enforces once every passage is answered", () => {
+    let text = sectionsToText(draftRecordsProcedure(facts()));
+    for (const prompt of parseReviewPrompts(text)) {
+      text = resolveReviewPrompt(text, prompt.marker, "We keep no paper originals.");
+    }
+    expect(text).not.toContain("[REVIEW:");
   });
 });

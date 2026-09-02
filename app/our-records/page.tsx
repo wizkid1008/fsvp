@@ -167,7 +167,14 @@ export default async function OurRecordsPage() {
               <div className="border-t border-line px-5 py-4">
                 {EDITABLE_PROCEDURES.includes(kind.key) ? (
                   (() => {
-                    const live = procedures.find((p) => p.kind === kind.key) ?? null;
+                    // A kind can hold both at once — editing an adopted
+                    // procedure opens a draft while the adopted text stays in
+                    // force. The draft is what you work on, so it wins here.
+                    const forKind = procedures.filter((p) => p.kind === kind.key);
+                    const live =
+                      forKind.find((p) => p.status === "draft") ??
+                      forKind.find((p) => p.status === "adopted") ??
+                      null;
                     return (
                       <ProcedureEditor
                         kind={kind.key}

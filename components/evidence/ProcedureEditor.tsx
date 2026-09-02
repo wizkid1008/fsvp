@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, RefreshCw, Save, ShieldCheck } from "lucide-react";
+import { parseReviewPrompts, resolveReviewPrompt } from "@/lib/fsvp/procedure-draft";
 
 /**
  * Editing an FSVP procedure in place, rather than downloading and re-uploading.
@@ -32,11 +33,37 @@ export function ProcedureEditor({
   const router = useRouter();
   const [text, setText] = useState(content ?? "");
   const [dirty, setDirty] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const unresolved = text.includes("[REVIEW:");
+  const prompts = parseReviewPrompts(text);
+  const unresolved = prompts.length > 0;
+
+  /** Answering a prompt edits the document, so it leaves the same unsaved
+   *  state as typing in the textarea would. */
+  function answer(marker: string, written: string) {
+    setText((current) => resolveReviewPrompt(current, marker, written));
+    setAnswers((current) => {
+      const next = { ...current };
+      delete next[marker];
+      return next;
+    });
+    setDirty(true);
+    setMessage(null);
+  }
+
+  async function post(action: "generate" | "save" | "adopt", body?: string) {
+    const res = await fetch("/api/importer-procedures", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, action, content: action === "save" ? body : undefined }),
+    });
+    const json = (await res.json()) as { error?: string; content?: string };
+    if (!res.ok || json.error) throw new Error(json.error ?? "That did not work.");
+    return json;
+  }
 
   function call(action: "generate" | "save" | "adopt") {
     setError(null);
@@ -44,23 +71,34 @@ export function ProcedureEditor({
 
     startTransition(async () => {
       try {
-        const res = await fetch("/api/importer-procedures", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind, action, content: action === "save" ? text : undefined }),
-        });
-        const json = (await res.json()) as { error?: string; content?: string };
-        if (!res.ok || json.error) throw new Error(json.error ?? "That did not work.");
-
-        if (action === "generate" && json.content) {
-          setText(json.content);
-          setDirty(false);
-          setMessage("Draft rebuilt from your current configuration.");
+        if (action === "generate") {
+          const json = await post("generate");
+          if (json.content) {
+            setText(json.content);
+            setAnswers({});
+            setDirty(false);
+            setMessage("Draft rebuilt from your current configuration.");
+          }
         }
+
         if (action === "save") {
+          await post("save", text);
           setDirty(false);
           setMessage("Saved.");
         }
+
+        // Adopting an edited draft saves it first. The alternative — refusing
+        // until you press Save — makes the finished button the dead one at the
+        // exact moment the work is done.
+        if (action === "adopt") {
+          if (dirty) {
+            await post("save", text);
+            setDirty(false);
+          }
+          await post("adopt");
+          setMessage("Adopted.");
+        }
+
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "That did not work.");
@@ -97,7 +135,11 @@ export function ProcedureEditor({
             ? `Adopted${adoptedAt ? ` ${new Date(adoptedAt).toLocaleDateString()}` : ""}${adoptedBy ? ` by ${adoptedBy}` : ""}${version ? ` · version ${version}` : ""}`
             : `Draft${version ? ` · version ${version}` : ""} — not yet adopted`}
         </p>
-        {dirty && <span className="text-xs font-semibold text-amber-700">Unsaved changes</span>}
+        {dirty && (
+          <span className="text-xs font-semibold text-amber-700">
+            {status === "adopted" ? "Unsaved changes — these open a new draft" : "Unsaved changes"}
+          </span>
+        )}
       </div>
 
       <textarea
@@ -110,12 +152,63 @@ export function ProcedureEditor({
       />
 
       {unresolved && (
-        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900">
-          This draft still contains passages marked <code>[REVIEW:]</code>. They mark what the
-          platform cannot know about your operation — who authorises a temporary import, whether you
-          keep paper originals. Resolve them before adopting; leaving them in would state something
-          that may not be true.
-        </p>
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-semibold text-amber-900">
+            {prompts.length === 1
+              ? "One passage needs your answer before this can be adopted"
+              : `${prompts.length} passages need your answer before this can be adopted`}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-amber-900">
+            These mark what the platform cannot know about your operation. Answer each one here and
+            the wording goes into the document in place of the marker — or strike the passage out if
+            it does not apply to you.
+          </p>
+
+          <ul className="mt-3 space-y-3">
+            {prompts.map((prompt) => (
+              <li key={prompt.marker} className="rounded-md border border-amber-200 bg-white px-3 py-3">
+                {prompt.section && (
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    {prompt.section}
+                  </p>
+                )}
+                <p className="mt-1 text-sm leading-6 text-slate-700">{prompt.prompt}</p>
+
+                <textarea
+                  value={answers[prompt.marker] ?? ""}
+                  onChange={(event) =>
+                    setAnswers((current) => ({ ...current, [prompt.marker]: event.target.value }))
+                  }
+                  rows={3}
+                  spellCheck
+                  placeholder="Write what your organization actually does…"
+                  aria-label={`Answer for ${prompt.section ?? "this passage"}`}
+                  className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-forest"
+                />
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => answer(prompt.marker, answers[prompt.marker] ?? "")}
+                    disabled={pending || !(answers[prompt.marker] ?? "").trim()}
+                    className="inline-flex h-8 items-center rounded-md bg-forest px-3 text-xs font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-50"
+                  >
+                    Put this in the document
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => answer(prompt.marker, "")}
+                    disabled={pending}
+                    title="Removes the passage entirely, leaving the document silent on it"
+                    className="inline-flex h-8 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-forest hover:text-forest disabled:opacity-50"
+                  >
+                    Does not apply to us
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -123,6 +216,7 @@ export function ProcedureEditor({
           type="button"
           onClick={() => call("save")}
           disabled={pending || !dirty}
+          title={dirty ? "Save your edits to this draft" : "Nothing has changed since this draft was last saved"}
           className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest disabled:opacity-50"
         >
           <Save className="h-3.5 w-3.5" />
@@ -132,11 +226,11 @@ export function ProcedureEditor({
         <button
           type="button"
           onClick={() => call("adopt")}
-          disabled={pending || dirty || unresolved || status === "adopted"}
+          disabled={pending || unresolved || (status === "adopted" && !dirty)}
           title={
-            dirty ? "Save your changes first"
-            : unresolved ? "Resolve the passages marked for review first"
-            : status === "adopted" ? "This version is already adopted"
+            unresolved ? "Answer the passages marked for review first"
+            : status === "adopted" && !dirty ? "This version is already adopted"
+            : dirty ? "Saves your edits and adopts them as your organization's procedure"
             : "Adopt this as your organization's procedure"
           }
           className="inline-flex h-9 items-center gap-2 rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-50"
@@ -157,9 +251,9 @@ export function ProcedureEditor({
       </div>
 
       <p className="mt-2 text-xs leading-5 text-slate-500">
-        Adopting records who adopted it and when — that is the signature § 1.510(a)(2) requires.
-        A previously adopted version is superseded, never deleted, so it stays possible to say which
-        procedure was in force when a given approval was made.
+        {status === "adopted"
+          ? "This procedure is in force. Editing it starts a new draft; the adopted version stays as it is until you adopt the new one."
+          : "Adopting records who adopted it and when — that is the signature § 1.510(a)(2) requires. A previously adopted version is superseded, never deleted, so it stays possible to say which procedure was in force when a given approval was made."}
       </p>
 
       {message && <p className="mt-2 text-sm text-emerald-700">{message}</p>}

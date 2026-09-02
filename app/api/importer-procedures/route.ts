@@ -80,11 +80,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { error } = await (admin.from("importer_procedures") as any)
-      .update({ content, edited_at: now, updated_at: now })
+    const { data: draft } = await (admin.from("importer_procedures") as any)
+      .select("id")
       .eq("importer_id", importerId)
       .eq("kind", kind)
-      .eq("status", "draft");
+      .eq("status", "draft")
+      .maybeSingle();
+
+    // Editing an ADOPTED procedure opens a new draft rather than rewriting the
+    // one in force. § 1.510 retention applies to the procedure itself, so the
+    // adopted text has to stand until its replacement is adopted in turn —
+    // otherwise a change of practice would silently rewrite the document an
+    // investigator would be shown for approvals made last year.
+    if (!draft) {
+      const { data: latest } = await (admin.from("importer_procedures") as any)
+        .select("version")
+        .eq("importer_id", importerId)
+        .eq("kind", kind)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const { error } = await (admin.from("importer_procedures") as any).insert({
+        importer_id:           importerId,
+        kind,
+        content,
+        version:               (latest?.version ?? 0) + 1,
+        status:                "draft",
+        edited_at:             now,
+        created_by_profile_id: user.id,
+      });
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true, saved_at: now });
+    }
+
+    const { error } = await (admin.from("importer_procedures") as any)
+      .update({ content, edited_at: now, updated_at: now })
+      .eq("id", draft.id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, saved_at: now });
