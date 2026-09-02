@@ -29,7 +29,18 @@ import { FSVP_SETUP_STEPS, type FsvpSetupStepId } from "@/lib/setup/fsvp-steps";
 export type WorkGate = {
   id: FsvpSetupStepId;
   title: string;
+  /** The screen that does the work — where the action button goes. */
   href: string;
+  /**
+   * The same gate on /setup/fsvp, where its blockers are named per item.
+   *
+   * The dashboard row says "Classify product — 5 products"; the obvious next
+   * question is WHICH five, and the pipeline page has already answered it with
+   * a message and a fix button each. Without this the row sent people to
+   * /products to work that out for themselves, and the two surfaces read as
+   * rival lists rather than summary and detail.
+   */
+  detailHref: string;
   actionLabel: string;
   /** How many items still need this gate. */
   count: number;
@@ -105,6 +116,8 @@ export function outstandingWork(input: WorkInputs): WorkGate[] {
       id,
       title: copy.title,
       href: copy.href,
+      // Matches the `id={`gate-${step.id}`}` anchors on /setup/fsvp.
+      detailHref: `/setup/fsvp#gate-${id}`,
       actionLabel: copy.actionLabel,
       count,
       unit,

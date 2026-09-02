@@ -136,3 +136,28 @@ describe("outstandingCount", () => {
     expect(outstandingCount(outstandingWork(input()))).toBe(0);
   });
 });
+
+describe("detailHref", () => {
+  it("points every gate at its own anchor on the pipeline page", () => {
+    // The row says "5 products"; the obvious next question is which five, and
+    // /setup/fsvp has already named them with a fix button each.
+    for (const gate of outstandingWork(input())) {
+      expect(gate.detailHref).toBe(`/setup/fsvp#gate-${gate.id}`);
+    }
+  });
+
+  it("keeps the doing-screen separate from the detail view", () => {
+    // href is where the work happens, detailHref is where the blockers are
+    // listed. Collapsing them would lose one or the other.
+    const classify = outstandingWork(input()).find((g) => g.id === "classification");
+    expect(classify?.href).toBe("/products");
+    expect(classify?.detailHref).not.toBe(classify?.href);
+  });
+
+  it("matches the anchor ids the pipeline page renders", () => {
+    // app/setup/fsvp/page.tsx renders id={`gate-${step.id}`} for each stage,
+    // and step.id comes from the same FSVP_SETUP_STEPS list.
+    const ids = FSVP_SETUP_STEPS.map((s) => `/setup/fsvp#gate-${s.id}`);
+    expect(outstandingWork(input()).map((g) => g.detailHref)).toEqual(ids);
+  });
+});

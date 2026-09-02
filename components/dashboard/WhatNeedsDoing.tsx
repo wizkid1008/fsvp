@@ -32,7 +32,7 @@ export function WhatNeedsDoing({ gates }: { gates: WorkGate[] }) {
           <p className="mt-1 text-sm text-slate-500">
             {remaining === 0
               ? "Every gate is clear. Nothing is blocking an approval."
-              : `${remaining} of ${gates.length} gates have work outstanding. They apply per item, so more than one can be open at once.`}
+              : `${remaining} of ${gates.length} gates have work outstanding — they apply per item, so more than one is open at once. Each row opens the pipeline, where its blockers are named.`}
           </p>
         </div>
         {next && (
@@ -54,7 +54,7 @@ export function WhatNeedsDoing({ gates }: { gates: WorkGate[] }) {
           return (
             <li key={gate.id}>
               <Link
-                href={gate.href}
+                href={gate.detailHref}
                 className={`group flex flex-wrap items-center gap-3 px-5 py-3 transition hover:bg-slate-50 ${
                   isNext ? "bg-forest/5" : ""
                 }`}
