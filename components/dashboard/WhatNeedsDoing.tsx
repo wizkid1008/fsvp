@@ -23,14 +23,34 @@ import { firstOutstanding, outstandingCount, type WorkGate } from "@/lib/dashboa
  * calling its outstanding count a number of records would be wrong exactly
  * when the register is the thing missing.
  */
-function describe(count: number, unit: string | null) {
-  if (!unit) return `${count} outstanding`;
-  return `${count} ${unit}${count === 1 ? "" : "s"}`;
+function describe(value: number, unit: string | null) {
+  if (!unit) return `${value} outstanding`;
+  return `${value} ${unit}${value === 1 ? "" : "s"}`;
 }
 
-export function WhatNeedsDoing({ gates }: { gates: WorkGate[] }) {
+/** "3 exporters", "4 facilities" — irregular plurals passed in explicitly. */
+function count(value: number, singular: string, plural?: string) {
+  return `${value} ${value === 1 ? singular : plural ?? `${singular}s`}`;
+}
+
+export function WhatNeedsDoing({
+  gates,
+  supplyChain,
+}: {
+  gates: WorkGate[];
+  /** How much supply chain exists — the answer to "what do I have". */
+  supplyChain: { exporters: number; facilities: number; products: number };
+}) {
   const next = firstOutstanding(gates);
   const remaining = outstandingCount(gates);
+
+  // The three onboarding gates collapse into one line once they are clear.
+  // Three permanent ticks at the top of a worklist is the intro sitting inside
+  // the status; and what a reader actually wants from those rows once they are
+  // done is not "Done" three times but how much supply chain there is, which
+  // nothing on this page said at all.
+  const onboardingClear = gates.every((g) => !g.setup || g.count === 0);
+  const shown = onboardingClear ? gates.filter((g) => !g.setup) : gates;
 
   return (
     <section className="rounded-lg border border-line bg-white shadow-soft">
@@ -54,8 +74,20 @@ export function WhatNeedsDoing({ gates }: { gates: WorkGate[] }) {
         )}
       </div>
 
+      {onboardingClear && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-line bg-slate-50 px-5 py-2.5 text-xs text-slate-600">
+          <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+          <span className="font-semibold text-ink">{count(supplyChain.exporters, "exporter")}</span>
+          <span className="text-slate-300">·</span>
+          <span className="font-semibold text-ink">{count(supplyChain.facilities, "facility", "facilities")}</span>
+          <span className="text-slate-300">·</span>
+          <span className="font-semibold text-ink">{count(supplyChain.products, "product")}</span>
+          <span>registered</span>
+        </div>
+      )}
+
       <ul className="divide-y divide-line">
-        {gates.map((gate) => {
+        {shown.map((gate) => {
           const done = gate.count === 0;
           const isNext = next?.id === gate.id;
 

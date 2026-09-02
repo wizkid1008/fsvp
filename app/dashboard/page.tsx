@@ -141,7 +141,14 @@ async function ImporterDashboard({
           gating approvals" buckets and a "next step · 4 of 11" card, all the
           same data at different aggregations. The named items those tiles
           counted are still listed below in Needs your attention. */}
-      <WhatNeedsDoing gates={gates} />
+      <WhatNeedsDoing
+        gates={gates}
+        supplyChain={{
+          exporters:  plan?.summary.exporters ?? 0,
+          facilities: plan?.summary.facilities ?? 0,
+          products:   plan?.summary.products ?? 0,
+        }}
+      />
 
       {signals?.clear && gatesClear && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4">
