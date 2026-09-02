@@ -48,12 +48,20 @@ export type ImporterSignals = {
    * or approved for these.
   */
   undeterminedPairs: number;
-  /** Products blocked from a clean entry-readiness answer. */
+  /** Products blocked from a clean entry-readiness answer. Capped at 8 for display. */
   shipmentReadinessBlocks: SignalRow[];
-  /** Linked suppliers missing a current compliance-history screening. */
+  /** Linked suppliers missing a current compliance-history screening. Capped at 8. */
   screeningBlocks: SignalRow[];
-  /** Products needing classification, origin, or reference-rule coverage. */
+  /** Products needing classification, origin, or reference-rule coverage. Capped at 8. */
   referenceGaps: SignalRow[];
+  /**
+   * True totals for the three lists above, which are sliced for display. A
+   * tally taken from `.length` on those arrays stops at 8 and misreports every
+   * account with more than eight products.
+   */
+  shipmentReadinessBlockCount: number;
+  screeningBlockCount: number;
+  referenceGapCount: number;
   /** True when nothing at all needs attention. */
   clear: boolean;
 };
@@ -202,13 +210,19 @@ export async function fetchImporterSignals(
       .map((d) => [d.product_id, d])
   );
 
-  const shipmentReadinessBlocks = productRows
-    .filter((p) => !currentAdmissibility.has(p.id) || currentAdmissibility.get(p.id)?.outcome === "prohibited")
-    .slice(0, 8);
+  // Filtered once, then both a capped list and a true count. The arrays are
+  // display lists — eight rows is as many as a dashboard section should show —
+  // but `.length` on a sliced array is a cap, not a total, and a tally that
+  // silently stops at 8 misreports every account with more than eight products.
+  const shipmentReadinessAll = productRows.filter(
+    (p) => !currentAdmissibility.has(p.id) || currentAdmissibility.get(p.id)?.outcome === "prohibited"
+  );
+  const shipmentReadinessBlocks = shipmentReadinessAll.slice(0, 8);
 
-  const referenceGaps = productRows
-    .filter((p) => !p.commodity_id || !p.country_of_origin || !currentAdmissibility.has(p.id))
-    .slice(0, 8);
+  const referenceGapsAll = productRows.filter(
+    (p) => !p.commodity_id || !p.country_of_origin || !currentAdmissibility.has(p.id)
+  );
+  const referenceGaps = referenceGapsAll.slice(0, 8);
 
   const currentScreenings = new Map(
     ((screeningsRes.data ?? []) as Array<{ supplier_id: string; expires_at: string | null; conclusion: string; suppliers?: { company_name?: string } | null }>)
@@ -220,13 +234,13 @@ export async function fetchImporterSignals(
       .filter((p) => p.supplier_id)
       .map((p) => [p.supplier_id, p.suppliers?.company_name ?? "Supplier"])
   );
-  const screeningBlocks = supplierIds
+  const screeningBlocksAll = supplierIds
     .filter((supplierId) => {
       const screening = currentScreenings.get(supplierId);
       return !screening || screening.conclusion === "adverse_history_blocking";
     })
-    .map((supplierId) => ({ id: supplierId, supplier_name: supplierNameById.get(supplierId) ?? "Supplier" }))
-    .slice(0, 8);
+    .map((supplierId) => ({ id: supplierId, supplier_name: supplierNameById.get(supplierId) ?? "Supplier" }));
+  const screeningBlocks = screeningBlocksAll.slice(0, 8);
 
   const pendingReview = pendingRes.count ?? 0;
   const overdue  = (overdueRes.data ?? []) as SignalRow[];
@@ -247,6 +261,9 @@ export async function fetchImporterSignals(
     shipmentReadinessBlocks,
     screeningBlocks,
     referenceGaps,
+    shipmentReadinessBlockCount: shipmentReadinessAll.length,
+    screeningBlockCount:         screeningBlocksAll.length,
+    referenceGapCount:           referenceGapsAll.length,
     clear:
       pendingReview === 0 && overdue.length === 0 && dueSoon.length === 0 &&
       expiring.length === 0 && actions.length === 0 && drafts.length === 0 &&
