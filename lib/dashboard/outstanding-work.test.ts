@@ -1,40 +1,54 @@
 import { describe, expect, it } from "vitest";
 import { FSVP_SETUP_STEPS } from "@/lib/setup/fsvp-steps";
+import type { SetupStep } from "@/lib/setup/fsvp-workflow";
 import {
   firstOutstanding,
   outstandingCount,
   outstandingWork,
-  type WorkInputs,
 } from "./outstanding-work";
 
-/** A fully set-up account with nothing outstanding. */
-function input(over: Partial<WorkInputs> = {}): WorkInputs {
-  return {
-    exporterCount: 1,
-    facilityCount: 1,
-    productCount: 5,
-    unclassifiedProducts: 0,
-    referenceGapCount: 0,
-    undeterminedPairs: 0,
-    screeningBlockCount: 0,
-    pendingReview: 0,
-    unsignedRecords: 0,
-    recordsInReview: 0,
-    approvedRecords: 0,
-    ...over,
-  };
+/**
+ * Stages shaped like the planner's, since that is the only input now.
+ *
+ * `over` keys by step id: `{ classification: { done: 2, total: 5 } }`.
+ */
+function steps(
+  over: Record<string, { done?: number; total?: number; blockers?: number }> = {}
+): SetupStep[] {
+  return FSVP_SETUP_STEPS.map((step) => {
+    const o = over[step.id] ?? {};
+    const total = o.total ?? 1;
+    const done = o.done ?? total;
+    return {
+      id: step.id,
+      title: step.title,
+      description: step.description,
+      href: step.href,
+      actionLabel: step.actionLabel,
+      blockers: Array.from({ length: o.blockers ?? Math.max(0, total - done) }, (_, i) => ({
+        id: `${step.id}-${i}`,
+        message: `${step.id} blocker ${i}`,
+        href: step.href,
+        actionLabel: step.actionLabel,
+      })),
+      progress: { done, total },
+    };
+  }) as SetupStep[];
 }
 
 describe("outstandingWork", () => {
-  it("covers every canonical step, in order", () => {
+  it("covers every canonical gate, in order", () => {
     // The card this replaces could only ever reach six of the eleven, so the
     // "of 11" it printed described a list it could not walk.
-    const gates = outstandingWork(input());
-    expect(gates.map((g) => g.id)).toEqual(FSVP_SETUP_STEPS.map((s) => s.id));
+    expect(outstandingWork(steps()).map((g) => g.id)).toEqual(FSVP_SETUP_STEPS.map((s) => s.id));
   });
 
-  it("reaches the steps the old next-step chain could not", () => {
-    const gates = outstandingWork(input({ unsignedRecords: 2, recordsInReview: 1, screeningBlockCount: 3 }));
+  it("reaches the gates the old next-step chain could not", () => {
+    const gates = outstandingWork(steps({
+      screening: { done: 0, total: 3 },
+      qi:        { done: 1, total: 3 },
+      approval:  { done: 0, total: 1 },
+    }));
     const byId = Object.fromEntries(gates.map((g) => [g.id, g.count]));
 
     expect(byId.screening).toBe(3);
@@ -43,7 +57,10 @@ describe("outstandingWork", () => {
   });
 
   it("counts items rather than reporting one position for the account", () => {
-    const gates = outstandingWork(input({ unclassifiedProducts: 3, unsignedRecords: 2 }));
+    const gates = outstandingWork(steps({
+      classification: { done: 2, total: 5 },
+      qi:             { done: 0, total: 2 },
+    }));
     const byId = Object.fromEntries(gates.map((g) => [g.id, g.count]));
 
     // Both are true at once. The old card could only say one of them.
@@ -51,46 +68,42 @@ describe("outstandingWork", () => {
     expect(byId.qi).toBe(2);
   });
 
-  it("does not count a product at both classification and admissibility", () => {
-    // referenceGapCount is a superset of the unclassified ones. Showing it raw
-    // would ask someone to fix admissibility on a product that cannot have one
-    // until it is classified.
-    const gates = outstandingWork(input({ unclassifiedProducts: 5, referenceGapCount: 5 }));
-    const byId = Object.fromEntries(gates.map((g) => [g.id, g.count]));
+  it("counts outstanding items, not blockers", () => {
+    // One product can carry two blockers. Reporting "2 products" when there is
+    // one product with two problems would overstate how much is left.
+    const gates = outstandingWork(steps({ product: { done: 4, total: 5, blockers: 2 } }));
+    const product = gates.find((g) => g.id === "product");
 
-    expect(byId.classification).toBe(5);
-    expect(byId.admissibility).toBe(0);
+    expect(product?.count).toBe(1);
+    expect(product?.blockers).toBe(2);
   });
 
-  it("shows admissibility for products that are classified but undetermined", () => {
-    const gates = outstandingWork(input({ unclassifiedProducts: 2, referenceGapCount: 5 }));
-    expect(gates.find((g) => g.id === "admissibility")?.count).toBe(3);
+  it("never reports a negative count", () => {
+    const gates = outstandingWork(steps({ classification: { done: 9, total: 5 } }));
+    expect(gates.find((g) => g.id === "classification")?.count).toBe(0);
   });
 
-  it("never reports a negative count when the two queries disagree", () => {
-    const gates = outstandingWork(input({ unclassifiedProducts: 5, referenceGapCount: 2 }));
-    expect(gates.find((g) => g.id === "admissibility")?.count).toBe(0);
+  it("takes the planner's definition rather than a second opinion", () => {
+    // The dashboard used to answer "Create product — Done" from its own
+    // shallow check while the pipeline said one product was missing its
+    // facility link. There is one source now, so a partly-done stage is
+    // outstanding on both surfaces.
+    const gates = outstandingWork(steps({ product: { done: 4, total: 5 } }));
+    expect(gates.find((g) => g.id === "product")?.count).toBe(1);
   });
 
-  it("treats the first three steps as one-off setup, not as item counts", () => {
-    const gates = outstandingWork(input({ exporterCount: 0, facilityCount: 0, productCount: 0 }));
+  it("flags the three onboarding gates as setup", () => {
+    const gates = outstandingWork(steps());
     for (const id of ["exporter", "facility", "product"]) {
-      const gate = gates.find((g) => g.id === id);
-      expect(gate?.setup).toBe(true);
-      expect(gate?.count).toBe(1);
+      expect(gates.find((g) => g.id === id)?.setup).toBe(true);
     }
-  });
-
-  it("counts a satisfied setup step as zero however many items exist", () => {
-    const gates = outstandingWork(input({ exporterCount: 9, productCount: 40 }));
-    expect(gates.find((g) => g.id === "exporter")?.count).toBe(0);
-    expect(gates.find((g) => g.id === "product")?.count).toBe(0);
+    expect(gates.find((g) => g.id === "qi")?.setup).toBe(false);
   });
 
   it("marks the inspection package as available rather than outstanding", () => {
     // Generating one is something you may do for an approved record, not
     // something overdue — it must not make an otherwise clear account look busy.
-    const gates = outstandingWork(input({ approvedRecords: 3 }));
+    const gates = outstandingWork(steps({ package: { done: 0, total: 3 } }));
     const pkg = gates.find((g) => g.id === "package");
 
     expect(pkg?.optional).toBe(true);
@@ -99,8 +112,26 @@ describe("outstandingWork", () => {
     expect(firstOutstanding(gates)).toBeNull();
   });
 
+  it("names each stage's unit from what the planner actually counts", () => {
+    const gates = outstandingWork(steps());
+    const unit = (id: string) => gates.find((g) => g.id === id)?.unit;
+
+    // The facility stage counts EXPORTERS that have a facility, not facilities.
+    expect(unit("facility")).toBe("exporter");
+    expect(unit("classification")).toBe("product");
+    expect(unit("approval")).toBe("record");
+  });
+
+  it("refuses to name a unit the QI stage cannot honestly claim", () => {
+    // Its total is 1 + records: one slot for whether the register holds an
+    // active qualified individual at all, then one per record. Calling the
+    // outstanding count a number of records is wrong exactly when the register
+    // is the thing missing.
+    expect(outstandingWork(steps()).find((g) => g.id === "qi")?.unit).toBeNull();
+  });
+
   it("carries the canonical copy rather than restating it", () => {
-    const gates = outstandingWork(input());
+    const gates = outstandingWork(steps());
     const classify = gates.find((g) => g.id === "classification");
     const canonical = FSVP_SETUP_STEPS.find((s) => s.id === "classification");
 
@@ -111,37 +142,40 @@ describe("outstandingWork", () => {
 });
 
 describe("firstOutstanding", () => {
-  it("picks the earliest gate with work, matching the old card's one good idea", () => {
-    const gates = outstandingWork(input({ unclassifiedProducts: 5, unsignedRecords: 2 }));
+  it("picks the earliest gate with work", () => {
+    const gates = outstandingWork(steps({
+      classification: { done: 0, total: 5 },
+      qi:             { done: 0, total: 2 },
+    }));
     expect(firstOutstanding(gates)?.id).toBe("classification");
   });
 
   it("falls through to a later gate once the earlier ones are clear", () => {
-    const gates = outstandingWork(input({ unsignedRecords: 2 }));
-    expect(firstOutstanding(gates)?.id).toBe("qi");
+    expect(firstOutstanding(outstandingWork(steps({ qi: { done: 0, total: 2 } })))?.id).toBe("qi");
   });
 
-  it("returns nothing when the programme is complete", () => {
-    expect(firstOutstanding(outstandingWork(input()))).toBeNull();
+  it("returns nothing when every gate is clear", () => {
+    expect(firstOutstanding(outstandingWork(steps()))).toBeNull();
   });
 });
 
 describe("outstandingCount", () => {
   it("counts gates with work, not items", () => {
-    const gates = outstandingWork(input({ unclassifiedProducts: 40, unsignedRecords: 2 }));
+    const gates = outstandingWork(steps({
+      classification: { done: 0, total: 40 },
+      qi:             { done: 0, total: 2 },
+    }));
     expect(outstandingCount(gates)).toBe(2);
   });
 
   it("is zero for a clear programme", () => {
-    expect(outstandingCount(outstandingWork(input()))).toBe(0);
+    expect(outstandingCount(outstandingWork(steps()))).toBe(0);
   });
 });
 
 describe("detailHref", () => {
   it("points every gate at its own anchor on the pipeline page", () => {
-    // The row says "5 products"; the obvious next question is which five, and
-    // /setup/fsvp has already named them with a fix button each.
-    for (const gate of outstandingWork(input())) {
+    for (const gate of outstandingWork(steps())) {
       expect(gate.detailHref).toBe(`/setup/fsvp#gate-${gate.id}`);
     }
   });
@@ -149,7 +183,7 @@ describe("detailHref", () => {
   it("keeps the doing-screen separate from the detail view", () => {
     // href is where the work happens, detailHref is where the blockers are
     // listed. Collapsing them would lose one or the other.
-    const classify = outstandingWork(input()).find((g) => g.id === "classification");
+    const classify = outstandingWork(steps()).find((g) => g.id === "classification");
     expect(classify?.href).toBe("/products");
     expect(classify?.detailHref).not.toBe(classify?.href);
   });
@@ -158,6 +192,6 @@ describe("detailHref", () => {
     // app/setup/fsvp/page.tsx renders id={`gate-${step.id}`} for each stage,
     // and step.id comes from the same FSVP_SETUP_STEPS list.
     const ids = FSVP_SETUP_STEPS.map((s) => `/setup/fsvp#gate-${s.id}`);
-    expect(outstandingWork(input()).map((g) => g.detailHref)).toEqual(ids);
+    expect(outstandingWork(steps()).map((g) => g.detailHref)).toEqual(ids);
   });
 });

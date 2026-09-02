@@ -20,6 +20,7 @@ import { RecordProgressList } from "@/components/dashboard/RecordProgressList";
 import { summariseStages } from "@/lib/fsvp/record-stages";
 import { WhatNeedsDoing } from "@/components/dashboard/WhatNeedsDoing";
 import { outstandingCount, outstandingWork } from "@/lib/dashboard/outstanding-work";
+import { loadCompleteFsvpSetupPlan } from "@/lib/setup/fsvp-workflow";
 import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
 import { ArrowRight, ClipboardList, ShieldCheck } from "lucide-react";
 
@@ -61,62 +62,27 @@ async function ImporterDashboard({
     ? await fetchImporterSignals(supabase, importerId, supplierIds)
     : null;
 
-  // `signals.clear` only measures whether EXISTING work is decaying — evidence
-  // expiring, reassessments overdue, signatures missing. On an account that has
-  // created nothing yet every one of those counts is zero, so a brand-new
-  // importer with ten of eleven setup steps outstanding was told "Nothing needs
-  // your attention". Two counts are enough to tell "not started" from "all
-  // clear".
-  const [{ count: facilityCount }, { data: productRows }] = supplierIds.length
-    ? await Promise.all([
-        (supabase.from("facilities_verify") as any)
-          .select("id", { count: "exact", head: true })
-          .in("supplier_id", supplierIds) as Promise<{ count: number | null }>,
-        // Columns rather than a head count: the next step cannot be worked out
-        // from how many products exist, only from what is missing on them.
-        (supabase.from("products_verify") as any)
-          .select("id, commodity_id, country_of_origin")
-          .eq("lifecycle", "active")
-          .in("supplier_id", supplierIds) as Promise<{
-            data: Array<{ commodity_id: string | null; country_of_origin: string | null }> | null;
-          }>,
-      ])
-    : [{ count: 0 }, { data: [] }];
-
-  const products = productRows ?? [];
-  const unclassified = products.filter((p) => !p.commodity_id || !p.country_of_origin).length;
-
+  // The facility and product counts this page used to fetch for itself are on
+  // the plan below, which already loads both to evaluate its gates.
   const stageSummary = summariseStages(fsvpRows);
 
   /**
-   * Every canonical gate, with how many items still need it.
+   * The gates, from the same planner /setup/fsvp reads.
    *
-   * This replaces a chain that picked the FIRST outstanding step and showed it
-   * as the account's position. Two things were wrong with that. It could not
-   * reach past step six — screening, evidence review, QI attestations,
-   * approval and the inspection package were unreachable, so the card went
-   * quiet exactly when signing and approval began. And it modelled a per-item
-   * pipeline as one global cursor: "Classify product" was true of five
-   * products, and there was no way to say that three need classification while
-   * two need admissibility and a record further on is stuck at QI.
+   * These counts used to be derived here from signals, while the pipeline page
+   * derived the same eleven gates from loadCompleteFsvpSetupPlan. The two
+   * disagreed in front of the user: this page said "Create product — Done"
+   * (is there at least one product?) while the pipeline said "1 blocker —
+   * Cocoa Powder is missing its facility link" (does every product carry its
+   * exporter and facility?), and the row here linked to the row there that
+   * contradicted it.
    *
-   * The counts come from signals rather than from the capped display lists —
-   * `referenceGaps` and friends stop at eight rows.
+   * The planner owns what outstanding means. Signals stays for the deadline
+   * work below — expiring documents, overdue reassessments, corrective actions
+   * — which the planner does not compute.
    */
-  const gates = outstandingWork({
-    exporterCount:        supplierIds.length,
-    facilityCount:        facilityCount ?? 0,
-    productCount:         products.length,
-    unclassifiedProducts: unclassified,
-    referenceGapCount:    signals?.referenceGapCount ?? 0,
-    undeterminedPairs:    signals?.undeterminedPairs ?? 0,
-    screeningBlockCount:  signals?.screeningBlockCount ?? 0,
-    pendingReview:        signals?.pendingReview ?? 0,
-    unsignedRecords:      signals?.unsignedRecords ?? 0,
-    recordsInReview:      stageSummary.byStage[2],
-    approvedRecords:      stageSummary.byStage[3],
-  });
-
+  const plan = importerId ? await loadCompleteFsvpSetupPlan(supabase, importerId) : null;
+  const gates = plan ? outstandingWork(plan.steps) : [];
   const gatesClear = outstandingCount(gates) === 0;
 
   return (

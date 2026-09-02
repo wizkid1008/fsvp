@@ -618,8 +618,15 @@ export async function loadCompleteFsvpSetupPlan(
       .select("fsvp_record_id")
       .eq("importer_id", importerId)
       .eq("report_type", "fsvp_record_package"),
+    // Scoped through the record to this importer. This ran unfiltered, and
+    // loadCompleteFsvpSetupPlan is called with the ADMIN client, which bypasses
+    // RLS — so it pulled every tenant's evidence rows into the map. Nothing
+    // cross-tenant was displayed, because every lookup is by one of this
+    // importer's own record ids, but the map held other tenants' data and the
+    // first code to iterate it rather than index it would have leaked.
     (supabase.from("fsvp_record_evidence") as any)
-      .select("fsvp_record_id, documents!inner(evidence_status)"),
+      .select("fsvp_record_id, documents!inner(evidence_status), fsvp_records!inner(importer_id)")
+      .eq("fsvp_records.importer_id", importerId),
     (supabase.from("qualified_individuals") as any)
       .select("id, active_from, active_to")
       .eq("importer_id", importerId),

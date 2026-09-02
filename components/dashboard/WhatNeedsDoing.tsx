@@ -16,7 +16,15 @@ import { firstOutstanding, outstandingCount, type WorkGate } from "@/lib/dashboa
  * your attention. Nothing was lost by deleting the counts of them.
  */
 
-function plural(count: number, unit: string) {
+/**
+ * "5 products", or a bare "2 outstanding" where the unit cannot be named.
+ *
+ * The QI stage counts one slot for the register plus one per record, so
+ * calling its outstanding count a number of records would be wrong exactly
+ * when the register is the thing missing.
+ */
+function describe(count: number, unit: string | null) {
+  if (!unit) return `${count} outstanding`;
   return `${count} ${unit}${count === 1 ? "" : "s"}`;
 }
 
@@ -59,16 +67,30 @@ export function WhatNeedsDoing({ gates }: { gates: WorkGate[] }) {
                   isNext ? "bg-forest/5" : ""
                 }`}
               >
+                {/* A dot, not the count. This badge held the number, which the
+                    row then printed again on the right — and on the left of an
+                    ordered list a bare integer reads as POSITION, so "Classify
+                    product" showed a 1 while the pipeline calls the same gate
+                    Stage 4, and "Open FSVP record" looked like step 5 when it
+                    meant five products. */}
                 <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
                     done
                       ? "bg-emerald-50 text-emerald-600"
                       : gate.optional
-                      ? "bg-slate-100 text-slate-500"
-                      : "bg-amber-100 text-amber-800"
+                      ? "bg-slate-100"
+                      : "bg-amber-100"
                   }`}
                 >
-                  {done ? <Check className="h-3 w-3" /> : gate.count}
+                  {done ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        gate.optional ? "bg-slate-400" : "bg-amber-600"
+                      }`}
+                    />
+                  )}
                 </span>
 
                 <span
@@ -81,14 +103,10 @@ export function WhatNeedsDoing({ gates }: { gates: WorkGate[] }) {
 
                 <span className="text-xs text-slate-500">
                   {done
-                    ? gate.setup
-                      ? "Done"
-                      : "Clear"
-                    : gate.setup
-                    ? "Not started"
+                    ? "Clear"
                     : gate.optional
-                    ? `${plural(gate.count, gate.unit)} ready`
-                    : plural(gate.count, gate.unit)}
+                    ? `${describe(gate.count, gate.unit)} ready`
+                    : describe(gate.count, gate.unit)}
                 </span>
 
                 <ArrowRight

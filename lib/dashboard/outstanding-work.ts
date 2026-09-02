@@ -1,30 +1,64 @@
 /**
  * The whole book of outstanding work, one row per canonical gate.
  *
- * WHY THIS REPLACES "NEXT STEP · 4 OF 11"
+ * WHY THIS READS THE PIPELINE PLANNER
  *
- * That card picked the first gate with any work outstanding and showed it as
- * the account's position. Two things were wrong with it.
+ * It used to compute its own counts from fetchImporterSignals, while
+ * /setup/fsvp computed the same eleven gates from loadCompleteFsvpSetupPlan.
+ * Two query sets, two definitions, one name each — and they disagreed in front
+ * of the user. The dashboard said "Create product — Done" (is there at least
+ * one product?) while the pipeline said "1 blocker — Cocoa Powder is missing
+ * its facility link" (does every product have its exporter and facility?), and
+ * the dashboard row linked to the pipeline row contradicting it. The totals
+ * disagreed too: 5 of 11 gates outstanding against 8 of 11 stages blocked.
  *
- * It was unreachable past step six. The selecting chain ran exporter →
- * facility → product → classification → admissibility → record → null, so
- * screening, evidence review, QI attestations, approval and the inspection
- * package could never be named — the card went quiet exactly when signing and
- * approval began, while a tile above it said two records were unsigned. The
- * "of 11" denominator described a list the mechanism could not walk.
+ * So there is one source now. The planner does the deep per-item validation
+ * and owns what "outstanding" means; this maps its stages into dashboard rows
+ * and adds nothing of its own. The two surfaces cannot drift because there is
+ * no second opinion to drift from.
  *
- * And it modelled a per-item pipeline as a global cursor. "Classify product"
- * was true of five products; the card showed one step, one button, and no way
- * to say that three products need classification while two need admissibility
- * and a record further along is stuck at QI. An account does not have a
- * position. Its items do.
+ * WHY IT REPLACED "NEXT STEP · 4 OF 11"
  *
- * So every gate is listed, in the canonical order, each with a count of the
- * ITEMS that still need it. The first outstanding one keeps the emphasis the
- * old card had, which is the one thing it got right.
+ * That card picked the first gate with work and showed it as the account's
+ * position. It could not reach past step six — screening, evidence review, QI
+ * attestations, approval and the inspection package were unreachable, so it
+ * went quiet exactly when signing and approval began. And it modelled a
+ * per-item pipeline as a global cursor: "Classify product" was true of five
+ * products, with no way to say that three need classification while two need
+ * admissibility and a record further on is stuck at QI. An account does not
+ * have a position. Its items do.
  */
 
-import { FSVP_SETUP_STEPS, type FsvpSetupStepId } from "@/lib/setup/fsvp-steps";
+import { isOnboardingStep } from "@/lib/setup/fsvp-steps";
+import type { FsvpSetupStepId } from "@/lib/setup/fsvp-steps";
+// Type-only: erased at compile time, so the dashboard does not pull the
+// planner's query layer into any bundle that only needs the shape.
+import type { SetupStep } from "@/lib/setup/fsvp-workflow";
+
+/**
+ * What each stage counts, singular.
+ *
+ * Taken from the planner's own progress units rather than assumed — the
+ * facility stage counts EXPORTERS that have a facility, not facilities, and
+ * the later stages count records. `null` means the unit cannot be named
+ * honestly: the QI stage's total is `1 + records` (one slot for whether the
+ * register has an active qualified individual at all, then one per record), so
+ * calling its outstanding count a number of records would be wrong whenever
+ * the register is the thing missing.
+ */
+const STAGE_UNITS: Record<string, string | null> = {
+  exporter:       "exporter",
+  facility:       "exporter",
+  product:        "product",
+  classification: "product",
+  admissibility:  "product",
+  record:         "product",
+  screening:      "record",
+  evidence:       "record",
+  qi:             null,
+  approval:       "record",
+  package:        "approved record",
+};
 
 export type WorkGate = {
   id: FsvpSetupStepId;
@@ -34,21 +68,22 @@ export type WorkGate = {
   /**
    * The same gate on /setup/fsvp, where its blockers are named per item.
    *
-   * The dashboard row says "Classify product — 5 products"; the obvious next
-   * question is WHICH five, and the pipeline page has already answered it with
-   * a message and a fix button each. Without this the row sent people to
-   * /products to work that out for themselves, and the two surfaces read as
-   * rival lists rather than summary and detail.
+   * The row says "Classify product — 5 products"; the obvious next question is
+   * WHICH five, and the pipeline page has already answered it with a message
+   * and a fix button each.
    */
   detailHref: string;
   actionLabel: string;
-  /** How many items still need this gate. */
+  /** Items at this stage that are not yet done. */
   count: number;
-  /** What the count counts, singular — "product", "record", "supplier". */
-  unit: string;
+  /** Named blockers the pipeline can show for this stage. */
+  blockers: number;
+  /** What `count` counts, singular. Null when it cannot be named honestly. */
+  unit: string | null;
   /**
-   * A one-off setup step rather than a per-item gate. Counted 1 or 0, and
-   * phrased as done/not done rather than as a number of things.
+   * One of the three gates that genuinely finish. Until the account holds one
+   * exporter, one facility and one product nothing downstream can happen;
+   * after that these keep only their per-item blockers.
    */
   setup: boolean;
   /**
@@ -59,72 +94,23 @@ export type WorkGate = {
   optional: boolean;
 };
 
-export type WorkInputs = {
-  exporterCount: number;
-  facilityCount: number;
-  productCount: number;
-  /** Products missing a commodity or a country of origin. */
-  unclassifiedProducts: number;
-  /** Products missing classification, origin OR a current admissibility determination. */
-  referenceGapCount: number;
-  /** Products with no live FSVP applicability determination. */
-  undeterminedPairs: number;
-  /** Linked suppliers with no current compliance-history screening. */
-  screeningBlockCount: number;
-  /** Exporter submissions waiting on the importer. */
-  pendingReview: number;
-  /** Pre-approval records carrying no qualified individual signature. */
-  unsignedRecords: number;
-  /** Records sitting at importer review. */
-  recordsInReview: number;
-  /** Records approved and in monitoring. */
-  approvedRecords: number;
-};
-
-function step(id: FsvpSetupStepId) {
-  const found = FSVP_SETUP_STEPS.find((s) => s.id === id);
-  if (!found) throw new Error(`Unknown FSVP setup step: ${id}`);
-  return found;
-}
-
-export function outstandingWork(input: WorkInputs): WorkGate[] {
-  // Products carrying a classification gap are already counted at the
-  // classification gate, and referenceGapCount is a superset of them. Showing
-  // the raw superset here would count the same product at two gates and invite
-  // someone to "fix" admissibility on a product that cannot have one yet.
-  // Clamped because the two counts come from different queries and a race
-  // between them must not produce a negative.
-  const admissibilityOnly = Math.max(0, input.referenceGapCount - input.unclassifiedProducts);
-
-  const rows: Array<[FsvpSetupStepId, number, string, boolean, boolean]> = [
-    ["exporter",       input.exporterCount === 0 ? 1 : 0, "exporter",   true,  false],
-    ["facility",       input.facilityCount === 0 ? 1 : 0, "facility",   true,  false],
-    ["product",        input.productCount === 0 ? 1 : 0,  "product",    true,  false],
-    ["classification", input.unclassifiedProducts,        "product",    false, false],
-    ["admissibility",  admissibilityOnly,                 "product",    false, false],
-    ["record",         input.undeterminedPairs,           "product",    false, false],
-    ["screening",      input.screeningBlockCount,         "supplier",   false, false],
-    ["evidence",       input.pendingReview,               "submission", false, false],
-    ["qi",             input.unsignedRecords,             "record",     false, false],
-    ["approval",       input.recordsInReview,             "record",     false, false],
-    ["package",        input.approvedRecords,             "record",     false, true ],
-  ];
-
-  return rows.map(([id, count, unit, setup, optional]) => {
-    const copy = step(id);
-    return {
-      id,
-      title: copy.title,
-      href: copy.href,
-      // Matches the `id={`gate-${step.id}`}` anchors on /setup/fsvp.
-      detailHref: `/setup/fsvp#gate-${id}`,
-      actionLabel: copy.actionLabel,
-      count,
-      unit,
-      setup,
-      optional,
-    };
-  });
+export function outstandingWork(steps: SetupStep[]): WorkGate[] {
+  return steps.map((step) => ({
+    id: step.id as FsvpSetupStepId,
+    title: step.title,
+    href: step.href,
+    // Matches the `id={`gate-${step.id}`}` anchors on /setup/fsvp.
+    detailHref: `/setup/fsvp#gate-${step.id}`,
+    actionLabel: step.actionLabel,
+    // Items outstanding, not blockers: one product can carry two blockers, and
+    // "2 products" when there is one product with two problems would overstate
+    // how much is left. The blocker count travels alongside for the pipeline.
+    count: Math.max(0, step.progress.total - step.progress.done),
+    blockers: step.blockers.length,
+    unit: STAGE_UNITS[step.id] ?? null,
+    setup: isOnboardingStep(step.id),
+    optional: step.id === "package",
+  }));
 }
 
 /** The first gate with work outstanding — what the old card called next step. */
