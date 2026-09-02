@@ -18,28 +18,84 @@ jobs:
           INGEST_TRIGGER_SECRET: ${{ secrets.INGEST_TRIGGER_SECRET }}
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+
+          # This workflow failed 21 times between 2026-08-13 and 2026-09-02
+          # without once saying why. It exits in three different places and
+          # discarded the HTTP status and body it already had in hand, so
+          # telling a missing repository secret from a missing Cloudflare
+          # binding needed a GitHub login and a read of the raw log. Nobody
+          # did that for three weeks.
+          #
+          # So every exit below names itself. The cost is a few lines of shell;
+          # the saving is that the Actions list alone tells you what to fix.
+
+          fail() { echo "::error::$*"; exit 1; }
 
           if [[ -z "${FSVP_BASE_URL:-}" ]]; then
-            echo "FSVP_BASE_URL secret is required, for example https://fsvp.pages.dev" >&2
-            exit 1
+            fail "Repository secret FSVP_BASE_URL is not set. Add it under Settings → Secrets and variables → Actions, for example https://fsvp.pages.dev"
           fi
           if [[ -z "${INGEST_TRIGGER_SECRET:-}" ]]; then
-            echo "INGEST_TRIGGER_SECRET secret is required." >&2
-            exit 1
+            fail "Repository secret INGEST_TRIGGER_SECRET is not set. Add it under Settings → Secrets and variables → Actions, matching the Cloudflare Pages runtime binding of the same name."
           fi
 
           endpoint="${FSVP_BASE_URL%/}/api/cron/compliance"
+          echo "Endpoint: ${endpoint}"
+
+          status=""
+          body=""
+
+          # Sets $status and $body. Returns non-zero only when curl itself
+          # could not complete — an HTTP error is a result, not a failure to
+          # get one, and the caller decides what it means.
+          call() {
+            local payload="$1" raw
+            raw="$(
+              curl --silent --show-error --max-time 120 \
+                --write-out $'\n%{http_code}' \
+                --request POST "${endpoint}" \
+                --header "content-type: application/json" \
+                --header "x-ingest-trigger-secret: ${INGEST_TRIGGER_SECRET}" \
+                --data "${payload}"
+            )" || return 1
+            status="${raw##*$'\n'}"
+            body="${raw%$'\n'*}"
+            return 0
+          }
+
+          # Turns the two states that mean "misconfigured" into the sentence
+          # that names which side is wrong. They are indistinguishable from a
+          # bare red X, and they are the only two that have ever happened.
+          diagnose() {
+            case "${status}" in
+              404)
+                if [[ "${body}" == *"not configured"* ]]; then
+                  fail "The deployment answered 404 'Scheduled ingest is not configured'. INGEST_TRIGGER_SECRET is missing from Cloudflare Pages, or its value contains 'xxxxx', which lib/auth/trigger-secret.ts treats as a placeholder. Set it under Pages → Settings → Bindings (RUNTIME scope, not Variables and secrets), then re-run this workflow."
+                fi
+                fail "404 from ${endpoint}. The route is not deployed at this path — check FSVP_BASE_URL points at the current Pages project. Body: ${body}"
+                ;;
+              401)
+                fail "The deployment answered 401. Cloudflare has INGEST_TRIGGER_SECRET set, but it does not match the GitHub repository secret of the same name. Make the two identical."
+                ;;
+              000)
+                fail "No HTTP response from ${endpoint}. Check FSVP_BASE_URL resolves and the deployment is live."
+                ;;
+            esac
+          }
+
           echo "::group::alerts"
-          response="$(
-            curl --fail-with-body --silent --show-error \
-              --request POST "${endpoint}" \
-              --header "content-type: application/json" \
-              --header "x-ingest-trigger-secret: ${INGEST_TRIGGER_SECRET}" \
-              --data "{\"alerts\":true}"
-          )"
-          echo "${response}"
+          if ! call '{"alerts":true}'; then
+            fail "curl could not reach ${endpoint}. Check FSVP_BASE_URL is a reachable https URL."
+          fi
+          echo "HTTP ${status}"
+          echo "${body}"
           echo "::endgroup::"
+
+          # Aborts here rather than repeating an identical failure five times.
+          # Every non-2xx seen so far has been configuration, which no later
+          # call would survive either.
+          diagnose
+          [[ "${status}" == 2* ]] || fail "Alert generation returned HTTP ${status}: ${body}"
 
           sources=(
             fda_food_enforcement
@@ -48,15 +104,30 @@ jobs:
             fda_compliance_actions
           )
 
+          # Past the auth gate, one bad source is not the other three. Each is
+          # reported and the run carries on, so a single broken FDA feed does
+          # not hide three working ones behind one red X.
+          failed=()
           for source in "${sources[@]}"; do
             echo "::group::${source}"
-            response="$(
-              curl --fail-with-body --silent --show-error \
-                --request POST "${endpoint}" \
-                --header "content-type: application/json" \
-                --header "x-ingest-trigger-secret: ${INGEST_TRIGGER_SECRET}" \
-                --data "{\"source\":\"${source}\",\"alerts\":false}"
-            )"
-            echo "${response}"
+            if ! call "{\"source\":\"${source}\",\"alerts\":false}"; then
+              echo "::warning::${source}: curl could not complete"
+              failed+=("${source} (no response)")
+              echo "::endgroup::"
+              continue
+            fi
+            echo "HTTP ${status}"
+            echo "${body}"
             echo "::endgroup::"
+
+            if [[ "${status}" != 2* ]]; then
+              echo "::warning::${source} returned HTTP ${status}: ${body}"
+              failed+=("${source} (HTTP ${status})")
+            fi
           done
+
+          if (( ${#failed[@]} > 0 )); then
+            fail "${#failed[@]} of ${#sources[@]} FDA sources failed: ${failed[*]}"
+          fi
+
+          echo "All ${#sources[@]} sources advanced and alerts generated."

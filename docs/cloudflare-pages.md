@@ -133,6 +133,25 @@ When `INGEST_TRIGGER_SECRET` is unset in Cloudflare, `/api/cron/compliance`
 returns 404 and does no work. That keeps the machine-triggered path disabled
 until deployment is deliberately configured.
 
+**A value containing `xxxxx` counts as unset here too** — the same placeholder
+rule as the service-role key above, applied by `configuredSecret()` in
+`lib/auth/trigger-secret.ts`. A binding filled in with scaffold text therefore
+looks configured in the Cloudflare dashboard and behaves as though it were
+missing, which is the harder version of this failure to see.
+
+Whichever it is, the deployment will tell you without a GitHub login:
+
+```bash
+curl -i -X POST https://fsvp.pages.dev/api/cron/compliance \
+  -H 'content-type: application/json' --data '{"alerts":false}'
+```
+
+`404 Scheduled ingest is not configured` means the Cloudflare binding is
+missing or a placeholder. `401 Invalid scheduled ingest secret` means it is set
+but does not match the GitHub repository secret. Anything else means the two
+agree and the problem is elsewhere. The workflow now reports the same
+distinction itself, so a red run in the Actions list names its own cause.
+
 ## Deployment Workflow
 
 1. Push the repository to GitHub.
