@@ -59,6 +59,22 @@ export async function POST(
     return NextResponse.json({ error: "Only accepted documents can be attached to an FSVP record." }, { status: 400 });
   }
 
+  // The document must belong to the supplier this record is about.
+  //
+  // supplier_id was being selected and never compared. Because `admin` bypasses
+  // RLS, that left the only check on WHICH document you may attach in the
+  // dropdown that builds the request — so a POST naming any accepted document's
+  // id would attach it, including one belonging to another importer's supplier.
+  // The evidence package is what an FSVP record is approved on and what an
+  // investigator is shown, so a foreign document reaching it is both a tenancy
+  // leak and a false record.
+  if (doc.supplier_id !== record.supplier_id) {
+    return NextResponse.json(
+      { error: "That document belongs to a different supplier than this FSVP record." },
+      { status: 400 }
+    );
+  }
+
   const { error } = await (admin.from("fsvp_record_evidence") as any)
     .insert({
       fsvp_record_id: id,

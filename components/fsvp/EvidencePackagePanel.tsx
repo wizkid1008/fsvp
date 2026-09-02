@@ -164,7 +164,12 @@ export function EvidencePackagePanel({
                 {unattached.map((doc) => (
                   <option key={doc.id} value={doc.id}>
                     {doc.title}
-                    {doc.requirement_item_name ? ` — ${doc.requirement_item_name}` : ""}
+                    {/* A document uploaded against a requirement of the same
+                        name rendered as "Current Product Label — Current
+                        Product Label", which reads like two different things. */}
+                    {doc.requirement_item_name && doc.requirement_item_name !== doc.title
+                      ? ` — ${doc.requirement_item_name}`
+                      : ""}
                   </option>
                 ))}
               </select>
