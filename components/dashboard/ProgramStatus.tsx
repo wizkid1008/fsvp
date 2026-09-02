@@ -2,7 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import { RECORD_STAGES, type StageSummary } from "@/lib/fsvp/record-stages";
 
 /**
- * Where the whole programme stands, in one bar.
+ * Where the whole programme stands.
  *
  * The dashboard could say how many records were unsigned, how many products
  * lacked applicability, and how many things were gating approvals — six tiles
@@ -10,13 +10,22 @@ import { RECORD_STAGES, type StageSummary } from "@/lib/fsvp/record-stages";
  * records exist and how many are approved. Counts of what is wrong are not a
  * status; they are a worklist. This is the status.
  *
- * One stacked bar rather than four numbers, because the question an importer
- * opens the app with is proportional — "are we mostly through?" — and a row of
- * counts makes the reader do that arithmetic themselves.
+ * SHOWN AS A TRACK, NOT A PROPORTIONAL BAR
+ *
+ * The first attempt was one stacked bar sized by how many records sat in each
+ * stage. On a real account it rendered as a single flat grey band, because
+ * every record was in the first stage and the first stage was grey — visually
+ * identical to an empty progress bar or a loading skeleton. It answered "what
+ * proportion is where" when nobody had asked; the question is "how far along
+ * is this programme", and a distribution across one stage cannot show it.
+ *
+ * All four stages are therefore always drawn, in order, with their counts. Two
+ * records sitting at the start now reads as two records at the start of a
+ * four-stage journey rather than as a bar that failed to load.
  */
 
 const STAGE_FILL = [
-  "bg-slate-300",   // evidence collection
+  "bg-slate-400",   // evidence collection
   "bg-amber-400",   // submitted for review
   "bg-sky-400",     // importer review
   "bg-emerald-500", // approved & monitoring
@@ -24,19 +33,6 @@ const STAGE_FILL = [
 
 export function ProgramStatus({ summary }: { summary: StageSummary }) {
   const { total, blocked, byStage, approved } = summary;
-
-  // Percentages rather than flex weights: a stage holding one record out of
-  // twenty still has to be visible, and a bare flex-grow would render it as a
-  // sliver a person cannot see or hover.
-  const segments = [
-    ...(blocked > 0 ? [{ key: "blocked", count: blocked, fill: "bg-red-500", label: "Blocked" }] : []),
-    ...RECORD_STAGES.map((stage, i) => ({
-      key: stage.key,
-      count: byStage[i],
-      fill: STAGE_FILL[i],
-      label: stage.label,
-    })).filter((s) => s.count > 0),
-  ];
 
   return (
     <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -58,34 +54,37 @@ export function ProgramStatus({ summary }: { summary: StageSummary }) {
       </div>
 
       {total > 0 && (
-        <>
-          <div
-            className="mt-4 flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100"
-            role="img"
-            aria-label={segments.map((s) => `${s.count} ${s.label}`).join(", ")}
-          >
-            {segments.map((s) => (
-              <div
-                key={s.key}
-                className={s.fill}
-                style={{ width: `${(s.count / total) * 100}%` }}
-                title={`${s.count} ${s.label}`}
-              />
-            ))}
-          </div>
-
-          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
-            {segments.map((s) => (
-              <li key={s.key} className="flex items-center gap-1.5 text-xs text-slate-600">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${s.fill}`} />
-                <span className="font-semibold text-ink">{s.count}</span>
-                {s.label}
-              </li>
-            ))}
-          </ul>
-        </>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {RECORD_STAGES.map((stage, i) => {
+            const count = byStage[i];
+            return (
+              <div key={stage.key}>
+                {/* An empty stage keeps its slot and shows a hollow rail, so
+                    the shape of the journey is visible from the first record
+                    rather than appearing one stage at a time. */}
+                <div
+                  className={`h-1.5 w-full rounded-full ${count > 0 ? STAGE_FILL[i] : "bg-slate-100"}`}
+                />
+                <p
+                  className={`mt-2 text-lg font-semibold ${
+                    count > 0 ? "text-ink" : "text-slate-300"
+                  }`}
+                >
+                  {count}
+                </p>
+                <p className="text-xs leading-4 text-slate-500">{stage.label}</p>
+              </div>
+            );
+          })}
+        </div>
       )}
 
+      {blocked > 0 && (
+        <p className="mt-3 border-t border-line pt-3 text-xs text-slate-500">
+          {blocked} record{blocked === 1 ? " is" : "s are"} blocked and not on the track above —
+          a blocked record has stopped wherever it had reached.
+        </p>
+      )}
     </section>
   );
 }

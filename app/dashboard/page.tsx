@@ -170,6 +170,23 @@ async function ImporterDashboard({
           what is wrong are a worklist, not a status. */}
       <ProgramStatus summary={stageSummary} />
 
+      {/* Directly under the overview, because they answer the same question at
+          two zoom levels: the track above says how far the programme has got,
+          each row below says how far one record has. Separating them put the
+          per-record bars under three sections of counts, where a reader
+          looking for "where is Cocoa Nibs" would not think to scroll. */}
+      {fsvpRows.length > 0 && (
+        <RecordProgressList
+          records={(rawFsvp ?? []).map((r: any) => ({
+            id: r.id,
+            status: r.status,
+            reassessment_due_at: r.reassessment_due_at,
+            facility_name: r.facilities_verify?.facility_name ?? null,
+            product_name: r.products_verify?.product_name ?? null,
+          }))}
+        />
+      )}
+
       {signals && !signals.clear && (
         <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {metrics.map((m) => (
@@ -307,18 +324,6 @@ async function ImporterDashboard({
       )}
 
       {signals && <ImporterActionsSection signals={signals} />}
-
-      {fsvpRows.length > 0 && (
-        <RecordProgressList
-          records={(rawFsvp ?? []).map((r: any) => ({
-            id: r.id,
-            status: r.status,
-            reassessment_due_at: r.reassessment_due_at,
-            facility_name: r.facilities_verify?.facility_name ?? null,
-            product_name: r.products_verify?.product_name ?? null,
-          }))}
-        />
-      )}
 
     </div>
   );
