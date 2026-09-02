@@ -15,11 +15,12 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
-import { FsvpProcessFlow } from "@/components/dashboard/FsvpProcessFlow";
+import { ProgramStatus } from "@/components/dashboard/ProgramStatus";
+import { RecordProgressList } from "@/components/dashboard/RecordProgressList";
+import { summariseStages } from "@/lib/fsvp/record-stages";
 import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
 import { FSVP_SETUP_STEPS } from "@/lib/setup/fsvp-steps";
 import { ArrowRight, ClipboardList, PackageCheck, ShieldCheck } from "lucide-react";
-import type { StatusTone } from "@/types/platform";
 
 async function ImporterDashboard({
   profile,
@@ -54,14 +55,6 @@ async function ImporterDashboard({
     .filter(Boolean);
 
   const fsvpRows = (rawFsvp ?? []) as Array<{ status: string; reassessment_due_at: string | null }>;
-  const now = new Date();
-  const fsvp = {
-    total:          fsvpRows.length,
-    approved:       fsvpRows.filter((r) => r.status === "importer_approved").length,
-    conditional:    fsvpRows.filter((r) => r.status === "conditionally_approved").length,
-    pending:        fsvpRows.filter((r) => ["draft", "importer_review_pending", "supplier_evidence_accepted"].includes(r.status)).length,
-    reassessmentDue: fsvpRows.filter((r) => r.reassessment_due_at && new Date(r.reassessment_due_at) <= now).length,
-  };
 
   const signals = importerId
     ? await fetchImporterSignals(supabase, importerId, supplierIds)
@@ -121,6 +114,12 @@ async function ImporterDashboard({
     ? FSVP_SETUP_STEPS.find((step) => step.id === nextStepId) ?? null
     : null;
 
+  const nextStepNumber = nextStep
+    ? FSVP_SETUP_STEPS.findIndex((s) => s.id === nextStep.id) + 1
+    : null;
+
+  const stageSummary = summariseStages(fsvpRows);
+
   // These used to be Exporters / Products / Facilities / Evidence / Open Actions
   // — every one of which is a sidebar item, so the row was a second nav with
   // counts bolted on. What an importer needs on opening the app is not how many
@@ -164,6 +163,12 @@ async function ImporterDashboard({
           </div>
         </div>
       </section>
+
+      {/* Before any worklist. The page could say how many records were
+          unsigned and how many products lacked applicability without once
+          saying how many records exist and how many are approved — counts of
+          what is wrong are a worklist, not a status. */}
+      <ProgramStatus summary={stageSummary} />
 
       {signals && !signals.clear && (
         <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -256,10 +261,18 @@ async function ImporterDashboard({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-xl">
               <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                Next step &middot; {FSVP_SETUP_STEPS.findIndex((s) => s.id === nextStep.id) + 1} of {FSVP_SETUP_STEPS.length}
+                Next step &middot; {nextStepNumber} of {FSVP_SETUP_STEPS.length}
               </p>
               <h2 className="mt-1 text-lg font-semibold text-ink">{nextStep.title}</h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">{nextStep.description}</p>
+              {/* The proportional view of setup, kept in the same card as the
+                  step number so the page states "4 of 11" exactly once. */}
+              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-forest transition-all"
+                  style={{ width: `${(((nextStepNumber ?? 1) - 1) / FSVP_SETUP_STEPS.length) * 100}%` }}
+                />
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link
@@ -296,7 +309,7 @@ async function ImporterDashboard({
       {signals && <ImporterActionsSection signals={signals} />}
 
       {fsvpRows.length > 0 && (
-        <FsvpProcessFlow
+        <RecordProgressList
           records={(rawFsvp ?? []).map((r: any) => ({
             id: r.id,
             status: r.status,
@@ -307,27 +320,6 @@ async function ImporterDashboard({
         />
       )}
 
-      {fsvp.total > 0 && (
-        <section className="rounded-lg border border-line bg-white shadow-soft">
-          <div className="border-b border-line px-5 py-4">
-            <h2 className="text-sm font-semibold text-ink">FSVP Records</h2>
-          </div>
-          <div className="grid divide-y divide-line sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-            {[
-              { label: "Approved",         value: fsvp.approved,        tone: "success" as StatusTone },
-              { label: "Conditional",      value: fsvp.conditional,     tone: "warning" as StatusTone },
-              { label: "Pending Review",   value: fsvp.pending,         tone: "info"    as StatusTone },
-              { label: "Reassessment Due", value: fsvp.reassessmentDue, tone: fsvp.reassessmentDue > 0 ? "danger" as StatusTone : "neutral" as StatusTone },
-            ].map((item) => (
-              <Link key={item.label} href="/fsvp-records"
-                className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition">
-                <p className="text-sm text-slate-600">{item.label}</p>
-                <StatusBadge tone={item.tone}>{item.value}</StatusBadge>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
