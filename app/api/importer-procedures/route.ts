@@ -14,16 +14,13 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 import {
-  draftApprovedSupplierProcedure,
-  draftRecordsProcedure,
+  PROCEDURE_DRAFTERS,
+  PROCEDURE_KINDS,
   sectionsToText,
   type ProcedureFacts,
 } from "@/lib/fsvp/procedure-draft";
 
 export const runtime = "edge";
-
-const KINDS = ["approved_supplier_procedures", "records_procedures"] as const;
-type Kind = (typeof KINDS)[number];
 
 const RETENTION_YEARS = 2;
 
@@ -63,10 +60,10 @@ export async function POST(req: NextRequest) {
     content?: string;
   };
 
-  if (!(KINDS as readonly string[]).includes(body.kind ?? "")) {
+  if (!PROCEDURE_KINDS.includes(body.kind ?? "")) {
     return NextResponse.json({ error: "Unknown procedure." }, { status: 400 });
   }
-  const kind = body.kind as Kind;
+  const kind = body.kind as string;
   const admin = createAdminSupabaseClient();
   const now = new Date().toISOString();
 
@@ -190,7 +187,7 @@ export async function POST(req: NextRequest) {
 
   const [{ data: importer }, { data: qiRows }, { data: recordRows }] = await Promise.all([
     (admin.from("importers") as any)
-      .select("legal_name, display_name, duns_number, food_scope")
+      .select("legal_name, display_name, duns_number, food_scope, primary_contact_email")
       .eq("id", importerId)
       .maybeSingle(),
     // The register carries the qualification basis; the name is on the profile
@@ -231,6 +228,7 @@ export async function POST(req: NextRequest) {
   const facts: ProcedureFacts = {
     organizationName: importer?.legal_name ?? importer?.display_name ?? profile.organization_name ?? "This organization",
     dunsNumber:       importer?.duns_number ?? null,
+    contactEmail:     importer?.primary_contact_email ?? null,
     foodScope:        importer?.food_scope ?? "human",
     qualifiedIndividuals: activeQis.map((q) => ({
       name: q.profiles?.full_name || q.profiles?.email || "Unnamed qualified individual",
@@ -240,9 +238,7 @@ export async function POST(req: NextRequest) {
     retentionYears: RETENTION_YEARS,
   };
 
-  const sections = kind === "approved_supplier_procedures"
-    ? draftApprovedSupplierProcedure(facts)
-    : draftRecordsProcedure(facts);
+  const sections = PROCEDURE_DRAFTERS[kind](facts);
 
   const content = sectionsToText(sections);
 

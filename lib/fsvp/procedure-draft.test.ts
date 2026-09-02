@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { IMPORTER_RECORD_KINDS } from "./importer-records";
 import {
   draftApprovedSupplierProcedure,
+  draftHazardAnalysisReliance,
+  draftImporterIdentification,
   draftRecordsProcedure,
   parseReviewPrompts,
+  PROCEDURE_DRAFTERS,
+  PROCEDURE_KINDS,
   resolveReviewPrompt,
   reviewMarkers,
   sectionsToText,
@@ -13,6 +18,7 @@ function facts(over: Partial<ProcedureFacts> = {}): ProcedureFacts {
   return {
     organizationName: "Nutty Cathy",
     dunsNumber: "123456789",
+    contactEmail: "fsvp@nuttycathy.example",
     foodScope: "human",
     qualifiedIndividuals: [{ name: "Dana Reyes", basis: "education" }],
     reassessmentMonths: [12],
@@ -181,5 +187,125 @@ describe("resolveReviewPrompt", () => {
       text = resolveReviewPrompt(text, prompt.marker, "We keep no paper originals.");
     }
     expect(text).not.toContain("[REVIEW:");
+  });
+});
+
+describe("draftImporterIdentification", () => {
+  it("states the identifier the platform holds rather than asking for it", () => {
+    const text = sectionsToText(draftImporterIdentification(facts()));
+
+    expect(text).toContain("123456789");
+    expect(text).toContain("fsvp@nuttycathy.example");
+    expect(text).toContain("1.509");
+    expect(text).toContain("FSV");
+  });
+
+  it("turns a missing D-U-N-S into a question instead of a statement naming none", () => {
+    const text = sectionsToText(draftImporterIdentification(facts({ dunsNumber: null })));
+
+    const prompts = parseReviewPrompts(text);
+    expect(prompts.some((p) => p.section === "The identifier we transmit")).toBe(true);
+    expect(prompts.some((p) => p.prompt.includes("no D-U-N-S number is recorded"))).toBe(true);
+  });
+
+  it("asks for the address § 1.509 transmits when none is on file", () => {
+    const text = sectionsToText(draftImporterIdentification(facts({ contactEmail: null })));
+    expect(parseReviewPrompts(text).some((p) => p.prompt.includes("electronic mail address"))).toBe(true);
+  });
+
+  it("leaves who files the entries and how currency is checked to the importer", () => {
+    const sections = draftImporterIdentification(facts());
+    expect(reviewMarkers(sections)).toEqual(
+      expect.arrayContaining(["How it reaches CBP", "Keeping it current"])
+    );
+  });
+});
+
+describe("draftHazardAnalysisReliance", () => {
+  it("says plainly that it does not apply to an importer doing its own analysis", () => {
+    const text = sectionsToText(draftHazardAnalysisReliance(facts()));
+    expect(text).toContain("1.504(a)");
+    expect(text).toContain("should not be adopted");
+  });
+
+  it("keeps the § 1.505 and § 1.506(d) work with the importer", () => {
+    const text = sectionsToText(draftHazardAnalysisReliance(facts()));
+    expect(text).toContain("does not transfer responsibility");
+    expect(text).toContain("1.505");
+    expect(text).toContain("1.506(d)");
+  });
+
+  it("invents nothing about whose analysis it is or what the review found", () => {
+    const headings = reviewMarkers(draftHazardAnalysisReliance(facts()));
+    expect(headings).toEqual(
+      expect.arrayContaining(["The analysis we rely on", "Our review and assessment"])
+    );
+  });
+
+  it("names the qualified individuals who may review, and says so when there are none", () => {
+    expect(sectionsToText(draftHazardAnalysisReliance(facts()))).toContain("Dana Reyes");
+
+    const empty = sectionsToText(draftHazardAnalysisReliance(facts({ qualifiedIndividuals: [] })));
+    expect(empty).toContain("No qualified individual is currently");
+    expect(empty).toContain("1.503");
+  });
+});
+
+describe("every drafted procedure", () => {
+  const drafts = () => [
+    draftApprovedSupplierProcedure(facts()),
+    draftRecordsProcedure(facts()),
+    draftImporterIdentification(facts()),
+    draftHazardAnalysisReliance(facts()),
+  ];
+
+  it("leaves no review marker the editor cannot parse back out", () => {
+    for (const sections of drafts()) {
+      const text = sectionsToText(sections);
+      const markerCount = (text.match(/\[REVIEW:/g) ?? []).length;
+      expect(parseReviewPrompts(text)).toHaveLength(markerCount);
+    }
+  });
+
+  it("can be answered to the point the adoption block lifts", () => {
+    for (const sections of drafts()) {
+      let text = sectionsToText(sections);
+      for (const prompt of parseReviewPrompts(text)) {
+        text = resolveReviewPrompt(text, prompt.marker, "Answered by the importer.");
+      }
+      expect(text).not.toContain("[REVIEW:");
+      expect(text.length).toBeGreaterThan(40); // the API's minimum for a save
+    }
+  });
+
+  it("names the organization and never leaves a template placeholder", () => {
+    for (const sections of drafts()) {
+      const text = sectionsToText(sections);
+      expect(text).toContain("Nutty Cathy");
+      expect(text).not.toMatch(/\{\{|\[COMPANY|XXX|TODO/);
+    }
+  });
+});
+
+describe("PROCEDURE_DRAFTERS", () => {
+  it("only drafts obligations that exist on the record list", () => {
+    // A key that matches nothing in IMPORTER_RECORD_KINDS would render an
+    // editor for an obligation the page never shows, or none at all.
+    const keys = IMPORTER_RECORD_KINDS.map((k) => k.key);
+    for (const kind of PROCEDURE_KINDS) expect(keys).toContain(kind);
+  });
+
+  it("leaves the qualified individual's own evidence as an upload", () => {
+    // A CV is external evidence about a person. The platform is not its system
+    // of record and must not draft one.
+    expect(PROCEDURE_KINDS).not.toContain("qi_qualifications");
+  });
+
+  it("produces a draft for every kind it claims to cover", () => {
+    for (const kind of PROCEDURE_KINDS) {
+      const text = sectionsToText(PROCEDURE_DRAFTERS[kind](facts()));
+      expect(text.startsWith("## ")).toBe(true);
+      expect(text.length).toBeGreaterThan(40);
+    }
   });
 });

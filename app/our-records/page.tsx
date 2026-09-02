@@ -9,13 +9,39 @@ import { ProcedureEditor } from "@/components/evidence/ProcedureEditor";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { outstandingRequired, summariseImporterRecords } from "@/lib/fsvp/importer-records";
+import { PROCEDURE_KINDS } from "@/lib/fsvp/procedure-draft";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
 
-/** Obligations the importer writes about its own process, so they are edited
- *  in place rather than uploaded. The rest are external evidence. */
-const EDITABLE_PROCEDURES = ["approved_supplier_procedures", "records_procedures"];
+/** Obligations the importer writes about its own process, so they are drafted
+ *  and edited in place rather than uploaded. Taken from the drafters rather
+ *  than restated, so this page cannot offer an editor for something the API
+ *  has no way to draft. */
+const EDITABLE_PROCEDURES = PROCEDURE_KINDS;
+
+/** What to say before a kind has been drafted, where the default — "builds a
+ *  first version from what this platform already enforces" — would overstate
+ *  how much of it the platform can actually write. */
+const START_HINTS: Record<string, string> = {
+  importer_identification:
+    "Builds a statement of the identifier you transmit, from the D-U-N-S on file. Who files your entries and how you confirm the number is still active are left for you to answer.",
+  hazard_analysis_reliance:
+    "Only draft this if you rely on a hazard analysis someone else conducted. It builds the structure § 1.504(a) expects — the substance is yours to write, and adopting it states that you rely on such an analysis.",
+};
+
+/**
+ * Two of the drafted kinds still take a file as well, because the written
+ * record and the evidence behind it are different things: a statement of the
+ * D-U-N-S you transmit is not the Dun & Bradstreet record showing it is
+ * active, and a review of someone else's hazard analysis is not that analysis.
+ */
+const SUPPORTING_EVIDENCE: Record<string, string> = {
+  importer_identification:
+    "File the evidence behind the statement — the Dun & Bradstreet record showing the number is active, or the entry filing that carries it.",
+  hazard_analysis_reliance:
+    "File the hazard analysis you were given. Your review above assesses it; this is the document being assessed.",
+};
 
 /**
  * The importer's own FSVP documents.
@@ -165,35 +191,50 @@ export default async function OurRecordsPage() {
               )}
 
               <div className="border-t border-line px-5 py-4">
-                {EDITABLE_PROCEDURES.includes(kind.key) ? (
-                  (() => {
-                    // A kind can hold both at once — editing an adopted
-                    // procedure opens a draft while the adopted text stays in
-                    // force. The draft is what you work on, so it wins here.
-                    const forKind = procedures.filter((p) => p.kind === kind.key);
-                    const live =
-                      forKind.find((p) => p.status === "draft") ??
-                      forKind.find((p) => p.status === "adopted") ??
-                      null;
-                    return (
-                      <ProcedureEditor
-                        kind={kind.key}
-                        content={live?.content ?? null}
-                        status={live?.status ?? "none"}
-                        version={live?.version ?? null}
-                        adoptedAt={live?.adopted_at ?? null}
-                        adoptedBy={live?.profiles?.full_name ?? live?.profiles?.email ?? null}
-                      />
-                    );
-                  })()
-                ) : (
-                  <ImporterRecordUpload
-                    documentKind={kind.key}
-                    label={kind.title}
-                    importerId={importerId}
-                    hasDocuments={count > 0}
-                  />
-                )}
+                {(() => {
+                  const editable = EDITABLE_PROCEDURES.includes(kind.key);
+                  const supporting = SUPPORTING_EVIDENCE[kind.key] ?? null;
+
+                  // A kind can hold both a draft and an adopted version at
+                  // once — editing an adopted procedure opens a draft while
+                  // the adopted text stays in force. The draft is what you
+                  // work on, so it wins here.
+                  const forKind = procedures.filter((p) => p.kind === kind.key);
+                  const live =
+                    forKind.find((p) => p.status === "draft") ??
+                    forKind.find((p) => p.status === "adopted") ??
+                    null;
+
+                  return (
+                    <>
+                      {editable && (
+                        <ProcedureEditor
+                          kind={kind.key}
+                          content={live?.content ?? null}
+                          status={live?.status ?? "none"}
+                          version={live?.version ?? null}
+                          adoptedAt={live?.adopted_at ?? null}
+                          adoptedBy={live?.profiles?.full_name ?? live?.profiles?.email ?? null}
+                          startHint={START_HINTS[kind.key]}
+                        />
+                      )}
+
+                      {(!editable || supporting) && (
+                        <div className={editable ? "mt-5 border-t border-line pt-4" : ""}>
+                          {supporting && (
+                            <p className="mb-2 text-xs leading-5 text-slate-500">{supporting}</p>
+                          )}
+                          <ImporterRecordUpload
+                            documentKind={kind.key}
+                            label={kind.title}
+                            importerId={importerId}
+                            hasDocuments={count > 0}
+                          />
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </section>
           );

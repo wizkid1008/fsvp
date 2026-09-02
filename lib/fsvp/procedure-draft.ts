@@ -20,6 +20,8 @@
 export type ProcedureFacts = {
   organizationName: string;
   dunsNumber: string | null;
+  /** The address FSVP transmits with the identifier at entry (§ 1.509). */
+  contactEmail: string | null;
   foodScope: string;
   /** Names of qualified individuals currently active on the register. */
   qualifiedIndividuals: Array<{ name: string; basis: string | null }>;
@@ -186,6 +188,170 @@ export function draftRecordsProcedure(facts: ProcedureFacts): ProcedureSection[]
     },
   ];
 }
+
+/**
+ * § 1.509 — the FSVP importer identifier transmitted at entry.
+ *
+ * The platform is the system of record for the identifier itself, so the draft
+ * states it rather than asking. What it cannot know is the mechanics around it:
+ * who transmits the identifier on the importer's behalf, and how the importer
+ * satisfies itself that the number is still active. Both are left as review
+ * passages, and a missing D-U-N-S becomes one too — a statement naming no
+ * identifier would be worse than an unanswered question, because § 1.509 is
+ * what attaches an otherwise complete FSVP to the shipment it was built for.
+ */
+export function draftImporterIdentification(facts: ProcedureFacts): ProcedureSection[] {
+  return [
+    {
+      heading: "The identifier we transmit",
+      body:
+        facts.dunsNumber
+          ? `${facts.organizationName} is the FSVP importer for the food it imports, and identifies ` +
+            `itself at entry by D-U-N-S ${facts.dunsNumber}, transmitted with entity role code FSV ` +
+            `as required by 21 CFR 1.509. The name transmitted with it is ` +
+            `${facts.organizationName}` +
+            (facts.contactEmail ? `, and the electronic mail address is ${facts.contactEmail}.` : `.`) +
+            (facts.contactEmail
+              ? ``
+              : `\n\n[REVIEW: § 1.509 requires an electronic mail address to be transmitted with ` +
+                `the name and D-U-N-S. Record the address your entries carry.]`)
+          : `${facts.organizationName} is the FSVP importer for the food it imports and identifies ` +
+            `itself at entry by D-U-N-S number, transmitted with entity role code FSV as required ` +
+            `by 21 CFR 1.509.\n\n[REVIEW: no D-U-N-S number is recorded for this organization. ` +
+            `Enter it in your organization's details, then rebuild this draft — a procedure that ` +
+            `names no identifier cannot show which shipments your FSVP attaches to.]`,
+    },
+    {
+      heading: "How it reaches CBP",
+      body:
+        `The identifier is transmitted electronically for each line of food subject to FSVP at the ` +
+        `time of entry filing.\n\n[REVIEW: name who files entries on your behalf — your customs ` +
+        `broker or self-filer — and how they are told which identifier to transmit. The platform ` +
+        `holds the number; it does not file your entries.]`,
+    },
+    {
+      heading: "Keeping it current",
+      body:
+        `The identifier is only useful while it is active and resolves to ` +
+        `${facts.organizationName}.\n\n[REVIEW: state how and how often you confirm the D-U-N-S ` +
+        `is still active and its registered details still correct, and who is responsible for ` +
+        `doing so.]`,
+    },
+    {
+      heading: "When it changes",
+      body:
+        `A change of identifier — a new D-U-N-S, a change of legal name, a change of the address ` +
+        `transmitted with it — is recorded with the date it takes effect, and entries filed from ` +
+        `that date carry the new identifier. The previous identifier is retained rather than ` +
+        `overwritten, so it stays possible to say which identifier a past entry was filed under.`,
+    },
+    {
+      heading: "Records",
+      body:
+        `Records made under this procedure are signed and dated, retained for ${facts.retentionYears} ` +
+        `years after the date they were last relied on, kept in English, and made available to FDA ` +
+        `promptly on request (21 CFR 1.510).`,
+    },
+  ];
+}
+
+/**
+ * § 1.504(a) — reviewing and assessing a hazard analysis conducted by someone else.
+ *
+ * The one draft here that asserts almost nothing. FSVP lets an importer rely on
+ * an analysis another entity conducted, but the platform has no way to know
+ * whether this importer does, whose analysis it is, or what reviewing it found
+ * — those facts live entirely outside. So this is a form rather than a
+ * description: the structure § 1.504(a) expects, with the substance left to the
+ * qualified individual who actually did the review. Generating it does not
+ * assert that the importer relies on anyone; adopting it does.
+ */
+export function draftHazardAnalysisReliance(facts: ProcedureFacts): ProcedureSection[] {
+  const qiNames = facts.qualifiedIndividuals.map((q) => q.name);
+
+  return [
+    {
+      heading: "When this record applies",
+      body:
+        `21 CFR 1.504(a) permits ${facts.organizationName} to rely on a hazard analysis conducted ` +
+        `by another entity — a foreign supplier, a co-packer, or a third party — provided it ` +
+        `reviews and assesses that analysis and documents having done so. This record exists ` +
+        `because ${facts.organizationName} relies on such an analysis for at least one food. Where ` +
+        `${facts.organizationName} conducts its own hazard analysis, this record does not apply and ` +
+        `should not be adopted.`,
+    },
+    {
+      heading: "The analysis we rely on",
+      body:
+        `[REVIEW: name the entity that conducted the hazard analysis, the food or foods it covers, ` +
+        `the date of the analysis and the version or document reference you were given. If you ` +
+        `rely on more than one, list each.]`,
+    },
+    {
+      heading: "Our review and assessment",
+      body:
+        (qiNames.length > 0
+          ? `The review is performed or overseen by a qualified individual on ` +
+            `${facts.organizationName}'s register — currently ${list(qiNames)} — as § 1.503 ` +
+            `requires of the § 1.504 determination itself.\n\n`
+          : `No qualified individual is currently on ${facts.organizationName}'s register. ` +
+            `§ 1.503 requires the § 1.504 determination to be performed or overseen by one, so ` +
+            `the register must be completed before this record can be adopted.\n\n`) +
+        `[REVIEW: state who carried out the review, when, and what they assessed — whether the ` +
+        `analysis covers the known and reasonably foreseeable hazards for this food, whether the ` +
+        `severity and probability judgements are supported, and whether the controls it identifies ` +
+        `match what your supplier evaluation found. Record the conclusion you reached, including ` +
+        `anything you did not accept.]`,
+    },
+    {
+      heading: "What we do not rely on it for",
+      body:
+        `Relying on another entity's hazard analysis does not transfer responsibility. ` +
+        `${facts.organizationName} remains responsible for the § 1.505 foreign supplier evaluation ` +
+        `and the § 1.506(d) determination of appropriate verification activities, and makes both ` +
+        `itself.`,
+    },
+    {
+      heading: "When we review it again",
+      body:
+        `The analysis is reviewed again when it is revised, when the food or its process changes, ` +
+        `and at the reassessment of the supplier approval that relies on it (21 CFR 1.508). New ` +
+        `information about a hazard in the food triggers a review before that date.`,
+    },
+    {
+      heading: "Records",
+      body:
+        `The analysis relied on and the record of this review are retained for ${facts.retentionYears} ` +
+        `years after the date they were last relied on, kept in English, and made available to FDA ` +
+        `promptly on request (21 CFR 1.510). The analysis itself is filed alongside this record as ` +
+        `the document it assesses.`,
+    },
+  ];
+}
+
+/**
+ * Which obligations are written records rather than uploaded files, and how
+ * each one is drafted.
+ *
+ * One map because three places have to agree: the API route that generates,
+ * the /our-records page that offers an editor instead of a file picker, and
+ * the kind CHECK on importer_procedures (migration 027). Two of those are code
+ * and can import this; the constraint cannot, so it is the one to update by
+ * hand when a kind is added here.
+ *
+ * qi_qualifications is deliberately absent. A qualified individual's CV is
+ * external evidence about a person — the platform is not its system of record
+ * and cannot draft one — so it stays an upload.
+ */
+export const PROCEDURE_DRAFTERS: Record<string, (facts: ProcedureFacts) => ProcedureSection[]> = {
+  approved_supplier_procedures: draftApprovedSupplierProcedure,
+  records_procedures:           draftRecordsProcedure,
+  importer_identification:      draftImporterIdentification,
+  hazard_analysis_reliance:     draftHazardAnalysisReliance,
+};
+
+/** The obligation keys held as editable procedures. */
+export const PROCEDURE_KINDS = Object.keys(PROCEDURE_DRAFTERS);
 
 /** Rendered for the editor and for storage — headings preserved. */
 export function sectionsToText(sections: ProcedureSection[]): string {

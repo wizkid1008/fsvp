@@ -22,6 +22,7 @@ export function ProcedureEditor({
   version,
   adoptedAt,
   adoptedBy,
+  startHint,
 }: {
   kind: string;
   content: string | null;
@@ -29,6 +30,10 @@ export function ProcedureEditor({
   version: number | null;
   adoptedAt: string | null;
   adoptedBy: string | null;
+  /** What to say before anything is drafted. An obligation that only applies
+   *  in some circumstances needs to say so here, or drafting it reads as an
+   *  invitation to hold a record you do not need. */
+  startHint?: string;
 }) {
   const router = useRouter();
   const [text, setText] = useState(content ?? "");
@@ -118,9 +123,9 @@ export function ProcedureEditor({
           <FileText className="h-3.5 w-3.5" />
           {pending ? "Drafting…" : "Draft this from our configuration"}
         </button>
-        <span className="text-xs leading-5 text-slate-500">
-          Builds a first version from what this platform already enforces. You edit it here — nothing
-          is filed until you adopt it.
+        <span className="max-w-xl text-xs leading-5 text-slate-500">
+          {startHint ??
+            "Builds a first version from what this platform already enforces. You edit it here — nothing is filed until you adopt it."}
         </span>
         {error && <p className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       </div>
