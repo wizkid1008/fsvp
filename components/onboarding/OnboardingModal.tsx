@@ -95,7 +95,7 @@ export function OnboardingModal({ role = "supplier", steps }: { role?: AppRole; 
             onClick={dismiss}
             className="inline-flex h-10 items-center gap-2 rounded-md bg-forest px-5 text-sm font-semibold text-white transition hover:bg-[#195f4d]"
           >
-            Open setup path
+            Open the pipeline
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>

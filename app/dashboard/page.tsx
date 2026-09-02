@@ -140,7 +140,7 @@ async function ImporterDashboard({
               className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
             >
               <ClipboardList className="h-4 w-4" />
-              Complete setup
+              FSVP pipeline
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

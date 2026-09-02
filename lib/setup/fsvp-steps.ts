@@ -97,3 +97,25 @@ export type FsvpSetupStepId = (typeof FSVP_SETUP_STEPS)[number]["id"];
 export const FSVP_SETUP_STEP_COPY = Object.fromEntries(
   FSVP_SETUP_STEPS.map((step) => [step.id, step])
 ) as Record<FsvpSetupStepId, (typeof FSVP_SETUP_STEPS)[number]>;
+
+/**
+ * The three steps that genuinely finish.
+ *
+ * Everything after them recurs and expires: applicability determinations
+ * lapse, compliance screenings expire, a qualified individual's signature goes
+ * void the moment the signed text is edited, and an approved record comes back
+ * for reassessment. Those are gates a product passes repeatedly, not steps an
+ * account completes — which is why the page that lists them stopped calling
+ * itself Setup and stopped showing a percentage complete.
+ *
+ * These three are different only in one narrow sense: until the account has at
+ * least one of each, nothing downstream can happen at all. That first pass is
+ * onboarding and does finish. Adding a fourth product later is not onboarding,
+ * so the gates themselves stay in the pipeline where their per-item blockers
+ * live — this list only decides whether the get-started prompt is shown.
+ */
+export const ONBOARDING_STEP_IDS = ["exporter", "facility", "product"] as const;
+
+export function isOnboardingStep(id: string): boolean {
+  return (ONBOARDING_STEP_IDS as readonly string[]).includes(id);
+}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Circle, CircleAlert, FileArchive, FolderCheck, PackageSearch, ShieldAlert } from "lucide-react";
+import { ArrowRight, CheckCircle2, Circle, CircleAlert, PackageSearch, ShieldAlert } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -9,16 +9,45 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { loadCompleteFsvpSetupPlan, type SetupStep } from "@/lib/setup/fsvp-workflow";
+import { isOnboardingStep } from "@/lib/setup/fsvp-steps";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
+
+/**
+ * Every gate a product and its FSVP record must pass, with what is blocking each.
+ *
+ * THIS PAGE USED TO CALL ITSELF SETUP, AND SHOW 42% COMPLETE
+ *
+ * It could not decide what it was: the title said Setup, the first tile said
+ * Workflow Progress, the section beneath said Setup Path. Two of those describe
+ * something you finish, and eight of the eleven items here never finish.
+ * Applicability determinations lapse, compliance screenings expire, a qualified
+ * individual's signature goes void the moment the signed text is edited, an
+ * approved record returns for reassessment, and an inspection package is
+ * generated afresh every time FDA asks. So the percentage had a denominator
+ * that grew with every new product and a finish line that does not exist —
+ * reach 100%, add one product, fall back.
+ *
+ * What was always right here is the per-item work: "Cocoa Powder is missing its
+ * facility link" with the button that fixes it, and each stage's progress in
+ * its own units. That is a work queue, and it is what the page is now.
+ */
+
+const PAGE_TITLE = "FSVP Pipeline";
+const PAGE_DESCRIPTION =
+  "Every gate a product and its FSVP record must pass, and what is blocking each one right now. " +
+  "This is not a checklist that finishes — determinations expire, signatures void when signed text " +
+  "is edited, and approved records return for reassessment.";
 
 function stepTone(step: SetupStep): StatusTone {
   return step.blockers.length === 0 ? "success" : "warning";
 }
 
 function stepLabel(step: SetupStep): string {
-  return step.blockers.length === 0 ? "Complete" : `${step.blockers.length} blocker${step.blockers.length === 1 ? "" : "s"}`;
+  return step.blockers.length === 0
+    ? "Clear"
+    : `${step.blockers.length} blocker${step.blockers.length === 1 ? "" : "s"}`;
 }
 
 /** "3 of 12 products classified" beats a bare "9 blockers" for knowing where you are. */
@@ -43,10 +72,7 @@ export default async function CompleteFsvpSetupPage() {
   if (!adminResult.ok) {
     return (
       <AppShell role={role} realRole={realRole}>
-        <SectionHeader
-          title="Complete FSVP Setup"
-          description="Follow the importer workflow from exporter setup through the inspection package."
-        />
+        <SectionHeader title={PAGE_TITLE} description={PAGE_DESCRIPTION} />
         <ConfigurationNotice message={adminResult.message} />
       </AppShell>
     );
@@ -55,10 +81,7 @@ export default async function CompleteFsvpSetupPage() {
   if (!importerId) {
     return (
       <AppShell role={role} realRole={realRole}>
-        <SectionHeader
-          title="Complete FSVP Setup"
-          description="Follow the importer workflow from exporter setup through the inspection package."
-        />
+        <SectionHeader title={PAGE_TITLE} description={PAGE_DESCRIPTION} />
         <div className="mt-6 rounded-lg border border-line bg-white px-6 py-10 text-center">
           <p className="text-sm text-slate-600">Your account is not linked to an importing organization yet.</p>
         </div>
@@ -67,63 +90,88 @@ export default async function CompleteFsvpSetupPage() {
   }
 
   const plan = await loadCompleteFsvpSetupPlan(adminResult.client as any, importerId);
-  const completeSteps = plan.steps.filter((step) => step.blockers.length === 0).length;
   const totalBlockers = plan.steps.reduce((sum, step) => sum + step.blockers.length, 0);
-  // Weighted by each step's own units rather than by whole steps, so clearing
-  // nineteen of twenty products moves the bar. See SetupProgress.
-  const progress = plan.progressPercent;
+  const blockedStages = plan.steps.filter((step) => step.blockers.length > 0).length;
+
+  // Onboarding is the one part that does finish: until the account holds at
+  // least one exporter, facility and product, nothing downstream can happen.
+  // Once it does, this prompt never returns — adding a fourth product is not
+  // onboarding, and the per-item blockers on those stages stay in the list.
+  const onboarding = plan.steps.filter(
+    (step) => isOnboardingStep(step.id) && step.progress.total === 0
+  );
 
   return (
     <AppShell role={role} realRole={realRole}>
-      <SectionHeader
-        title="Complete FSVP Setup"
-        description="A guided path from exporter setup to an audit-ready FSVP inspection package. Each open item links to the screen that clears it."
-      />
+      <SectionHeader title={PAGE_TITLE} description={PAGE_DESCRIPTION} />
 
-      <div className="mt-6 grid gap-4 md:grid-cols-4">
-        {[
-          { label: "Workflow Progress", value: `${progress}%`, tone: totalBlockers === 0 ? "success" as StatusTone : "warning" as StatusTone, icon: CheckCircle2 },
-          { label: "Open Blockers", value: String(totalBlockers), tone: totalBlockers === 0 ? "success" as StatusTone : "danger" as StatusTone, icon: CircleAlert },
-          { label: "FSVP Records", value: String(plan.summary.records), tone: plan.summary.records > 0 ? "info" as StatusTone : "neutral" as StatusTone, icon: FolderCheck },
-          { label: "Packages", value: String(plan.summary.packages), tone: plan.summary.packages > 0 ? "success" as StatusTone : "neutral" as StatusTone, icon: FileArchive },
-        ].map((metric) => {
-          const Icon = metric.icon;
-          return (
-            <div key={metric.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-medium text-slate-500">{metric.label}</p>
-                <Icon className="h-4 w-4 text-slate-400" />
-              </div>
-              <div className="mt-2 flex items-end justify-between gap-3">
-                <p className="text-2xl font-semibold text-ink">{metric.value}</p>
-                <StatusBadge tone={metric.tone}>{metric.value === "0" ? "None" : "Active"}</StatusBadge>
-              </div>
-            </div>
-          );
-        })}
+      {onboarding.length > 0 && (
+        <section className="mt-6 rounded-lg border border-forest/30 bg-white p-5 shadow-soft">
+          <h2 className="text-sm font-semibold text-ink">Start here</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+            Nothing downstream can happen until your account holds one of each. This is the part
+            that finishes — once these exist, this prompt does not come back.
+          </p>
+          <ul className="mt-4 flex flex-wrap gap-2">
+            {onboarding.map((step) => (
+              <li key={step.id}>
+                <Link
+                  href={step.href}
+                  className="inline-flex h-9 items-center gap-2 rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d]"
+                >
+                  {step.title}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* A count of what is open, not a percentage of what is done. The stages
+          below still show their own "4 of 5 done", which is a real ratio in
+          real units — it is the whole-plan figure that implied an ending. */}
+      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-white px-5 py-4 shadow-soft">
+        {totalBlockers === 0 ? (
+          <>
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+            <p className="text-sm text-slate-600">
+              <span className="font-semibold text-ink">Every stage is clear.</span> Nothing is
+              blocking an approval today — determinations and signatures still expire, so this stays
+              worth checking.
+            </p>
+          </>
+        ) : (
+          <>
+            <CircleAlert className="h-5 w-5 shrink-0 text-amber-500" />
+            <p className="text-sm text-slate-600">
+              <span className="font-semibold text-ink">
+                {totalBlockers} open blocker{totalBlockers === 1 ? "" : "s"}
+              </span>{" "}
+              across {blockedStages} of {plan.steps.length} stage{blockedStages === 1 ? "" : "s"}.
+              Each one names the item it is about and links to the screen that clears it.
+            </p>
+          </>
+        )}
       </div>
 
-      <div className="mt-6 rounded-lg border border-line bg-white shadow-soft">
-        <div className="border-b border-line px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-ink">Setup Path</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {progress}% complete — {completeSteps} of {plan.steps.length} steps fully clear.
-              </p>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 md:w-64">
-              <div className="h-full rounded-full bg-forest" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
-        </div>
-
+      <div className="mt-6 overflow-hidden rounded-lg border border-line bg-white shadow-soft">
         <div className="divide-y divide-line">
           {plan.steps.map((step, index) => {
             const complete = step.blockers.length === 0;
             const Icon = complete ? CheckCircle2 : Circle;
+            const percent = step.progress.total === 0
+              ? 0
+              : Math.round((step.progress.done / step.progress.total) * 100);
+
             return (
-              <section key={step.id} className="grid gap-4 px-5 py-5 lg:grid-cols-[260px_1fr]">
+              <section
+                key={step.id}
+                // Anchored so the dashboard's gate rows can land on the stage
+                // whose blockers they are counting.
+                id={`gate-${step.id}`}
+                className="grid scroll-mt-6 gap-4 px-5 py-5 lg:grid-cols-[260px_1fr]"
+              >
                 <div className="flex gap-3">
                   <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
                     complete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
@@ -131,8 +179,11 @@ export default async function CompleteFsvpSetupPage() {
                     <Icon className="h-5 w-5" />
                   </div>
                   <div>
+                    {/* "Stage", not "Step". The order is real — you cannot
+                        classify a product you have not created — but nothing
+                        here is stepped through once and left behind. */}
                     <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                      Step {index + 1}
+                      Stage {index + 1}
                     </p>
                     <h3 className="mt-1 text-sm font-semibold text-ink">{step.title}</h3>
                     <p className="mt-1 text-sm leading-6 text-slate-600">{step.description}</p>
@@ -146,7 +197,7 @@ export default async function CompleteFsvpSetupPage() {
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                       <div
                         className={`h-full rounded-full ${complete ? "bg-emerald-500" : "bg-amber-400"}`}
-                        style={{ width: `${Math.round((step.progress.done / step.progress.total) * 100)}%` }}
+                        style={{ width: `${percent}%` }}
                       />
                     </div>
                   </div>
@@ -154,7 +205,7 @@ export default async function CompleteFsvpSetupPage() {
 
                 {complete ? (
                   <div className="rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    No blockers found for this step.
+                    Nothing blocking this stage.
                   </div>
                 ) : (
                   <div className="space-y-2">
