@@ -167,6 +167,7 @@ async function ImporterDashboard({
             facility_name: r.facilities_verify?.facility_name ?? null,
             product_name: r.products_verify?.product_name ?? null,
           }))}
+          unsignedRecordIds={signals?.unsignedRecordIds ?? []}
         />
       )}
 

@@ -42,6 +42,8 @@ export type ImporterSignals = {
    * § 1.503 gate will refuse.
    */
   unsignedRecords: number;
+  /** Which records those are, so a row can say it is one of them. */
+  unsignedRecordIds: string[];
   /**
    * Supplier/product pairs with no live applicability determination — never
    * determined, or the determination has lapsed. No FSVP record can be opened
@@ -185,7 +187,11 @@ export async function fetchImporterSignals(
     ((signedRes.data ?? []) as Array<{ fsvp_record_id: string }>).map((a) => a.fsvp_record_id)
   );
   const openRecords = (openRecordsRes.data ?? []) as Array<{ id: string }>;
-  const unsignedRecords = openRecords.filter((r) => !signedIds.has(r.id)).length;
+  // Ids as well as the count, so a record row can say that IT is the unsigned
+  // one. A count tells you two records need a signature; it cannot tell you
+  // which two, which is the thing a person acting on it needs to know.
+  const unsignedRecordIds = openRecords.filter((r) => !signedIds.has(r.id)).map((r) => r.id);
+  const unsignedRecords = unsignedRecordIds.length;
 
   const today = now.toISOString().slice(0, 10);
   const liveDeterminedProducts = new Set(
@@ -257,6 +263,7 @@ export async function fetchImporterSignals(
     actions,
     drafts,
     unsignedRecords,
+    unsignedRecordIds,
     undeterminedPairs,
     shipmentReadinessBlocks,
     screeningBlocks,

@@ -125,3 +125,40 @@ export function summariseStages(records: Array<{ status: FsvpRecordStatus | stri
     fraction: records.length === 0 ? 0 : approved / records.length,
   };
 }
+
+/**
+ * What THIS record needs next, in the words of the person who has to do it.
+ *
+ * The stage label says where a record is; this says what would move it. They
+ * are not the same sentence: "Importer review" is a location, "Needs your
+ * approval decision" is an instruction, and a dashboard row is read by someone
+ * deciding what to open next.
+ *
+ * `hasSignature` is the one fact the status cannot carry. A record at
+ * supplier_evidence_accepted is either waiting on a qualified individual or
+ * waiting on the importer's decision, and only the attestation ledger knows
+ * which — so a row that ignored it would send people to approve records the
+ * § 1.503 gate is about to refuse.
+ */
+export function nextGateFor(status: FsvpRecordStatus | string, hasSignature: boolean): string {
+  switch (status) {
+    case "needs_corrective_action": return "Needs corrective action";
+    case "rejected":                return "Rejected — cannot be imported";
+    case "expired":                 return "Determination expired";
+    case "draft":                   return "Needs supplier evidence";
+    case "awaiting_supplier_evidence": return "Waiting on the supplier";
+    case "supplier_evidence_submitted": return "Needs your review";
+    case "supplier_evidence_accepted":
+    case "importer_review_pending":
+      return hasSignature
+        ? "Needs your approval decision"
+        : "Needs a qualified individual signature";
+    case "reassessment_due":        return "Reassessment due";
+    case "importer_approved":
+    case "conditionally_approved":  return "In monitoring";
+    // An unrecognised status is not evidence that nothing is needed, and
+    // claiming "in monitoring" for one would be the most reassuring possible
+    // wrong answer.
+    default:                        return "Needs review";
+  }
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   RECORD_STAGES,
   isBlocked,
+  nextGateFor,
   recordProgress,
   stageIndexFor,
   summariseStages,
@@ -106,5 +107,53 @@ describe("summariseStages", () => {
 
   it("returns one count per stage so a stacked bar can render directly", () => {
     expect(summariseStages([]).byStage).toHaveLength(RECORD_STAGES.length);
+  });
+});
+
+describe("nextGateFor", () => {
+  it("says what would move the record, not where it is", () => {
+    // "Importer review" is a location; a dashboard row is read by someone
+    // deciding what to open next.
+    expect(nextGateFor("importer_review_pending", true)).toBe("Needs your approval decision");
+    expect(nextGateFor("draft", false)).toBe("Needs supplier evidence");
+  });
+
+  it("distinguishes waiting on a signature from waiting on the decision", () => {
+    // The status alone cannot tell these apart, and sending someone to approve
+    // a record the § 1.503 gate will refuse wastes the trip.
+    expect(nextGateFor("supplier_evidence_accepted", false)).toBe(
+      "Needs a qualified individual signature"
+    );
+    expect(nextGateFor("supplier_evidence_accepted", true)).toBe("Needs your approval decision");
+  });
+
+  it("names each blocked state rather than lumping them", () => {
+    expect(nextGateFor("needs_corrective_action", true)).toBe("Needs corrective action");
+    expect(nextGateFor("rejected", true)).toBe("Rejected — cannot be imported");
+    expect(nextGateFor("expired", true)).toBe("Determination expired");
+  });
+
+  it("says an approved record is in monitoring rather than needing something", () => {
+    expect(nextGateFor("importer_approved", true)).toBe("In monitoring");
+    expect(nextGateFor("conditionally_approved", true)).toBe("In monitoring");
+    expect(nextGateFor("reassessment_due", true)).toBe("Reassessment due");
+  });
+
+  it("does not reassure about a status it does not recognise", () => {
+    // Claiming "In monitoring" for an unknown status would be the most
+    // reassuring possible wrong answer.
+    expect(nextGateFor("something_new", true)).toBe("Needs review");
+  });
+
+  it("gives every known status a gate", () => {
+    const known = [
+      ...RECORD_STAGES.flatMap((s) => s.statuses),
+      "needs_corrective_action",
+      "rejected",
+      "expired",
+    ];
+    for (const status of known) {
+      expect(nextGateFor(status, true)).not.toBe("Needs review");
+    }
   });
 });

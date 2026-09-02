@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Plus } from "lucide-react";
-import { RECORD_STAGES, recordProgress } from "@/lib/fsvp/record-stages";
+import { RECORD_STAGES, nextGateFor, recordProgress } from "@/lib/fsvp/record-stages";
 import type { FsvpRecordStatus } from "@/types/database";
 
 export type ProgressRecord = {
@@ -33,23 +33,32 @@ const SEGMENT_FILL = [
   "bg-emerald-500",
 ];
 
-function detailFor(record: ProgressRecord): string {
-  if (record.status === "needs_corrective_action") return "Corrective action needed";
-  if (record.status === "rejected") return "Rejected — cannot be imported";
-  if (record.status === "expired") return "Expired";
-  if (record.status === "reassessment_due" || record.reassessment_due_at) {
-    const due = record.reassessment_due_at;
-    if (due) {
-      const overdue = new Date(due) <= new Date();
-      const when = new Date(due).toLocaleDateString(undefined, { month: "short", year: "numeric" });
-      return overdue ? `Reassessment overdue — ${when}` : `Reassessment due ${when}`;
-    }
-    return "Reassessment due";
+/**
+ * What this record needs, preferring a date over a phrase when there is one.
+ *
+ * A reassessment with a date on it is more useful than "In monitoring", so the
+ * date wins wherever it exists; everything else defers to nextGateFor.
+ */
+function gateFor(record: ProgressRecord, hasSignature: boolean): string {
+  const due = record.reassessment_due_at;
+  if (due && !["needs_corrective_action", "rejected", "expired"].includes(record.status)) {
+    const when = new Date(due).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+    return new Date(due) <= new Date()
+      ? `Reassessment overdue — ${when}`
+      : `Reassessment due ${when}`;
   }
-  return record.product_name ?? "Product";
+  return nextGateFor(record.status, hasSignature);
 }
 
-export function RecordProgressList({ records }: { records: ProgressRecord[] }) {
+export function RecordProgressList({
+  records,
+  unsignedRecordIds = [],
+}: {
+  records: ProgressRecord[];
+  /** Records with no qualified individual signature, so a row can say so. */
+  unsignedRecordIds?: string[];
+}) {
+  const unsigned = new Set(unsignedRecordIds);
   if (records.length === 0) {
     return (
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -85,6 +94,11 @@ export function RecordProgressList({ records }: { records: ProgressRecord[] }) {
       <ul className="divide-y divide-line">
         {ordered.map((record) => {
           const progress = recordProgress(record.status);
+          const overdue =
+            !!record.reassessment_due_at && new Date(record.reassessment_due_at) <= new Date();
+          // Approved and not yet due back: the gate line is a statement, not a
+          // task, so it should not wear the colour the tasks wear.
+          const settled = progress.stageIndex === RECORD_STAGES.length - 1 && !overdue;
           return (
             <li key={record.id}>
               <Link
@@ -94,13 +108,25 @@ export function RecordProgressList({ records }: { records: ProgressRecord[] }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-ink group-hover:text-forest">
                     {record.facility_name ?? "Facility"}
+                    {record.product_name && (
+                      <span className="font-normal text-slate-400"> · {record.product_name}</span>
+                    )}
                   </p>
+                  {/* The actionable line. The stage under the bar says where
+                      this record is; this says what would move it, which is
+                      what someone scanning for their next task is reading. */}
                   <p
-                    className={`truncate text-xs ${
-                      progress.blocked ? "font-semibold text-red-600" : "text-slate-500"
+                    className={`truncate text-xs font-medium ${
+                      progress.blocked
+                        ? "text-red-600"
+                        : overdue
+                        ? "text-red-600"
+                        : settled
+                        ? "text-slate-500"
+                        : "text-amber-700"
                     }`}
                   >
-                    {detailFor(record)}
+                    {gateFor(record, !unsigned.has(record.id))}
                   </p>
                 </div>
 
