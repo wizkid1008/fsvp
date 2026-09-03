@@ -16,7 +16,6 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
 import { ProgramStatus } from "@/components/dashboard/ProgramStatus";
-import { ProductProgressList } from "@/components/dashboard/ProductProgressList";
 import { summariseProducts } from "@/lib/dashboard/product-journey";
 import { WhatNeedsDoing } from "@/components/dashboard/WhatNeedsDoing";
 import { outstandingCount, outstandingWork } from "@/lib/dashboard/outstanding-work";
@@ -114,11 +113,6 @@ async function ImporterDashboard({
           approvedFacilities: plan?.summary.approvedFacilities ?? 0,
         }}
       />
-
-      {/* Directly under the overview, because they answer the same question at
-          two zoom levels: the track above says how far the programme has got,
-          each row below says how far one product has. */}
-      <ProductProgressList standings={plan?.productStandings ?? []} />
 
       {/* One section where there were three — six metric tiles, three "what's
           gating approvals" buckets and a "next step · 4 of 11" card, all the
