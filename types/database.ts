@@ -495,6 +495,13 @@ export type RequirementItem = {
   expiration_applies: boolean;
   cfr_citation: string | null;
   sort_order: number;
+  /**
+   * 'entity' — one document answers for everyone who reads it.
+   * 'importer_relationship' — an agreement between one supplier and one
+   * importer, satisfied only by a document filed for that importer.
+   * See migration 028 and lib/readiness/evidence-scope.ts.
+   */
+  evidence_scope: "entity" | "importer_relationship";
   created_at: string;
 };
 

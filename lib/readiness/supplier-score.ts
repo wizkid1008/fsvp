@@ -15,6 +15,8 @@
 // owning importer and reviewers under RLS (001_baseline_rls.sql). Showing it to
 // exporters is a disclosure decision, not a refactor.
 
+import { acceptedCount, statusesByItem, type EvidenceViewer } from "./evidence-scope";
+
 type SupabaseLike = { from: (table: string) => any };
 
 export type SupplierReadiness = {
@@ -43,58 +45,78 @@ export async function computeSupplierReadiness(
 
   if (!publishedVersion?.id) return EMPTY;
 
-  const [weightsRes, itemsRes, docsRes] = await Promise.all([
+  // Both callers are exporter-side, so the viewer is the exporter itself: it has
+  // no single counterparty, and a relationship-scoped item is only done when
+  // every importer it serves has one. See lib/readiness/evidence-scope.ts.
+  const [weightsRes, itemsRes, docsRes, linksRes] = await Promise.all([
     (supabase.from("scoring_category_weights") as any)
       .select("section_id, weight_percent")
       .eq("rule_version_id", publishedVersion.id),
     (supabase.from("requirement_sections") as any)
-      .select("id, requirement_items(id, is_required, is_critical_blocker)")
+      .select("id, requirement_items(id, is_required, is_critical_blocker, evidence_scope)")
       .eq("rule_version_id", publishedVersion.id)
       .eq("applies_to", "supplier"),
     (supabase.from("documents") as any)
-      .select("requirement_item_id, evidence_status")
+      .select("requirement_item_id, evidence_status, importer_id")
       .eq("supplier_id", supplierId)
       .is("soft_deleted_at", null)
       .not("requirement_item_id", "is", null),
+    (supabase.from("supplier_relationships") as any)
+      .select("importer_id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("supplier_id", supplierId)
+      .in("status", ["active", "pending_invite"]),
   ]);
+
+  const viewer: EvidenceViewer = {
+    kind: "exporter",
+    linkedImporterIds: [...new Set(
+      ((linksRes.data ?? []) as Array<{ importer_id: string | null }>)
+        .map((link) => link.importer_id)
+        .filter((id): id is string => Boolean(id))
+    )],
+  };
 
   const weightBySection = new Map(
     ((weightsRes.data ?? []) as Array<{ section_id: string; weight_percent: number }>)
       .map((w) => [w.section_id, Number(w.weight_percent)])
   );
 
-  const statusesByItem = new Map<string, string[]>();
-  for (const doc of (docsRes.data ?? []) as Array<{ requirement_item_id: string; evidence_status: string }>) {
-    const existing = statusesByItem.get(doc.requirement_item_id) ?? [];
-    existing.push(doc.evidence_status);
-    statusesByItem.set(doc.requirement_item_id, existing);
-  }
+  const sections = (itemsRes.data ?? []) as Array<{
+    id: string;
+    requirement_items: Array<{ id: string; is_required: boolean; evidence_scope?: string | null }>;
+  }>;
+
+  const statuses = statusesByItem(
+    sections.flatMap((section) => section.requirement_items ?? []),
+    (docsRes.data ?? []) as Array<{
+      requirement_item_id: string | null;
+      evidence_status: string | null;
+      importer_id: string | null;
+    }>,
+    viewer
+  );
 
   let score = 0;
   let requiredCount = 0;
-  let acceptedCount = 0;
+  let accepted = 0;
 
-  for (const section of (itemsRes.data ?? []) as Array<{
-    id: string;
-    requirement_items: Array<{ id: string; is_required: boolean }>;
-  }>) {
+  for (const section of sections) {
     const required = (section.requirement_items ?? []).filter((item) => item.is_required);
     if (required.length === 0) continue;
 
-    const accepted = required.filter((item) =>
-      (statusesByItem.get(item.id) ?? []).includes("accepted")
-    ).length;
+    const sectionAccepted = acceptedCount(required, statuses);
 
     requiredCount += required.length;
-    acceptedCount += accepted;
-    score += (accepted / required.length) * (weightBySection.get(section.id) ?? 0);
+    accepted += sectionAccepted;
+    score += (sectionAccepted / required.length) * (weightBySection.get(section.id) ?? 0);
   }
 
   return {
     score: Math.min(Math.round(score), 100),
     scored: true,
     requiredCount,
-    acceptedCount,
+    acceptedCount: accepted,
   };
 }
 

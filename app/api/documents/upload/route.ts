@@ -149,6 +149,50 @@ export async function POST(request: Request) {
     if (!canWriteSupplierEntity(uploaderProfile, resolvedSupplierId, linkRows ?? [])) {
       return NextResponse.json({ error: "You cannot upload evidence for this supplier." }, { status: 403 });
     }
+
+    // WHICH importer a document is filed for is now load-bearing. Migration 028
+    // makes written assurances and the importer acknowledgement answerable only
+    // by the importer named on the document, so importer_id can no longer be
+    // taken on trust from the form. Filing against an unlinked importer would
+    // put the document into that importer's evidence — documents_read grants
+    // reads by importer_id — and satisfy their § 1.506(e)(2) requirement with
+    // an assurance nobody gave them. Refused for every role: this is a
+    // data-correctness invariant, not a permission level.
+    const linkedImporterIds = new Set(
+      ((linkRows ?? []) as Array<{ relationship_type: string; importer_id: string | null }>)
+        .filter((link) => link.relationship_type === "importer_supplier")
+        .map((link) => link.importer_id)
+        .filter((id): id is string => Boolean(id))
+    );
+
+    if (resolvedImporterId && !linkedImporterIds.has(resolvedImporterId)) {
+      return NextResponse.json(
+        { error: "That importer is not linked to this supplier, so evidence cannot be filed for them." },
+        { status: 403 }
+      );
+    }
+
+    if (requirementItemId) {
+      const { data: requirement } = await (accessDb.from("requirement_items") as any)
+        .select("item_name, evidence_scope")
+        .eq("id", requirementItemId)
+        .maybeSingle();
+
+      // Without an importer this document would count for nobody — the scope
+      // rules ignore a relationship document that names no relationship. Better
+      // to say so than to accept a file that silently satisfies nothing.
+      if (requirement?.evidence_scope === "importer_relationship" && !resolvedImporterId) {
+        return NextResponse.json(
+          {
+            error:
+              `"${requirement.item_name ?? "This requirement"}" is an agreement between one supplier ` +
+              `and one importer, so it has to be filed for a named importer. This exporter serves ` +
+              `more than one, so say which importer the document is for.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
   }
 
   let linkedEntityType = "supplier";

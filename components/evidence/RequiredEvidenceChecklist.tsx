@@ -1,16 +1,17 @@
 import { RequirementItemRow } from "./RequirementItemRow";
 import { fetchDetermination, recordCreationAction } from "@/lib/fsvp/applicability";
+import {
+  bestStatus,
+  statusesByItem,
+  type EvidenceViewer,
+} from "@/lib/readiness/evidence-scope";
 
 type SupabaseLike = { from: (table: string) => any };
 
-function bestStatus(statuses: string[]): string {
-  if (statuses.includes("accepted")) return "accepted";
-  if (statuses.includes("under_review")) return "under_review";
-  if (statuses.includes("submitted")) return "submitted";
-  if (statuses.includes("needs_revision")) return "needs_revision";
-  if (statuses.includes("rejected")) return "rejected";
-  return "not_submitted";
-}
+// bestStatus and the scope rules now live in lib/readiness/evidence-scope.ts,
+// which lib/readiness/supplier-score.ts also calls — the list and the number
+// above it have to agree about what satisfies a requirement, and two copies of
+// that judgement is how they stop agreeing.
 
 /**
  * The requirements a company, facility or product still owes evidence for.
@@ -67,27 +68,29 @@ export async function RequiredEvidenceChecklist({
       .order("sort_order"),
 
     (supabase.from("requirement_sections") as any)
-      .select("id, requirement_items(id, item_key, item_name, is_required, is_critical_blocker, sort_order)")
+      .select("id, requirement_items(id, item_key, item_name, is_required, is_critical_blocker, sort_order, evidence_scope)")
       .eq("rule_version_id", pubVersion.id)
       .eq("applies_to", linkType),
 
     // Company-level evidence hangs off supplier_id rather than a linked entity,
     // which is the same column lib/readiness/supplier-score.ts counts — so the
-    // list and the score above it cannot disagree.
+    // list and the score above it cannot disagree. importer_id comes along
+    // because migration 028 makes two of the supplier items answerable only by
+    // the importer they were filed for.
     linkType === "supplier"
       ? (supabase.from("documents") as any)
-          .select("requirement_item_id, evidence_status")
+          .select("requirement_item_id, evidence_status, importer_id")
           .eq("supplier_id", entityId)
           .is("soft_deleted_at", null)
           .not("requirement_item_id", "is", null)
     : linkType === "facility"
       ? (supabase.from("documents") as any)
-          .select("requirement_item_id, evidence_status")
+          .select("requirement_item_id, evidence_status, importer_id")
           .eq("facility_id", entityId)
           .is("soft_deleted_at", null)
           .not("requirement_item_id", "is", null)
       : (supabase.from("documents") as any)
-          .select("requirement_item_id, evidence_status")
+          .select("requirement_item_id, evidence_status, importer_id")
           .eq("linked_entity_type", "product")
           .eq("linked_entity_id", entityId)
           .is("soft_deleted_at", null)
@@ -106,7 +109,10 @@ export async function RequiredEvidenceChecklist({
 
   const sections: Array<{ id: string; section_key: string; section_name: string }> = sectionsRes.data ?? [];
 
-  type RawItem = { id: string; item_key: string; item_name: string; is_required: boolean; is_critical_blocker: boolean; sort_order: number };
+  type RawItem = {
+    id: string; item_key: string; item_name: string; is_required: boolean;
+    is_critical_blocker: boolean; sort_order: number; evidence_scope?: string | null;
+  };
   type RawSec = { id: string; requirement_items: RawItem[] };
 
   const itemsBySectionId = new Map<string, RawItem[]>();
@@ -117,13 +123,44 @@ export async function RequiredEvidenceChecklist({
     itemsBySectionId.set(sec.id, sorted);
   }
 
-  const docByItemId = new Map<string, string[]>();
-  for (const doc of (docsRes.data ?? []) as Array<{ requirement_item_id: string | null; evidence_status: string | null }>) {
-    if (!doc.requirement_item_id) continue;
-    const existing = docByItemId.get(doc.requirement_item_id) ?? [];
-    existing.push(doc.evidence_status ?? "not_submitted");
-    docByItemId.set(doc.requirement_item_id, existing);
+  /**
+   * Who is asking. An importer asks about its own relationship; the exporter
+   * reading its own readiness has no single counterparty, so relationship items
+   * are judged across every importer it serves.
+   *
+   * Only supplier requirements are ever relationship-scoped, so the extra query
+   * is confined to that case.
+   */
+  let viewer: EvidenceViewer = importerId
+    ? { kind: "importer", importerId }
+    : { kind: "exporter", linkedImporterIds: [] };
+
+  if (linkType === "supplier" && !importerId) {
+    const { data: links } = await (supabase.from("supplier_relationships") as any)
+      .select("importer_id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("supplier_id", entityId)
+      .in("status", ["active", "pending_invite"]);
+
+    viewer = {
+      kind: "exporter",
+      linkedImporterIds: [...new Set(
+        ((links ?? []) as Array<{ importer_id: string | null }>)
+          .map((link) => link.importer_id)
+          .filter((id): id is string => Boolean(id))
+      )],
+    };
   }
+
+  const docByItemId = statusesByItem(
+    [...itemsBySectionId.values()].flat(),
+    (docsRes.data ?? []) as Array<{
+      requirement_item_id: string | null;
+      evidence_status: string | null;
+      importer_id: string | null;
+    }>,
+    viewer
+  );
 
   const fsvpRecordId = fsvpRecordRes.data?.id as string | undefined;
   const hazardRes = fsvpRecordId

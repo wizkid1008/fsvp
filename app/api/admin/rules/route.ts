@@ -114,6 +114,11 @@ export async function POST(req: NextRequest) {
           expiration_applies: item.expiration_applies,
           cfr_citation: item.cfr_citation,
           sort_order: item.sort_order,
+          // Named explicitly like every other column, so a clone cannot quietly
+          // demote a relationship-scoped requirement back to entity scope and
+          // reintroduce the cross-importer leak migration 028 closed. Any column
+          // added to requirement_items has to be added here too.
+          evidence_scope: item.evidence_scope,
         });
       }
     }
