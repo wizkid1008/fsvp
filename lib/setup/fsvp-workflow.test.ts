@@ -63,12 +63,26 @@ describe("buildCompleteFsvpSetupPlan", () => {
     expect(plan.steps.every((step) => step.blockers.length === 0)).toBe(true);
     expect(plan.summary).toMatchObject({
       exporters: 1,
+      approvedExporters: 1,
       facilities: 1,
+      approvedFacilities: 0,
       products: 1,
       records: 1,
       approvedRecords: 1,
       packages: 1,
     });
+  });
+
+  it("counts approved facilities from live facility approval status", () => {
+    const input = cleanInput();
+    input.facilities = [{
+      ...input.facilities[0],
+      approval_status: "importer_approved",
+    }];
+
+    const plan = buildCompleteFsvpSetupPlan(input);
+
+    expect(plan.summary.approvedFacilities).toBe(1);
   });
 
   it("surfaces ordered blockers with links to the corrective screens", () => {

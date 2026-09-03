@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Building2, PackageCheck, ShipWheel } from "lucide-react";
 import { PRODUCT_PHASES, type ProductSummary } from "@/lib/dashboard/product-journey";
 
 /**
@@ -22,26 +22,50 @@ import { PRODUCT_PHASES, type ProductSummary } from "@/lib/dashboard/product-jou
  * journey rather than as a bar that failed to load.
  */
 
-const PHASE_FILL = [
-  "bg-slate-400",   // registering
-  "bg-violet-400",  // opening record
-  "bg-amber-400",   // verifying
-  "bg-sky-400",     // awaiting approval
-  "bg-emerald-500", // approved
-];
+function describe(value: number, total: number, unit: string, plural = `${unit}s`) {
+  return `${value} of ${total} ${total === 1 ? unit : plural}`;
+}
 
-export function ProgramStatus({ summary }: { summary: ProductSummary }) {
+export function ProgramStatus({
+  summary,
+  supplyChain,
+}: {
+  summary: ProductSummary;
+  supplyChain: {
+    exporters: number;
+    approvedExporters: number;
+    facilities: number;
+    approvedFacilities: number;
+  };
+}) {
   const { total, blocked, byPhase, approved } = summary;
+  const metrics = [
+    {
+      label: "Approved products",
+      value: describe(approved, total, "product"),
+      icon: PackageCheck,
+    },
+    {
+      label: "Approved facilities",
+      value: describe(supplyChain.approvedFacilities, supplyChain.facilities, "facility", "facilities"),
+      icon: Building2,
+    },
+    {
+      label: "Approved exporters",
+      value: describe(supplyChain.approvedExporters, supplyChain.exporters, "exporter"),
+      icon: ShipWheel,
+    },
+  ];
 
   return (
     <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink">Programme status</h2>
+          <h2 className="text-sm font-semibold text-ink">Product status</h2>
           <p className="mt-1 text-sm text-slate-500">
             {total === 0
               ? "No products yet. Every FSVP obligation is measured against the food you import."
-              : `${approved} of ${total} product${total === 1 ? "" : "s"} approved and importable.`}
+              : "Approved supply-chain counts and where active products currently sit."}
           </p>
         </div>
         {blocked > 0 && (
@@ -52,25 +76,37 @@ export function ProgramStatus({ summary }: { summary: ProductSummary }) {
         )}
       </div>
 
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {metrics.map((metric) => {
+          const Icon = metric.icon;
+          return (
+            <div key={metric.label} className="rounded-md border border-line bg-slate-50 px-4 py-3">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                <Icon className="h-3.5 w-3.5 text-forest" />
+                {metric.label}
+              </div>
+              <p className="mt-2 text-xl font-semibold text-ink">{metric.value}</p>
+            </div>
+          );
+        })}
+      </div>
+
       {total > 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="mt-4 flex flex-wrap gap-2">
           {PRODUCT_PHASES.map((phase, i) => {
             const count = byPhase[i];
             return (
-              <div key={phase.key}>
-                {/* An empty phase keeps its slot and shows a hollow rail, so
-                    the shape of the journey is visible from the first product
-                    rather than appearing one phase at a time. */}
-                <div
-                  className={`h-1.5 w-full rounded-full ${count > 0 ? PHASE_FILL[i] : "bg-slate-100"}`}
-                />
-                <p
-                  className={`mt-2 text-lg font-semibold ${count > 0 ? "text-ink" : "text-slate-300"}`}
-                >
-                  {count}
-                </p>
-                <p className="text-xs leading-4 text-slate-500">{phase.label}</p>
-              </div>
+              <span
+                key={phase.key}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${
+                  count > 0
+                    ? "border-slate-300 bg-white text-ink"
+                    : "border-slate-100 bg-slate-50 text-slate-400"
+                }`}
+              >
+                <span className="font-semibold">{count}</span>
+                {phase.label}
+              </span>
             );
           })}
         </div>

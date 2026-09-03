@@ -105,7 +105,15 @@ async function ImporterDashboard({
       {/* Both in products. This counted records while the gate list beside it
           counted products, which is why the two sections read as contradicting
           each other — two denominators, the join never stated. */}
-      <ProgramStatus summary={summariseProducts(plan?.productStandings ?? [])} />
+      <ProgramStatus
+        summary={summariseProducts(plan?.productStandings ?? [])}
+        supplyChain={{
+          exporters:          plan?.summary.exporters ?? 0,
+          approvedExporters:  plan?.summary.approvedExporters ?? 0,
+          facilities:         plan?.summary.facilities ?? 0,
+          approvedFacilities: plan?.summary.approvedFacilities ?? 0,
+        }}
+      />
 
       {/* Directly under the overview, because they answer the same question at
           two zoom levels: the track above says how far the programme has got,

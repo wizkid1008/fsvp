@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Plus } from "lucide-react";
+import { AlertTriangle, ArrowRight, CircleDot, Plus } from "lucide-react";
 import { FSVP_SETUP_STEP_COPY } from "@/lib/setup/fsvp-steps";
 import type { ProductStanding } from "@/lib/setup/fsvp-workflow";
-import { PRODUCT_PHASES, isBlockedStanding, phaseFor } from "@/lib/dashboard/product-journey";
+import { isBlockedStanding, phaseFor } from "@/lib/dashboard/product-journey";
 
 /**
  * Each product on its way through, with what it needs next.
@@ -17,14 +17,6 @@ import { PRODUCT_PHASES, isBlockedStanding, phaseFor } from "@/lib/dashboard/pro
  * location; "Complete QI attestations" is the thing to go and do, and a
  * dashboard row is read by someone deciding what to open next.
  */
-
-const PHASE_FILL = [
-  "bg-slate-400",
-  "bg-violet-400",
-  "bg-amber-400",
-  "bg-sky-400",
-  "bg-emerald-500",
-];
 
 function blockedReason(standing: ProductStanding): string {
   if (standing.recordStatus === "needs_corrective_action") return "Needs corrective action";
@@ -100,34 +92,18 @@ export function ProductProgressList({ standings }: { standings: ProductStanding[
                   </p>
                 </div>
 
-                <div className="w-full sm:w-64">
-                  <div className="flex gap-1" aria-hidden="true">
-                    {PRODUCT_PHASES.map((p, i) => (
-                      <div
-                        key={p.key}
-                        className={`h-1.5 flex-1 rounded-full ${
-                          blocked
-                            ? "bg-red-200"
-                            : i <= phase.index
-                            ? PHASE_FILL[i]
-                            : "bg-slate-100"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <p className={`mt-1.5 text-xs font-medium ${blocked ? "text-red-600" : "text-slate-600"}`}>
-                    {blocked ? (
-                      "Blocked"
-                    ) : (
-                      <>
-                        {phase.label}
-                        <span className="text-slate-400">
-                          {" "}· {phase.index + 1} of {PRODUCT_PHASES.length}
-                        </span>
-                      </>
-                    )}
-                  </p>
-                </div>
+                <span
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${
+                    blocked
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : done
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 bg-slate-50 text-slate-600"
+                  }`}
+                >
+                  <CircleDot className="h-3.5 w-3.5" />
+                  {blocked ? "Blocked" : phase.label}
+                </span>
 
                 <ArrowRight className="hidden h-4 w-4 shrink-0 text-slate-300 group-hover:text-forest sm:block" />
               </Link>

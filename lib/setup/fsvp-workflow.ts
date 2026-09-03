@@ -3,6 +3,7 @@ import { fetchDetermination, isDeterminationLive, type LiveDetermination } from 
 import { evaluateGates, type GateBlock } from "@/lib/fsvp/gates";
 import { evaluateAttestations, type AttestationEvaluation, type AttestationInput } from "@/lib/fsvp/qi-attestation";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
+import { fetchApprovalStatusMap } from "@/lib/scoring";
 import { FSVP_SETUP_STEP_COPY as STEP_COPY } from "./fsvp-steps";
 import type { FsvpSetupStepId } from "./fsvp-steps";
 
@@ -43,7 +44,9 @@ export type SetupStep = {
 
 export type SetupSummary = {
   exporters: number;
+  approvedExporters: number;
   facilities: number;
+  approvedFacilities: number;
   products: number;
   records: number;
   approvedRecords: number;
@@ -78,7 +81,7 @@ export type CompleteFsvpSetupPlan = {
 };
 
 type SupplierRow = { id: string; company_name: string; country: string | null };
-type FacilityRow = { id: string; facility_name: string; supplier_id: string | null };
+type FacilityRow = { id: string; facility_name: string; supplier_id: string | null; approval_status?: string | null };
 type FacilityAccessRow = { facility_id: string; supplier_id: string };
 type ProductRow = {
   id: string;
@@ -165,6 +168,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
 
   const countWhere = <T,>(items: T[], predicate: (item: T) => boolean): number =>
     items.filter(predicate).length;
+  const approvedRecordStatuses = new Set(["importer_approved", "conditionally_approved"]);
 
   steps.push({
     ...STEP_COPY.exporter,
@@ -500,7 +504,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       ((input.evidenceByRecordId.get(record.id) ?? 0) === 0 ? 1 : 0) +
       (!determination || !isDeterminationLive(determination) ? 1 : 0);
 
-    if (record.status === "importer_approved") continue;
+    if (approvedRecordStatuses.has(record.status)) continue;
     approvalBlockers.push(blocker(
       `approval-${record.id}`,
       earlierBlocks > 0
@@ -522,13 +526,13 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ...STEP_COPY.approval,
     blockers: approvalBlockers,
     progress: progress(
-      countWhere(input.records, (r) => r.status === "importer_approved"),
+      countWhere(input.records, (r) => approvedRecordStatuses.has(r.status)),
       input.records.length
     ),
   });
 
   const packageBlockers: SetupBlocker[] = [];
-  const approvedRecords = input.records.filter((r) => r.status === "importer_approved");
+  const approvedRecords = input.records.filter((r) => approvedRecordStatuses.has(r.status));
   for (const record of approvedRecords) {
     if (!input.packagesByRecordId.has(record.id)) {
       packageBlockers.push(blocker(
@@ -600,7 +604,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       : (input.gateBlocksByRecordId.get(record.id) ?? []).some((b) => b.code.startsWith("compliance_screening")) ? "screening"
       : (input.evidenceByRecordId.get(record.id) ?? 0) === 0 ? "evidence"
       : (input.attestationsByRecordId.get(record.id)?.reasons ?? []).length > 0 ? "qi"
-      : record.status !== "importer_approved" ? "approval"
+      : !approvedRecordStatuses.has(record.status) ? "approval"
       : !input.packagesByRecordId.has(record.id) ? "package"
       : null;
 
@@ -616,13 +620,29 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     };
   });
 
+  const recordsBySupplierId = new Map<string, RecordRow[]>();
+  for (const record of input.records) {
+    const existing = recordsBySupplierId.get(record.supplier_id) ?? [];
+    existing.push(record);
+    recordsBySupplierId.set(record.supplier_id, existing);
+  }
+  const approvedExporters = input.suppliers.filter((supplier) => {
+    const records = recordsBySupplierId.get(supplier.id) ?? [];
+    return records.length > 0 && records.every((record) => approvedRecordStatuses.has(record.status));
+  }).length;
+  const approvedFacilities = input.facilities.filter((facility) =>
+    ["importer_approved", "approved"].includes(facility.approval_status ?? "")
+  ).length;
+
   return {
     steps,
     productStandings,
     progressPercent: unitsTotal === 0 ? 0 : Math.round((unitsDone / unitsTotal) * 100),
     summary: {
       exporters: input.suppliers.length,
+      approvedExporters,
       facilities: input.facilities.length,
+      approvedFacilities,
       products: input.products.length,
       records: input.records.length,
       approvedRecords: approvedRecords.length,
@@ -667,7 +687,7 @@ export async function loadCompleteFsvpSetupPlan(
       : Promise.resolve({ data: [] }),
     supplierIds.length
       ? (supabase.from("facilities_verify") as any)
-          .select("id, facility_name, supplier_id")
+          .select("id, facility_name, supplier_id, approval_status")
           .in("supplier_id", supplierIds)
       : Promise.resolve({ data: [] }),
     supplierIds.length
@@ -737,6 +757,16 @@ export async function loadCompleteFsvpSetupPlan(
     .filter((row) => isActiveOn(row))
     .length;
 
+  const approvalStatusByFacility = await fetchApprovalStatusMap(
+    supabase,
+    "facility",
+    facilities.map((facility) => facility.id)
+  );
+  const facilitiesWithApprovalStatus = facilities.map((facility) => ({
+    ...facility,
+    approval_status: approvalStatusByFacility.get(facility.id) ?? facility.approval_status,
+  }));
+
   const determinationsByProductId = new Map<string, LiveDetermination | null>();
   const admissibilityByProductId = new Map<string, AdmissibilityBlock[]>();
   await Promise.all(products.map(async (product) => {
@@ -798,7 +828,7 @@ export async function loadCompleteFsvpSetupPlan(
 
   return buildCompleteFsvpSetupPlan({
     suppliers,
-    facilities,
+    facilities: facilitiesWithApprovalStatus,
     facilityAccess,
     products,
     records,
