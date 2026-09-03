@@ -16,7 +16,6 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
 import { ProgramStatus } from "@/components/dashboard/ProgramStatus";
-import { PipelineOverview } from "@/components/dashboard/PipelineOverview";
 import { summariseProducts } from "@/lib/dashboard/product-journey";
 import { WhatNeedsDoing } from "@/components/dashboard/WhatNeedsDoing";
 import { outstandingCount, outstandingWork } from "@/lib/dashboard/outstanding-work";
@@ -124,12 +123,6 @@ async function ImporterDashboard({
       />
 
       <WhatNeedsDoing gates={gates} />
-
-      <PipelineOverview
-        productSummary={productSummary}
-        setupSummary={setupSummary}
-        gates={gates}
-      />
 
       {signals?.clear && gatesClear && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4">
