@@ -17,18 +17,21 @@ import { pcbCredentialsFromEnv, searchProductsByName } from "@/lib/regulatory/pr
 
 export const runtime = "edge";
 
+// Kept identical in order and contents to the lists in /api/commodities —
+// these two validators accept the same vocabulary, and a value that passes one
+// but not the other would let a request be filed that can never be resolved.
 const PARTS = [
-  "fruit", "leaf", "root", "seed", "pod", "stem", "flower",
-  "whole_plant", "bulb", "tuber", "all_including_seed", "not_applicable",
+  "all_including_seed", "bulb", "flower", "fruit", "leaf", "pod",
+  "root", "seed", "stem", "tuber", "whole_plant", "not_applicable",
 ] as const;
 
 const CLASSES = [
-  "fruit", "vegetable", "nut", "grain", "herb_spice",
-  "seafood", "meat_poultry", "dairy", "egg",
-  "beverage", "processed_food", "supplement", "other",
+  "beverage", "dairy", "egg", "fruit", "grain", "herb_spice",
+  "meat_poultry", "nut", "processed_food", "seafood", "supplement",
+  "vegetable", "other",
 ] as const;
 
-const PLANT_CLASSES = new Set(["fruit", "vegetable", "nut", "grain", "herb_spice"]);
+const PLANT_CLASSES = new Set(["fruit", "grain", "herb_spice", "nut", "vegetable"]);
 
 /** Cap on what we snapshot — evidence of what was looked at, not a data dump. */
 const MAX_CANDIDATES = 25;

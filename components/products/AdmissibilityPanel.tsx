@@ -51,23 +51,26 @@ const labelClass = "block text-sm font-medium text-slate-700";
 const buttonClass =
   "inline-flex h-10 items-center justify-center rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60";
 
+// Alphabetical by the label the importer actually reads, with "Other" pinned
+// last. The value order happens to match, so this stays in step with the
+// validators in /api/commodities without the two being derived from each other.
 const commodityClasses = [
-  ["fruit", "Fruit"],
-  ["vegetable", "Vegetable"],
-  ["nut", "Nut"],
-  ["grain", "Grain"],
-  ["herb_spice", "Herb or spice"],
-  ["seafood", "Seafood"],
-  ["meat_poultry", "Meat or poultry"],
+  ["beverage", "Beverage"],
   ["dairy", "Dairy"],
   ["egg", "Egg"],
-  ["beverage", "Beverage"],
+  ["fruit", "Fruit"],
+  ["grain", "Grain"],
+  ["herb_spice", "Herb or spice"],
+  ["meat_poultry", "Meat or poultry"],
+  ["nut", "Nut"],
   ["processed_food", "Processed food"],
+  ["seafood", "Seafood"],
   ["supplement", "Supplement"],
+  ["vegetable", "Vegetable"],
   ["other", "Other"],
 ] as const;
 
-const plantClassValues = new Set(["fruit", "vegetable", "nut", "grain", "herb_spice"]);
+const plantClassValues = new Set(["fruit", "grain", "herb_spice", "nut", "vegetable"]);
 
 function outcomeTone(outcome: AdmissibilityDeterminationRow["outcome"]): StatusTone {
   if (outcome === "permitted") return "success";
@@ -479,8 +482,8 @@ export function AdmissibilityPanel({
                         Plant part
                         <select name="plant_part" className={inputClass} defaultValue="">
                           <option value="">Not sure</option>
-                          {["not_applicable", "fruit", "leaf", "root", "seed", "pod", "stem", "flower",
-                            "whole_plant", "bulb", "tuber", "all_including_seed"]
+                          {["all_including_seed", "bulb", "flower", "fruit", "leaf", "pod",
+                            "root", "seed", "stem", "tuber", "whole_plant", "not_applicable"]
                             .map((value) => (
                               <option key={value} value={value}>{value.replace(/_/g, " ")}</option>
                             ))}

@@ -125,9 +125,9 @@ function CommodityForm({ onClose }: { onClose: () => void }) {
             >
               <option value="" disabled>Select class</option>
               {[
-                "fruit", "vegetable", "nut", "grain", "herb_spice", "seafood",
-                "meat_poultry", "dairy", "egg", "beverage", "processed_food",
-                "supplement", "other",
+                "beverage", "dairy", "egg", "fruit", "grain", "herb_spice",
+                "meat_poultry", "nut", "processed_food", "seafood",
+                "supplement", "vegetable", "other",
               ].map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}
             </select>
           </label>
@@ -140,8 +140,8 @@ function CommodityForm({ onClose }: { onClose: () => void }) {
                   {/* `pod` and `all_including_seed` are APHIS's own terms —
                       migration 026. Cacao Bean Pod is a pod, not a fruit, and
                       calling it one would widen every rule about it. */}
-                  {["not_applicable", "fruit", "leaf", "root", "seed", "pod", "stem", "flower",
-                    "whole_plant", "bulb", "tuber", "all_including_seed"]
+                  {["all_including_seed", "bulb", "flower", "fruit", "leaf", "pod",
+                    "root", "seed", "stem", "tuber", "whole_plant", "not_applicable"]
                     .map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}
                 </select>
               </label>

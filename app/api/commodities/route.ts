@@ -15,15 +15,18 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export const runtime = "edge";
 
+// Alphabetical so a value can be found by scanning, with the catch-all pinned
+// last in both — "other" and "not_applicable" are where you land when nothing
+// fits, so they read as the end of the list rather than an entry within it.
 const CLASSES = [
-  "fruit", "vegetable", "nut", "grain", "herb_spice",
-  "seafood", "meat_poultry", "dairy", "egg",
-  "beverage", "processed_food", "supplement", "other",
+  "beverage", "dairy", "egg", "fruit", "grain", "herb_spice",
+  "meat_poultry", "nut", "processed_food", "seafood", "supplement",
+  "vegetable", "other",
 ] as const;
 
 const PARTS = [
-  "fruit", "leaf", "root", "seed", "pod", "stem", "flower",
-  "whole_plant", "bulb", "tuber", "all_including_seed", "not_applicable",
+  "all_including_seed", "bulb", "flower", "fruit", "leaf", "pod",
+  "root", "seed", "stem", "tuber", "whole_plant", "not_applicable",
 ] as const;
 
 export async function POST(req: NextRequest) {
