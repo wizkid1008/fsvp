@@ -74,15 +74,34 @@ describe("buildCompleteFsvpSetupPlan", () => {
   });
 
   it("counts approved facilities from live facility approval status", () => {
+    // "approved" is the only facilities_verify.approval_status value the
+    // migration 000 CHECK constraint allows that means approved — this used to
+    // assert against "importer_approved", a fsvp_records status the column can
+    // never actually hold, which meant approvedFacilities was silently zero on
+    // every real account.
     const input = cleanInput();
     input.facilities = [{
       ...input.facilities[0],
-      approval_status: "importer_approved",
+      approval_status: "approved",
     }];
 
     const plan = buildCompleteFsvpSetupPlan(input);
 
     expect(plan.summary.approvedFacilities).toBe(1);
+  });
+
+  it("does not count a conditionally approved facility as approved", () => {
+    // conditionally_approved renders as the amber "warning" tone everywhere
+    // else a facility's status is shown, never as approved.
+    const input = cleanInput();
+    input.facilities = [{
+      ...input.facilities[0],
+      approval_status: "conditionally_approved",
+    }];
+
+    const plan = buildCompleteFsvpSetupPlan(input);
+
+    expect(plan.summary.approvedFacilities).toBe(0);
   });
 
   it("surfaces ordered blockers with links to the corrective screens", () => {

@@ -630,8 +630,17 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     const records = recordsBySupplierId.get(supplier.id) ?? [];
     return records.length > 0 && records.every((record) => approvedRecordStatuses.has(record.status));
   }).length;
-  const approvedFacilities = input.facilities.filter((facility) =>
-    ["importer_approved", "approved"].includes(facility.approval_status ?? "")
+  // "importer_approved" is an fsvp_records status, not a facilities_verify
+  // one — facilities_verify.approval_status is constrained to 'pending',
+  // 'approved', 'conditionally_approved', 'improvement_required',
+  // 'not_approved' and 'suspended' (migration 000). Comparing against a value
+  // the column can never hold made this always zero, on a metric card whose
+  // whole job is the count. 'conditionally_approved' is left out on purpose:
+  // it renders as the amber "warning" tone everywhere else a facility's
+  // status is shown (app/facilities/[id]/page.tsx, FacilityScoreCard,
+  // FacilityTable), never as approved.
+  const approvedFacilities = input.facilities.filter(
+    (facility) => facility.approval_status === "approved"
   ).length;
 
   return {
