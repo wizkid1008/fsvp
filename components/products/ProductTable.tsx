@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Edit2, PackageSearch, Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProductLifecycleDialog } from "@/components/products/ProductLifecycleDialog";
+import { InlineAddExporter } from "@/components/products/InlineAddExporter";
+import { InlineAddFacility } from "@/components/products/InlineAddFacility";
 import { LIFECYCLE_LABEL, retentionEndsOn, type ProductLifecycle } from "@/lib/fsvp/product-lifecycle";
 import type { Country } from "@/types/database";
 
@@ -119,13 +121,17 @@ function errorMessage(err: unknown) {
   return "Could not save product.";
 }
 
+/** A sentinel option value, not a real id — chosen from a select to reveal the inline create form. */
+const ADD_NEW = "__add_new__";
+
 function AddProductForm({
   countries,
   product,
   onClose,
   facilities,
   suppliers,
-  presetFacility
+  presetFacility,
+  canManageExporters
 }: {
   countries: CountryOption[];
   facilities: FacilityOption[];
@@ -134,6 +140,10 @@ function AddProductForm({
   suppliers: SupplierOption[];
   /** Arrived from a facility's row — start with it and its exporter chosen. */
   presetFacility?: { facilityId: string; supplierId: string } | null;
+  /** Only an importer/administrator may create an exporter record — see
+   *  /api/exporters/create. An exporter viewing their own product list has
+   *  exactly one supplier (themselves) and no reason to add another. */
+  canManageExporters: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +155,19 @@ function AddProductForm({
   );
   const [facilityId, setFacilityId] = useState(product?.facility_id ?? presetFacility?.facilityId ?? "");
   const [pending, startTransition] = useTransition();
-  const supplierFacilities = facilities.filter((facility) => {
+
+  // Exporters/facilities created from inside this form, so the one just added
+  // is selectable immediately — before the product is even saved, and without
+  // waiting on a router.refresh() of the whole page to see it.
+  const [addedSuppliers, setAddedSuppliers] = useState<SupplierOption[]>([]);
+  const [addedFacilities, setAddedFacilities] = useState<FacilityOption[]>([]);
+  const [addingExporter, setAddingExporter] = useState(false);
+  const [addingFacility, setAddingFacility] = useState(false);
+
+  const allSuppliers = [...suppliers, ...addedSuppliers];
+  const allFacilities = [...facilities, ...addedFacilities];
+
+  const supplierFacilities = allFacilities.filter((facility) => {
     const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
       ? facility.supplier_ids
       : facility.supplier_id
@@ -153,7 +175,7 @@ function AddProductForm({
         : [];
     return supplierIds.includes(supplierId);
   });
-  const selectedFacility = facilities.find((facility) => facility.id === facilityId) ?? null;
+  const selectedFacility = allFacilities.find((facility) => facility.id === facilityId) ?? null;
   const facilityCountry = selectedFacility?.country ?? null;
   const initialAllergens = parseAllergens(product?.allergen_information ?? null);
   const [selectedAllergens, setSelectedAllergens] = useState<string[]>(initialAllergens.selected);
@@ -175,29 +197,36 @@ function AddProductForm({
         const selectedSupplierId = clean(formData.get("supplier_id"));
         const selectedFacilityId = clean(formData.get("facility_id"));
 
-        if (!selectedSupplierId || !suppliers.some((supplier) => supplier.id === selectedSupplierId)) {
-          setError("Select a supplier from the supplier list.");
+        if (!selectedSupplierId || !allSuppliers.some((supplier) => supplier.id === selectedSupplierId)) {
+          setError("Select an exporter from the list, or add a new one.");
           return;
         }
 
-        const matchedFacility = facilities.find((facility) => {
-          const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
-            ? facility.supplier_ids
-            : facility.supplier_id
-              ? [facility.supplier_id]
-              : [];
-          return facility.id === selectedFacilityId && supplierIds.includes(selectedSupplierId);
-        });
+        // Facility is optional — a product can exist against just its exporter
+        // and be assigned a facility later, from the product's own page. But
+        // if one WAS chosen it must genuinely belong to the chosen exporter,
+        // and country of origin comes from it, so the two travel together.
+        let country: string | null = null;
+        if (selectedFacilityId) {
+          const matchedFacility = allFacilities.find((facility) => {
+            const supplierIds = facility.supplier_ids && facility.supplier_ids.length > 0
+              ? facility.supplier_ids
+              : facility.supplier_id
+                ? [facility.supplier_id]
+                : [];
+            return facility.id === selectedFacilityId && supplierIds.includes(selectedSupplierId);
+          });
 
-        if (!selectedFacilityId || !matchedFacility) {
-          setError("Select a facility that is available to the selected supplier.");
-          return;
-        }
+          if (!matchedFacility) {
+            setError("Select a facility that is available to the selected exporter.");
+            return;
+          }
 
-        const country = matchedFacility.country ?? null;
-        if (!country) {
-          setError("The selected facility has no country set. Add a country to the facility's address before creating a product.");
-          return;
+          country = matchedFacility.country ?? null;
+          if (!country) {
+            setError("The selected facility has no country set. Add a country to the facility's address before creating a product.");
+            return;
+          }
         }
 
         const allergenList = [...selectedAllergens, ...otherAllergens.split(",").map((a) => a.trim()).filter(Boolean)];
@@ -206,7 +235,7 @@ function AddProductForm({
         const payload = {
           product_name: formData.get("product_name")?.toString().trim() ?? "",
           supplier_id: selectedSupplierId,
-          facility_id: selectedFacilityId,
+          facility_id: selectedFacilityId || null,
           country_of_origin: country,
           raw_or_processed: clean(formData.get("raw_or_processed")),
           intended_use: clean(formData.get("intended_use")),
@@ -257,49 +286,96 @@ function AddProductForm({
               Product Name <span className="text-red-500">*</span>
               <input name="product_name" required defaultValue={product?.product_name ?? ""} className={inputClass} placeholder="Mango puree" />
             </label>
-            <label className={labelClass}>
-              Supplier <span className="text-red-500">*</span>
-              <select
-                name="supplier_id"
-                required
-                className={inputClass}
-                value={supplierId}
-                onChange={(event) => {
-                  setSupplierId(event.target.value);
-                  setFacilityId("");
-                }}
-              >
-                <option value="">Select supplier</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>
-                ))}
-              </select>
-            </label>
-            <label className={labelClass}>
-              Facility <span className="text-red-500">*</span>
-              <select
-                name="facility_id"
-                required
-                className={inputClass}
-                value={facilityId}
-                onChange={(event) => setFacilityId(event.target.value)}
-                disabled={!supplierId || supplierFacilities.length === 0}
-              >
-                <option value="">{supplierId ? "Select facility" : "Select supplier first"}</option>
-                {supplierFacilities.map((facility) => (
-                  <option key={facility.id} value={facility.id}>{facility.facility_name}</option>
-                ))}
-              </select>
-              {supplierId && supplierFacilities.length === 0 ? (
-                <span className="mt-1 block text-xs text-amber-700">Add a facility for this supplier before creating a product.</span>
-              ) : null}
-            </label>
+            <div className={labelClass}>
+              Exporter <span className="text-red-500">*</span>
+              {addingExporter ? (
+                <InlineAddExporter
+                  countries={countries}
+                  onCancel={() => setAddingExporter(false)}
+                  onCreated={(exporter) => {
+                    setAddedSuppliers((prev) => [...prev, { id: exporter.id, company_name: exporter.company_name }]);
+                    setSupplierId(exporter.id);
+                    setFacilityId("");
+                    setAddingExporter(false);
+                  }}
+                />
+              ) : (
+                <select
+                  name="supplier_id"
+                  required
+                  className={inputClass}
+                  value={supplierId}
+                  onChange={(event) => {
+                    if (event.target.value === ADD_NEW) {
+                      setAddingExporter(true);
+                      return;
+                    }
+                    setSupplierId(event.target.value);
+                    setFacilityId("");
+                  }}
+                >
+                  <option value="">Select exporter</option>
+                  {allSuppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>
+                  ))}
+                  {canManageExporters && <option value={ADD_NEW}>+ Add a new exporter…</option>}
+                </select>
+              )}
+            </div>
+            <div className={labelClass}>
+              Facility
+              {addingFacility && supplierId ? (
+                <InlineAddFacility
+                  supplierId={supplierId}
+                  countries={countries}
+                  onCancel={() => setAddingFacility(false)}
+                  onCreated={(facility) => {
+                    setAddedFacilities((prev) => [
+                      ...prev,
+                      { id: facility.id, facility_name: facility.facility_name, supplier_id: supplierId, country: facility.country },
+                    ]);
+                    setFacilityId(facility.id);
+                    setAddingFacility(false);
+                  }}
+                />
+              ) : (
+                <>
+                  <select
+                    name="facility_id"
+                    className={inputClass}
+                    value={facilityId}
+                    onChange={(event) => {
+                      if (event.target.value === ADD_NEW) {
+                        setAddingFacility(true);
+                        return;
+                      }
+                      setFacilityId(event.target.value);
+                    }}
+                    disabled={!supplierId}
+                  >
+                    <option value="">
+                      {!supplierId ? "Select an exporter first" : "Not yet assigned — add later"}
+                    </option>
+                    {supplierFacilities.map((facility) => (
+                      <option key={facility.id} value={facility.id}>{facility.facility_name}</option>
+                    ))}
+                    {supplierId && <option value={ADD_NEW}>+ Add a new facility…</option>}
+                  </select>
+                  {supplierId && !facilityId && (
+                    <span className="mt-1 block text-xs text-slate-500">
+                      A product can be created without one. Assign a facility here, or later from
+                      the product's own page.
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
             <label className={labelClass}>
               Country of origin
               <input
                 readOnly
                 disabled
-                value={facilityCountry ?? (facilityId ? "Facility has no country set" : "Select a facility first")}
+                value={facilityCountry ?? (facilityId ? "Facility has no country set" : "Not yet set — comes from the facility")}
                 className={`${inputClass} cursor-not-allowed bg-slate-50 text-slate-600`}
               />
               <span className="mt-1 block text-xs text-slate-400">Inherited from the selected facility.</span>
@@ -398,7 +474,8 @@ export function ProductTable({
   supplierHref = "/exporters",
   suppliers,
   presetFacility,
-  canEditLifecycle = false
+  canEditLifecycle = false,
+  canManageExporters = false
 }: {
   countries: CountryOption[];
   facilities: FacilityOption[];
@@ -412,6 +489,8 @@ export function ProductTable({
    * API enforces the same rule. Exporters see the state but cannot change it.
    */
   canEditLifecycle?: boolean;
+  /** Passed through to AddProductForm — see its own prop for why. */
+  canManageExporters?: boolean;
 }) {
   // Open straight into the form when the link that got here already said what
   // was wanted. See NextStepBanner for why these threads exist at all.
@@ -420,7 +499,12 @@ export function ProductTable({
   const [lifecycleProduct, setLifecycleProduct] = useState<ProductRow | null>(null);
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
-  const canAddProduct = suppliers.length > 0 && facilities.length > 0;
+  // A facility is no longer required to open this form — AddProductForm can
+  // add one inline, or leave the product unassigned until later. An exporter
+  // is still required in the end, but canManageExporters means one can be
+  // added inline too, so the only account that should ever see this disabled
+  // is a supplier/exporter viewer with no supplier record of their own yet.
+  const canAddProduct = suppliers.length > 0 || canManageExporters;
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -456,6 +540,7 @@ export function ProductTable({
           product={editingProduct}
           suppliers={suppliers}
           presetFacility={editingProduct ? null : presetFacility}
+          canManageExporters={canManageExporters}
         />
       ) : null}
 
@@ -500,8 +585,8 @@ export function ProductTable({
           <h3 className="mt-4 text-base font-semibold text-ink">No products yet</h3>
           <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
             {canAddProduct
-              ? "Add products under a supplier facility, then map FSVP requirements and verification evidence."
-              : "Add a supplier and facility first, then create products under that facility."}
+              ? "Add a product under an exporter — its facility can be assigned now or later — then map FSVP requirements and verification evidence."
+              : "Your account is not yet linked to an exporter, so there is nothing to add a product under."}
           </p>
           {canAddProduct ? (
             <button
@@ -513,10 +598,10 @@ export function ProductTable({
             </button>
           ) : (
             <a
-              href={suppliers.length === 0 ? supplierHref : "/facilities"}
+              href={supplierHref}
               className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
             >
-              {suppliers.length === 0 ? "Add a supplier first" : "Add a facility first"}
+              Add a supplier first
             </a>
           )}
         </div>

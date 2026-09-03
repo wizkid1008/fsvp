@@ -391,6 +391,10 @@ export default async function ProductsPage({
           // /api/products/lifecycle enforces the same rule, so hiding the
           // control is a courtesy rather than the protection.
           canEditLifecycle={!isSupplier}
+          // /api/exporters/create is hard-restricted to importers/admins — an
+          // exporter viewing their own product list has exactly one supplier
+          // (themselves) and no reason to add another.
+          canManageExporters={!isSupplier}
           countries={countryOptions}
           facilities={tableFacilities}
           products={products}

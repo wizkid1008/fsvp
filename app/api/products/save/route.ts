@@ -33,8 +33,18 @@ export async function POST(req: NextRequest) {
     raw_or_processed, intended_use, ingredient_list, allergen_information, product_description,
   } = body as Record<string, string | null | undefined>;
 
-  if (!product_name || !supplier_id || !facility_id || !country_of_origin) {
-    return NextResponse.json({ error: "product_name, supplier_id, facility_id, and country_of_origin are required" }, { status: 400 });
+  // facility_id and country_of_origin are genuinely nullable in
+  // products_verify (migration 000) — the exporter is what anchors a product
+  // to a tenant, not the facility. A product can be created against just its
+  // exporter and have a facility assigned later, from the product's own page
+  // (ProductFacilityAssignmentPanel) or by editing it again. If a facility WAS
+  // sent, country_of_origin must come with it — that pairing is checked below,
+  // once the facility itself has been verified to belong to this supplier.
+  if (!product_name || !supplier_id) {
+    return NextResponse.json({ error: "product_name and supplier_id are required" }, { status: 400 });
+  }
+  if (facility_id && !country_of_origin) {
+    return NextResponse.json({ error: "A product with a facility needs the facility's country of origin." }, { status: 400 });
   }
 
   const admin = createAdminSupabaseClient();
@@ -104,20 +114,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const facility = await (admin.from("facilities_verify") as any)
-    .select("id, supplier_id")
-    .eq("id", facility_id)
-    .maybeSingle();
+  if (facility_id) {
+    const facility = await (admin.from("facilities_verify") as any)
+      .select("id, supplier_id")
+      .eq("id", facility_id)
+      .maybeSingle();
 
-  if (facility.error || !facility.data || facility.data.supplier_id !== supplier_id) {
-    return NextResponse.json({ error: "Select a facility that belongs to the selected supplier." }, { status: 400 });
+    if (facility.error || !facility.data || facility.data.supplier_id !== supplier_id) {
+      return NextResponse.json({ error: "Select a facility that belongs to the selected supplier." }, { status: 400 });
+    }
   }
 
   const record: Record<string, unknown> = {
     product_name,
     supplier_id,
-    facility_id,
-    country_of_origin,
+    facility_id: facility_id || null,
+    country_of_origin: facility_id ? country_of_origin : null,
     raw_or_processed: raw_or_processed || null,
     intended_use: intended_use || null,
     ingredient_list: ingredient_list || null,

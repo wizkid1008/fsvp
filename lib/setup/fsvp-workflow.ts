@@ -212,15 +212,15 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     ),
   });
 
+  // No longer gated on facilities existing first. A product can be created
+  // against just its exporter and have a facility assigned inline, from the
+  // same form — see AddProductForm and ProductFacilityAssignmentPanel. This
+  // used to send someone to /facilities before they could even open the
+  // add-product form, which was the literal thing forcing exporter-then-
+  // facility-then-product into a rigid order the product itself did not
+  // require.
   const productBlockers: SetupBlocker[] = [];
-  if (input.facilities.length === 0) {
-    productBlockers.push(blocker(
-      "product-needs-facility",
-      "Add at least one facility before creating a product.",
-      "/facilities",
-      "Add facility first"
-    ));
-  } else if (input.products.length === 0) {
+  if (input.products.length === 0) {
     productBlockers.push(blocker(
       "product-none",
       "No product has been created for the exporter/facility combination.",
@@ -238,7 +238,10 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
         productBlockers.push(blocker(
           `product-link-${product.id}`,
           `${productLabel(product)} is missing its ${missingLink}.`,
-          `/products/${product.id}`,
+          // Jumps straight to ProductFacilityAssignmentPanel, which now offers
+          // an inline "Add a facility" form rather than sending the reader
+          // somewhere else and asking them to find their way back.
+          `/products/${product.id}#assign-facility`,
           "Fix product"
         ));
       }

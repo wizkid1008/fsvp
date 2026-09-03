@@ -66,6 +66,16 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     ? await fetchAssignableFacilities(supabase as any, product.supplier_id)
     : [];
 
+  // Only needed for the inline "add a facility" form inside
+  // ProductFacilityAssignmentPanel, so skipped entirely once the product
+  // already has a facility.
+  const { data: countryRows } = !product.facility_id
+    ? await (supabase.from("countries") as any)
+        .select("country_code,country_name")
+        .eq("is_active", true)
+        .order("country_name")
+    : { data: [] };
+
   const [commoditiesResult, determinationsResult, scoreStatusMap, admissibilityBlocks, requestResult, ruleCountResult] = await Promise.all([
     (supabase.from("commodities") as any)
       .select("id, common_name, scientific_name, plant_part, is_propagative")
@@ -187,6 +197,8 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             <ProductFacilityAssignmentPanel
               productId={params.id}
               facilities={assignableFacilities}
+              supplierId={product.supplier_id}
+              countries={(countryRows ?? []) as Array<{ country_code: string; country_name: string }>}
             />
           )}
 

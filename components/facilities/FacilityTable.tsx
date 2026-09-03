@@ -34,7 +34,7 @@ export type FacilityRow = {
   approval_status?: string;
 };
 
-const FACILITY_TYPES = [
+export const FACILITY_TYPES = [
   { value: "", label: "Select facility type" },
   { value: "manufacturing", label: "Manufacturing" },
   { value: "storage", label: "Storage" },
