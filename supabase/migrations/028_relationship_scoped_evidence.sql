@@ -63,11 +63,86 @@ comment on column requirement_items.evidence_scope is
   'entity id; see lib/readiness/evidence-scope.ts, which is the single '
   'implementation both the checklist and the score call.';
 
+-- ── A guard that has never once run ─────────────────────────────────────────
+--
+-- The first attempt at this migration failed on the UPDATE below with:
+--
+--   ERROR: 42703: record "old" has no field "rule_version_id"
+--   PL/pgSQL function prevent_published_rule_edit() line 5 at assignment
+--
+-- The cause is not this migration. prevent_published_rule_edit() resolved the
+-- rule version inside a single CASE expression naming old.rule_version_id in
+-- one branch and old.section_id in another. PL/pgSQL plans such an expression
+-- as ONE statement, so every field reference in it must resolve against the
+-- actual record type — including branches that will never be taken. OLD on
+-- requirement_items has no rule_version_id, so the trigger raised 42703 on
+-- EVERY update to requirement_items, on published and draft versions alike.
+--
+-- So trg_requirement_items_published_guard has never enforced anything. It
+-- failed closed, which looked like protection, but it equally blocked
+-- legitimate edits to a draft and reported them as an internal type error
+-- rather than as the rule it meant to state.
+--
+-- Branching in PL/pgSQL rather than in SQL fixes it: statements inside an IF
+-- are planned only when that branch actually executes. NOTE that this makes the
+-- guard start working for the first time — editing a requirement item on a
+-- published version will now be refused with its intended message, and editing
+-- one on a draft will now succeed where it used to error.
+create or replace function public.prevent_published_rule_edit()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_rule_version_id uuid;
+begin
+  if TG_TABLE_NAME = 'requirement_items' then
+    select rs.rule_version_id
+      into v_rule_version_id
+      from requirement_sections rs
+     where rs.id = coalesce(OLD.section_id, NEW.section_id);
+  else
+    v_rule_version_id := coalesce(OLD.rule_version_id, NEW.rule_version_id);
+  end if;
+
+  if exists (
+    select 1 from rule_versions
+     where id = v_rule_version_id and status = 'published'
+  ) then
+    raise exception 'Published rule versions cannot be edited. Clone into a new draft first.';
+  end if;
+
+  return new;
+end;
+$$;
+
+-- ── Backfill ────────────────────────────────────────────────────────────────
+--
+-- The guard is suspended for this statement, because with it repaired the
+-- backfill would now be correctly refused: both items live on the PUBLISHED
+-- rule version, and that is precisely what the guard exists to protect.
+--
+-- Cloning into a draft is the right route for changing what a rule REQUIRES.
+-- This changes nothing about that. Every item keeps its name, its description,
+-- its citation, its required and blocker flags. What is being recorded is who
+-- the parties to the evidence are — a fact about these two requirements that
+-- was always true and simply had nowhere to live until this migration. Forcing
+-- it through a new rule version would republish the whole set to correct a
+-- classification, and would leave every already-published version still
+-- leaking.
+--
+-- Suspension is scoped to this one statement inside this transaction; a failure
+-- anywhere rolls the disable back with everything else.
+alter table requirement_items disable trigger trg_requirement_items_published_guard;
+
 -- Backfilled by item_key rather than by id, so every published, draft and
 -- archived rule version is corrected at once. A version that predates these
 -- keys simply matches nothing.
 update requirement_items
    set evidence_scope = 'importer_relationship'
- where item_key in ('written_assurances', 'importer_acknowledgement');
+ where item_key in ('written_assurances', 'importer_acknowledgement')
+   and evidence_scope <> 'importer_relationship';
+
+alter table requirement_items enable trigger trg_requirement_items_published_guard;
 
 commit;
