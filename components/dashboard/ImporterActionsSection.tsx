@@ -46,7 +46,7 @@ export function ImporterActionsSection({ signals }: { signals: ImporterSignals }
   return (
     <section className="rounded-lg border border-line bg-white shadow-soft">
       <div className="border-b border-line px-5 py-4">
-        <h2 className="text-sm font-semibold text-ink">Needs your attention</h2>
+        <h2 className="text-sm font-semibold text-ink">Deadlines and reviews</h2>
         <p className="mt-0.5 text-xs text-slate-500">
           Decisions and deadlines that are yours to action, soonest first.
         </p>

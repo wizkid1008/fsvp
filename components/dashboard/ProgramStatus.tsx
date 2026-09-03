@@ -31,18 +31,28 @@ export function ProgramStatus({
       value: approved,
       detail: totalLabel(total, "product"),
       icon: PackageCheck,
+      tone: "text-emerald-700",
     },
     {
       label: "Approved facilities",
       value: supplyChain.approvedFacilities,
       detail: totalLabel(supplyChain.facilities, "facility", "facilities"),
       icon: Building2,
+      tone: "text-emerald-700",
     },
     {
       label: "Approved exporters",
       value: supplyChain.approvedExporters,
       detail: totalLabel(supplyChain.exporters, "exporter"),
       icon: ShipWheel,
+      tone: "text-emerald-700",
+    },
+    {
+      label: "Blocked products",
+      value: blocked,
+      detail: totalLabel(total, "product"),
+      icon: AlertTriangle,
+      tone: blocked > 0 ? "text-red-700" : "text-slate-500",
     },
   ];
 
@@ -54,7 +64,7 @@ export function ProgramStatus({
           <p className="mt-1 text-sm text-slate-500">
             {total === 0
               ? "No products yet. Every FSVP obligation is measured against the food you import."
-              : "Approved products, facilities, and exporters."}
+              : "Approved supply-chain coverage and products blocked from import."}
           </p>
         </div>
         {blocked > 0 && (
@@ -65,13 +75,13 @@ export function ProgramStatus({
         )}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map((metric) => {
           const Icon = metric.icon;
           return (
             <div key={metric.label} className="rounded-md border border-line bg-slate-50 px-4 py-3">
               <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                <Icon className="h-3.5 w-3.5 text-forest" />
+                <Icon className={`h-3.5 w-3.5 ${metric.tone}`} />
                 {metric.label}
               </div>
               <div className="mt-2 flex items-baseline gap-2">

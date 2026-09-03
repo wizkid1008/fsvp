@@ -16,6 +16,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
 import { ProgramStatus } from "@/components/dashboard/ProgramStatus";
+import { PipelineOverview } from "@/components/dashboard/PipelineOverview";
 import { summariseProducts } from "@/lib/dashboard/product-journey";
 import { WhatNeedsDoing } from "@/components/dashboard/WhatNeedsDoing";
 import { outstandingCount, outstandingWork } from "@/lib/dashboard/outstanding-work";
@@ -72,6 +73,17 @@ async function ImporterDashboard({
   const plan = importerId ? await loadCompleteFsvpSetupPlan(supabase, importerId) : null;
   const gates = plan ? outstandingWork(plan.steps) : [];
   const gatesClear = outstandingCount(gates) === 0;
+  const productSummary = summariseProducts(plan?.productStandings ?? []);
+  const setupSummary = plan?.summary ?? {
+    exporters: 0,
+    approvedExporters: 0,
+    facilities: 0,
+    approvedFacilities: 0,
+    products: 0,
+    records: 0,
+    approvedRecords: 0,
+    packages: 0,
+  };
 
   return (
     <div className="space-y-6">
@@ -101,30 +113,22 @@ async function ImporterDashboard({
         </div>
       </section>
 
-      {/* Both in products. This counted records while the gate list beside it
-          counted products, which is why the two sections read as contradicting
-          each other — two denominators, the join never stated. */}
       <ProgramStatus
-        summary={summariseProducts(plan?.productStandings ?? [])}
+        summary={productSummary}
         supplyChain={{
-          exporters:          plan?.summary.exporters ?? 0,
-          approvedExporters:  plan?.summary.approvedExporters ?? 0,
-          facilities:         plan?.summary.facilities ?? 0,
-          approvedFacilities: plan?.summary.approvedFacilities ?? 0,
+          exporters:          setupSummary.exporters,
+          approvedExporters:  setupSummary.approvedExporters,
+          facilities:         setupSummary.facilities,
+          approvedFacilities: setupSummary.approvedFacilities,
         }}
       />
 
-      {/* One section where there were three — six metric tiles, three "what's
-          gating approvals" buckets and a "next step · 4 of 11" card, all the
-          same data at different aggregations. The named items those tiles
-          counted are still listed below in Needs your attention. */}
-      <WhatNeedsDoing
+      <WhatNeedsDoing gates={gates} />
+
+      <PipelineOverview
+        productSummary={productSummary}
+        setupSummary={setupSummary}
         gates={gates}
-        supplyChain={{
-          exporters:  plan?.summary.exporters ?? 0,
-          facilities: plan?.summary.facilities ?? 0,
-          products:   plan?.summary.products ?? 0,
-        }}
       />
 
       {signals?.clear && gatesClear && (
