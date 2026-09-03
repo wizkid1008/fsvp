@@ -3,23 +3,22 @@ import { AlertCircle, ArrowRight, Clock, ClipboardCheck, FileWarning } from "luc
 import type { ImporterSignals } from "@/lib/dashboard/importer-signals";
 
 /**
- * "What is blocking me?" for an importer.
+ * Time-sensitive decisions, ordered by how close each is to becoming a problem.
  *
- * The importer dashboard was five count tiles while the exporter and
- * manufacturer dashboards both got a process flow, action items and open tasks
- * — so the party who actually owns the FSVP obligation had no task list at all.
- * This is the importer equivalent: everything that needs a decision, ordered by
- * how close it is to becoming a problem.
- *
- * The queries moved to lib/dashboard/importer-signals.ts so the tiles above can
- * read the same numbers rather than running a second, different set.
+ * Draft records used to be listed here as "Draft record — Cocoa Nibs", styled
+ * like everything else in the section, next to reassessments with real due
+ * dates. A draft has no deadline — it is work in progress, and it belongs in
+ * Open pipeline work, where its actual gate (evidence, screening, whichever it
+ * has not cleared) is already named. This section is only for things with a
+ * clock on them: a submission waiting on you, a document about to expire, a
+ * reassessment due, an open corrective action.
  */
 export function ImporterActionsSection({ signals }: { signals: ImporterSignals }) {
-  const { pendingReview, overdue, dueSoon, expiring, actions, drafts } = signals;
+  const { pendingReview, overdue, dueSoon, expiring, actions } = signals;
 
   const nothingToDo =
     pendingReview === 0 && overdue.length === 0 && dueSoon.length === 0 &&
-    expiring.length === 0 && actions.length === 0 && drafts.length === 0;
+    expiring.length === 0 && actions.length === 0;
 
   if (nothingToDo) return null;
 
@@ -114,18 +113,6 @@ export function ImporterActionsSection({ signals }: { signals: ImporterSignals }
             detail={`${r.suppliers?.company_name ?? "Supplier"} · due ${new Date(r.reassessment_due_at).toLocaleDateString()}`}
             href={`/fsvp-records/${r.id}`}
             cta="Open"
-          />
-        ))}
-
-        {drafts.map((r) => (
-          <Row
-            key={`dr-${r.id}`}
-            icon={<Clock className="h-4 w-4" />}
-            tone="text-slate-300"
-            title={`Draft record — ${r.products_verify?.product_name ?? "untitled"}`}
-            detail={`${r.suppliers?.company_name ?? "Supplier"} · not yet documented or approved`}
-            href={`/fsvp-records/${r.id}`}
-            cta="Continue"
           />
         ))}
       </div>

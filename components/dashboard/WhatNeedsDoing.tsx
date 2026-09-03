@@ -12,8 +12,11 @@ import { firstOutstanding, outstandingCount, type WorkGate } from "@/lib/dashboa
  * the numbers — so a reader could not tell whether they had seven problems or
  * twenty-six.
  *
- * The named-item lists those tiles summarised are still on the page, in Needs
- * your attention. Nothing was lost by deleting the counts of them.
+ * Called "Open pipeline work" rather than "Approval blockers": approval is one
+ * of eleven gates here, not the whole list, and a draft record with no
+ * evidence yet is work in progress rather than something blocking anyone. This
+ * is also where a draft record now lives — Deadlines and reviews used to list
+ * it as though it had a due date, which it does not.
  */
 
 /**
@@ -42,11 +45,11 @@ export function WhatNeedsDoing({
     <section className="rounded-lg border border-line bg-white shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
         <div>
-          <h2 className="text-sm font-semibold text-ink">Approval blockers</h2>
+          <h2 className="text-sm font-semibold text-ink">Open pipeline work</h2>
           <p className="mt-1 text-sm text-slate-500">
             {remaining === 0
-              ? "No approval blockers are open."
-              : `${remaining} approval blocker${remaining === 1 ? "" : "s"} need attention. Each row opens the pipeline with the affected items named.`}
+              ? "Nothing is open. Every gate is clear."
+              : `${remaining} of ${gates.length} gates have work open — each applies per item, so more than one can be open at once. Each row opens the pipeline with the affected items named.`}
           </p>
         </div>
         {next && (
@@ -63,7 +66,7 @@ export function WhatNeedsDoing({
       {shown.length === 0 ? (
         <div className="flex items-center gap-2 px-5 py-4 text-sm text-slate-500">
           <Check className="h-4 w-4 text-emerald-600" />
-          Nothing is blocking product approval.
+          Nothing is open right now.
         </div>
       ) : (
         <ul className="divide-y divide-line">
