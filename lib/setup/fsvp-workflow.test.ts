@@ -73,12 +73,30 @@ describe("buildCompleteFsvpSetupPlan", () => {
     });
   });
 
-  it("counts approved facilities from live facility approval status", () => {
-    // "approved" is the only facilities_verify.approval_status value the
-    // migration 000 CHECK constraint allows that means approved — this used to
-    // assert against "importer_approved", a fsvp_records status the column can
-    // never actually hold, which meant approvedFacilities was silently zero on
-    // every real account.
+  it("counts a facility approved from its resolved scoring status", () => {
+    // buildCompleteFsvpSetupPlan never sees the raw facilities_verify column —
+    // loadCompleteFsvpSetupPlan overlays it with the live status resolved from
+    // scoring_results against approval_thresholds first, and that table is
+    // seeded (migration 002) to report the top tier as "importer_approved",
+    // reusing the fsvp_records.status vocabulary on purpose. This is the value
+    // a genuinely approved, already-scored facility carries in practice.
+    const input = cleanInput();
+    input.facilities = [{
+      ...input.facilities[0],
+      approval_status: "importer_approved",
+    }];
+
+    const plan = buildCompleteFsvpSetupPlan(input);
+
+    expect(plan.summary.approvedFacilities).toBe(1);
+  });
+
+  it("also counts the raw column's own 'approved', the fallback for an unscored facility", () => {
+    // facilities_verify.approval_status is never written by the app, so
+    // "approved" here only ever occurs pre-loaded (seed data, a direct DB
+    // edit) on a facility fetchApprovalStatusMap has no scoring_results row
+    // for yet — the overlay's ?? fallback then passes the raw value through
+    // unchanged.
     const input = cleanInput();
     input.facilities = [{
       ...input.facilities[0],
@@ -91,8 +109,9 @@ describe("buildCompleteFsvpSetupPlan", () => {
   });
 
   it("does not count a conditionally approved facility as approved", () => {
-    // conditionally_approved renders as the amber "warning" tone everywhere
-    // else a facility's status is shown, never as approved.
+    // Valid in both vocabularies — the raw column's own CHECK constraint and
+    // approval_thresholds' resolved tiers both use it — and never the top
+    // tier in either.
     const input = cleanInput();
     input.facilities = [{
       ...input.facilities[0],
