@@ -38,10 +38,23 @@ export function RequirementItemRow({
   supplierId,
   requirementItemId,
   createAction,
+  isRelationshipScoped = false,
+  importerOptions = [],
 }: {
   itemName: string;
   status: string;
   isCriticalBlocker: boolean;
+  /**
+   * True for a requirement that is an agreement between one supplier and one
+   * importer — written assurances under 21 CFR 1.506(e)(2), and the importer
+   * acknowledgement. See migration 028.
+   */
+  isRelationshipScoped?: boolean;
+  /**
+   * The importers this exporter could be filing for. Empty on an importer's own
+   * view, where the answer is itself and no question needs asking.
+   */
+  importerOptions?: Array<{ id: string; name: string }>;
   // "supplier" is company-level evidence, where the supplier IS the entity —
   // /api/documents/upload already defaults link_type to it and takes
   // supplier_id separately, so the two entity branches below simply do not fire.
@@ -72,6 +85,12 @@ export function RequirementItemRow({
   const [pending, startTransition] = useTransition();
   const [creating, startCreateTransition] = useTransition();
   const isAccepted = status === "accepted";
+
+  // Only worth asking when there is a genuine choice, so the checklist supplies
+  // options only then. With exactly one linked importer the upload route derives
+  // the id itself; with none, there is no relationship to evidence at all.
+  const mustChooseImporter = isRelationshipScoped && importerOptions.length > 1;
+  const [chosenImporterId, setChosenImporterId] = useState("");
 
   function handleFiles(files: FileList | null) {
     const next = files?.[0];
@@ -116,6 +135,10 @@ export function RequirementItemRow({
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!file) return;
+    if (mustChooseImporter && !chosenImporterId) {
+      setError("Say which importer this document is for.");
+      return;
+    }
     setError(null);
 
     startTransition(async () => {
@@ -138,7 +161,16 @@ export function RequirementItemRow({
         body.append("requirement_item_id", requirementItemId);
         if (linkType === "facility") body.append("facility_id", entityId);
         if (linkType === "product") body.append("product_id", entityId);
-        if (profile?.importer_id) body.append("importer_id", profile.importer_id);
+        // Precedence matters. An importer uploading files for itself. An
+        // exporter has no importer_id of its own, so a relationship document
+        // carries the importer it names — chosen when there are several, or the
+        // only one when there is exactly one. Without it the upload is refused
+        // rather than stored as evidence for nobody.
+        const relationshipImporterId = isRelationshipScoped
+          ? chosenImporterId || (importerOptions.length === 1 ? importerOptions[0].id : "")
+          : "";
+        const uploadImporterId = profile?.importer_id ?? relationshipImporterId;
+        if (uploadImporterId) body.append("importer_id", uploadImporterId);
 
         const res = await fetch("/api/documents/upload", { method: "POST", body });
         const json = (await res.json()) as { error?: string };
@@ -225,6 +257,29 @@ export function RequirementItemRow({
       {open && (
         <div className="border-t border-line bg-slate-50 px-4 py-3">
           <form onSubmit={submit} className="space-y-2">
+            {/* An assurance is given to one importer, so a shared exporter has
+                to say which. Asked before the file, because the answer changes
+                what the document means rather than merely labelling it. */}
+            {mustChooseImporter && (
+              <label className="block text-xs font-medium text-slate-700">
+                Which importer is this for?
+                <select
+                  required
+                  value={chosenImporterId}
+                  onChange={(event) => setChosenImporterId(event.target.value)}
+                  className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs outline-none focus:border-forest"
+                >
+                  <option value="">Select importer</option>
+                  {importerOptions.map((option) => (
+                    <option key={option.id} value={option.id}>{option.name}</option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-[11px] font-normal text-slate-500">
+                  This document counts only for the importer it names. Each importer
+                  you supply needs its own.
+                </span>
+              </label>
+            )}
             <div
               onClick={() => inputRef.current?.click()}
               className="flex cursor-pointer items-center gap-2 rounded-md border-2 border-dashed border-line bg-white px-3 py-2 hover:border-forest"

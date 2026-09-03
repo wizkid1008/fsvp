@@ -1,7 +1,9 @@
 import { RequirementItemRow } from "./RequirementItemRow";
 import { fetchDetermination, recordCreationAction } from "@/lib/fsvp/applicability";
+import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import {
   bestStatus,
+  RELATIONSHIP_SCOPE,
   statusesByItem,
   type EvidenceViewer,
 } from "@/lib/readiness/evidence-scope";
@@ -135,6 +137,12 @@ export async function RequiredEvidenceChecklist({
     ? { kind: "importer", importerId }
     : { kind: "exporter", linkedImporterIds: [] };
 
+  /**
+   * The importers an exporter can file a relationship document FOR. Empty for
+   * an importer's own view, where the answer is simply itself.
+   */
+  let importerOptions: Array<{ id: string; name: string }> = [];
+
   if (linkType === "supplier" && !importerId) {
     const { data: links } = await (supabase.from("supplier_relationships") as any)
       .select("importer_id")
@@ -142,14 +150,40 @@ export async function RequiredEvidenceChecklist({
       .eq("supplier_id", entityId)
       .in("status", ["active", "pending_invite"]);
 
-    viewer = {
-      kind: "exporter",
-      linkedImporterIds: [...new Set(
-        ((links ?? []) as Array<{ importer_id: string | null }>)
-          .map((link) => link.importer_id)
-          .filter((id): id is string => Boolean(id))
-      )],
-    };
+    const linkedIds = [...new Set(
+      ((links ?? []) as Array<{ importer_id: string | null }>)
+        .map((link) => link.importer_id)
+        .filter((id): id is string => Boolean(id))
+    )];
+
+    viewer = { kind: "exporter", linkedImporterIds: linkedIds };
+
+    /**
+     * Names come through the admin client, and only because RLS cannot supply
+     * them: importers_tenant_read exposes an importer only to itself, so an
+     * exporter reading its own readiness cannot see the name of a company it
+     * supplies. Embedding importers(display_name) on the query above returns
+     * null for every row and the picker below would offer "Unnamed importer"
+     * several times over — useless in exactly the case it exists for.
+     *
+     * Tenancy is therefore re-applied by hand, and deliberately narrowly: only
+     * ids drawn from THIS supplier's own active relationships, and only
+     * display_name. The importers row also carries ein, duns_number,
+     * address_json and stripe_customer_id, none of which an exporter has any
+     * business reading — which is why this is a two-column lookup rather than a
+     * new RLS policy granting exporters the row.
+     */
+    if (linkedIds.length > 1) {
+      const adminResult = tryAdminClient();
+      if (adminResult.ok) {
+        const { data: importerRows } = await (adminResult.client.from("importers") as any)
+          .select("id, display_name")
+          .in("id", linkedIds);
+
+        importerOptions = ((importerRows ?? []) as Array<{ id: string; display_name: string | null }>)
+          .map((row) => ({ id: row.id, name: row.display_name ?? "Unnamed importer" }));
+      }
+    }
   }
 
   const docByItemId = statusesByItem(
@@ -255,6 +289,11 @@ export async function RequiredEvidenceChecklist({
               supplierId={supplierId}
               requirementItemId={item.id}
               createAction={createActionFor(item)}
+              // An assurance is given to ONE importer, so when the exporter
+              // serves several the row has to ask which — otherwise the upload
+              // arrives with no importer named and satisfies nobody.
+              isRelationshipScoped={item.evidence_scope === RELATIONSHIP_SCOPE}
+              importerOptions={importerOptions}
             />
           ))}
         </div>
