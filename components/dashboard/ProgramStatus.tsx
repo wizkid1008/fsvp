@@ -8,10 +8,6 @@ import type { ProductSummary } from "@/lib/dashboard/product-journey";
  * are approved right now.
  */
 
-function totalLabel(total: number, unit: string, plural = `${unit}s`) {
-  return `of ${total} ${total === 1 ? unit : plural}`;
-}
-
 export function ProgramStatus({
   summary,
   supplyChain,
@@ -29,28 +25,24 @@ export function ProgramStatus({
     {
       label: "Approved products",
       value: approved,
-      detail: totalLabel(total, "product"),
       icon: PackageCheck,
       tone: "text-emerald-700",
     },
     {
       label: "Approved facilities",
       value: supplyChain.approvedFacilities,
-      detail: totalLabel(supplyChain.facilities, "facility", "facilities"),
       icon: Building2,
       tone: "text-emerald-700",
     },
     {
       label: "Approved exporters",
       value: supplyChain.approvedExporters,
-      detail: totalLabel(supplyChain.exporters, "exporter"),
       icon: ShipWheel,
       tone: "text-emerald-700",
     },
     {
       label: "Blocked products",
       value: blocked,
-      detail: totalLabel(total, "product"),
       icon: AlertTriangle,
       tone: blocked > 0 ? "text-red-700" : "text-slate-500",
     },
@@ -84,10 +76,7 @@ export function ProgramStatus({
                 <Icon className={`h-3.5 w-3.5 ${metric.tone}`} />
                 {metric.label}
               </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <p className="text-3xl font-semibold text-ink">{metric.value}</p>
-                <p className="text-xs font-medium text-slate-500">{metric.detail}</p>
-              </div>
+              <p className="mt-2 text-3xl font-semibold text-ink">{metric.value}</p>
             </div>
           );
         })}
