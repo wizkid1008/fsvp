@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const productRows = (await listProductsForIndustry(Number(industry), creds)).map(normalizeRow);
+    const productRows = (await listProductsForIndustry(industry, creds)).map(normalizeRow);
     const byKey = new Map<string, Record<string, string | null>>();
     for (const row of productRows) {
       const key = rowKey(row);

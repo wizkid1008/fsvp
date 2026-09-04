@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   decomposeProductCode,
   listIndustries,
+  listPicsForIndustry,
+  listSubclassesForIndustry,
   PcbError,
   pcbCredentialsFromEnv,
   reconcileWithCommodity,
@@ -284,5 +286,31 @@ describe("reconcileWithCommodity", () => {
 
   it("compares case- and whitespace-insensitively", () => {
     expect(reconcileWithCommodity(parts, { industry: " 38 ", class: "b", group: "27" })).toEqual([]);
+  });
+});
+
+describe("industry-scoped endpoints", () => {
+  it("sends FDA's zero-padded industry id verbatim", async () => {
+    // FDA's own /industry response gives INDID as "02". Number("02") is 2, and
+    // /industrysubclass/2 is a request for an industry that does not exist --
+    // which is why both dropdowns were empty and the scoped endpoints were
+    // written off as unreliable.
+    const { impl, calls } = fakeFetch(TABLE);
+    await listSubclassesForIndustry("02", CREDS, { fetchImpl: impl });
+    expect(calls[0].url).toContain("/industrysubclass/02");
+    expect(calls[0].url).not.toContain("/industrysubclass/2?");
+  });
+
+  it("still accepts a number, for a caller that legitimately holds one", () => {
+    const { impl, calls } = fakeFetch(TABLE);
+    return listPicsForIndustry(38, CREDS, { fetchImpl: impl }).then(() => {
+      expect(calls[0].url).toContain("/industrypic/38");
+    });
+  });
+
+  it("carries the padded id through partial-code search too", async () => {
+    const { impl, calls } = fakeFetch(TABLE);
+    await searchPartialCodes({ industry: "02", class: "B" }, CREDS, { fetchImpl: impl });
+    expect(calls[0].url).toContain("industry=02");
   });
 });

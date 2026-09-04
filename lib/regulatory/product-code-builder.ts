@@ -256,20 +256,38 @@ export const listPics = (c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
 export const listProducts = (c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
   fetchTable("/product", c, o);
 
-/** Industry-scoped variants — far smaller pulls when the industry is known. */
-export const listClassesForIndustry = (id: number, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
+/**
+ * Industry-scoped variants — far smaller pulls when the industry is known.
+ *
+ * `id` IS A STRING, AND ZERO PADDING IS PART OF IT.
+ *
+ * FDA's own /industry response gives INDID as "02", "03", "09" — a padded
+ * two-character code, not a number that happens to be small. These helpers
+ * previously took `number`, so callers reached for Number(industry) and sent
+ * /industrysubclass/2 for the industry FDA calls 02. Both dropdowns came back
+ * empty, and the conclusion drawn at the time was that FDA's industry-scoped
+ * endpoints "are not dependable" — when they had never been asked for an
+ * industry that exists.
+ *
+ * The id is now passed through exactly as FDA gave it. That is right whichever
+ * way FDA parses it: "02" still reads as 2 if it coerces, and matches the
+ * string if it does not. Number() can only ever destroy information here.
+ */
+export type IndustryId = string | number;
+
+export const listClassesForIndustry = (id: IndustryId, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
   fetchTable(`/industryclass/${encodeURIComponent(String(id))}`, c, o);
 
-export const listSubclassesForIndustry = (id: number, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
+export const listSubclassesForIndustry = (id: IndustryId, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
   fetchTable(`/industrysubclass/${encodeURIComponent(String(id))}`, c, o);
 
-export const listPicsForIndustry = (id: number, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
+export const listPicsForIndustry = (id: IndustryId, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
   fetchTable(`/industrypic/${encodeURIComponent(String(id))}`, c, o);
 
-export const listProductsForIndustry = (id: number, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
+export const listProductsForIndustry = (id: IndustryId, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
   fetchTable(`/industryproduct/${encodeURIComponent(String(id))}`, c, o);
 
-export const listProductCodesForIndustry = (id: number, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
+export const listProductCodesForIndustry = (id: IndustryId, c: PcbCredentials, o?: { fetchImpl?: typeof fetch }) =>
   fetchTable(`/productcodeindustry/${encodeURIComponent(String(id))}`, c, o);
 
 // ── Search ──────────────────────────────────────────────────────────────────
@@ -304,7 +322,7 @@ export function searchProductsByName(
 
 /** Product codes matching a partial composition. Industry is mandatory. */
 export function searchPartialCodes(
-  q: { industry: number; class?: string; subclass?: string; pic?: string; group?: string },
+  q: { industry: IndustryId; class?: string; subclass?: string; pic?: string; group?: string },
   creds: PcbCredentials,
   opts: { fetchImpl?: typeof fetch } = {}
 ): Promise<PcbRow[]> {

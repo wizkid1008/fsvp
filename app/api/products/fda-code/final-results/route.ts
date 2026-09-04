@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const rows = (await searchPartialCodes({
-      industry: Number(industry),
+      industry,
       class: klass,
       group,
       subclass: subclass || undefined,
