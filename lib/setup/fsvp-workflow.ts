@@ -265,7 +265,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       ? [blocker(
           `classification-${product.id}`,
           `${productLabel(product)} is missing ${missing.join(" and ")}.`,
-          `/products/${product.id}`,
+          `/products/${product.id}#classify-product`,
           "Classify product"
         )]
       : [];
@@ -318,7 +318,12 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       admissibilityBlockers.push(blocker(
         `admissibility-${product.id}-${item.code}-${index}`,
         `${productLabel(product)}: ${item.message}`,
-        `/products/${product.id}`,
+        // An unclassified product is sent to the classify step, not the
+        // determination one — the label already says "Classify product", and
+        // the determination cannot be made until that is done.
+        item.code === "not_classified"
+          ? `/products/${product.id}#classify-product`
+          : `/products/${product.id}#determine-admissibility`,
         actionLabel
       ));
     }
@@ -434,7 +439,10 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       evidenceBlockers.push(blocker(
         `evidence-${record.id}`,
         `${recordLabel(record, productsById, suppliersById)} has no accepted evidence attached to the FSVP record.`,
-        `/fsvp-records/${record.id}`,
+        // Stages 8, 9 and 10 all land on the same record page. Without the
+        // fragment they are three different sentences arriving at one identical
+        // screen, and the reader has to work out which section each meant.
+        `/fsvp-records/${record.id}#evidence-package`,
         "Attach evidence"
       ));
     }
@@ -471,7 +479,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       qiBlockers.push(blocker(
         `qi-${record.id}-${index}`,
         `${recordLabel(record, productsById, suppliersById)}: ${reason}`,
-        `/fsvp-records/${record.id}`,
+        `/fsvp-records/${record.id}#qi-attestations`,
         "Complete QI attestation"
       ));
     }
@@ -515,7 +523,12 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       earlierBlocks > 0
         ? `${recordLabel(record, productsById, suppliersById)} cannot be approved until its setup blockers are resolved.`
         : `${recordLabel(record, productsById, suppliersById)} is ready for an importer approval decision.`,
-      `/fsvp-records/${record.id}`,
+      // Only anchor when the decision can actually be made. With earlier
+      // blockers outstanding there is no one section to point at, and dropping
+      // the reader on a control they cannot use yet would be its own small lie.
+      earlierBlocks > 0
+        ? `/fsvp-records/${record.id}`
+        : `/fsvp-records/${record.id}#approval-decision`,
       earlierBlocks > 0 ? "Resolve record blockers" : "Record approval decision"
     ));
   }

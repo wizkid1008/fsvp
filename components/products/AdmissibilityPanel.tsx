@@ -48,6 +48,18 @@ export type AdmissibilityDeterminationRow = {
 const inputClass =
   "mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest";
 const labelClass = "block text-sm font-medium text-slate-700";
+
+/**
+ * Applied to the two steps a pipeline blocker can link into.
+ *
+ * This panel is one of four on the product page, and its two numbered steps
+ * answer two different blockers. Landing at the top of the page with nothing
+ * marked leaves the reader to work out which of them they were sent for.
+ * `scroll-mt` keeps the heading clear of the sticky header; the `target:`
+ * styles use CSS's own :target, so nothing here needs client state.
+ */
+const anchorClass =
+  "scroll-mt-24 target:rounded-md target:bg-emerald-50 target:ring-2 target:ring-forest/30";
 const buttonClass =
   "inline-flex h-10 items-center justify-center rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60";
 
@@ -338,7 +350,7 @@ export function AdmissibilityPanel({
       )}
 
       {canManage && commodities.length > 0 && (
-        <div className="mt-5 border-t border-line pt-5">
+        <div id="classify-product" className={`mt-5 border-t border-line pt-5 ${anchorClass}`}>
           <h3 className="text-sm font-semibold text-ink">1. Classify the product</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
             Reclassifying supersedes existing determinations because they answer a different commodity question.
@@ -525,8 +537,10 @@ export function AdmissibilityPanel({
         </div>
       )}
 
+      {/* Two branches, one anchor id — they are mutually exclusive on
+          hasReferenceRule, so only ever one is in the document. */}
       {canManage && commodityId && countryOfOrigin && !hasReferenceRule && (
-        <div className="mt-5 border-t border-line pt-5">
+        <div id="determine-admissibility" className={`mt-5 border-t border-line pt-5 ${anchorClass}`}>
           <h3 className="text-sm font-semibold text-ink">2. Record a determination</h3>
           <p className="mt-2 rounded-md bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
             No country-commodity rule is on file for {commodityName ?? "this commodity"} yet, so
@@ -540,7 +554,7 @@ export function AdmissibilityPanel({
       )}
 
       {canManage && commodityId && countryOfOrigin && hasReferenceRule && (
-        <form onSubmit={determine} className="mt-5 border-t border-line pt-5">
+        <form onSubmit={determine} id="determine-admissibility" className={`mt-5 border-t border-line pt-5 ${anchorClass}`}>
           <h3 className="text-sm font-semibold text-ink">2. Record a determination</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
             The platform will resolve only verified, current rules and will refuse ambiguous or stale source data.

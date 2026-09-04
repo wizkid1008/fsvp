@@ -148,11 +148,11 @@ describe("buildCompleteFsvpSetupPlan", () => {
     const record = plan.steps.find((step) => step.id === "record")!;
 
     expect(classification.blockers[0]).toMatchObject({
-      href: "/products/product-1",
+      href: "/products/product-1#classify-product",
       actionLabel: "Classify product",
     });
     expect(admissibility.blockers[0]).toMatchObject({
-      href: "/products/product-1",
+      href: "/products/product-1#classify-product",
       actionLabel: "Classify product",
     });
     // Carries the product, so /applicability opens its determination form
@@ -210,7 +210,7 @@ describe("buildCompleteFsvpSetupPlan", () => {
 
     expect(admissibility.blockers).toHaveLength(1);
     expect(admissibility.blockers[0]).toMatchObject({
-      href: "/products/product-1",
+      href: "/products/product-1#determine-admissibility",
       actionLabel: "Determine admissibility",
     });
     expect(admissibility.progress).toEqual({ done: 0, total: 1 });

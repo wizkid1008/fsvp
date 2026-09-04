@@ -35,6 +35,19 @@ import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
 
+/**
+ * The three sections a pipeline blocker can link into.
+ *
+ * Stages 8, 9 and 10 — attach evidence, complete QI attestations, record the
+ * approval decision — all land on this one page. Three different sentences
+ * arriving at one identical screen left the reader to work out which section
+ * each meant. The ids already existed; this marks the one that was asked for.
+ * `target:` is CSS's own :target, so no client state is involved.
+ */
+const sectionClass =
+  "scroll-mt-24 rounded-lg border border-line bg-white p-5 shadow-soft " +
+  "target:ring-2 target:ring-forest/40";
+
 function statusTone(status: string): StatusTone {
   if (status === "importer_approved") return "success";
   if (status === "conditionally_approved") return "warning";
@@ -581,7 +594,7 @@ export default async function FsvpRecordPage({
         </div>
 
         {/* Narrative sections */}
-        <section id="evidence-package" className="rounded-lg border border-line bg-white p-5 shadow-soft">
+        <section id="evidence-package" className={sectionClass}>
           <div className="mb-5 border-b border-line pb-4">
             <h2 className="text-base font-semibold text-ink">Importer FSVP Documentation</h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -668,7 +681,7 @@ export default async function FsvpRecordPage({
         )}
 
         {/* Qualified individual attestations */}
-        <section id="qi-attestations" className="rounded-lg border border-line bg-white p-5 shadow-soft">
+        <section id="qi-attestations" className={sectionClass}>
           <div className="mb-5 border-b border-line pb-4">
             <h2 className="text-base font-semibold text-ink">Qualified Individual Attestations</h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -770,7 +783,7 @@ export default async function FsvpRecordPage({
 
         {/* Approval decision */}
         {isImporter && (
-          <section id="approval-decision" className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <section id="approval-decision" className={sectionClass}>
             <div className="mb-5 border-b border-line pb-4">
               <h2 className="text-base font-semibold text-ink">Approval Decision</h2>
               <p className="mt-1 text-sm text-slate-500">
