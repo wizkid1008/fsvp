@@ -314,3 +314,33 @@ describe("industry-scoped endpoints", () => {
     expect(calls[0].url).toContain("industry=02");
   });
 });
+
+describe("zipColumns cell coercion", () => {
+  it("turns FDA's unquoted numbers into strings", () => {
+    // The bug behind "f.trim is not a function": a subclass id arrives as a
+    // JSON number while its code and description arrive as strings, in the
+    // same row. Every consumer treats a cell as text, so one number crashed
+    // the whole request as an unhandled edge error -- a bare 500 with no body.
+    const rows = zipColumns({
+      COLUMNS: ["SUBCLSID", "SUBCLSCODE", "SUBCLSDESC"],
+      DATA: [[1, "E", "Metal"]],
+    });
+    expect(rows[0].SUBCLSID).toBe("1");
+    expect(typeof rows[0].SUBCLSID).toBe("string");
+  });
+
+  it("keeps null null rather than making it the string 'null'", () => {
+    const rows = zipColumns({ COLUMNS: ["A", "B"], DATA: [[null, "x"]] });
+    expect(rows[0].A).toBeNull();
+  });
+
+  it("coerces false, which is falsy but still a value FDA sent", () => {
+    expect(zipColumns({ COLUMNS: ["A"], DATA: [[false]] })[0].A).toBe("false");
+  });
+
+  it("drops a nested value rather than rendering it as [object Object]", () => {
+    // A nested object is not a cell. Naming it honestly as absent beats
+    // handing every downstream regex the string "[object Object]".
+    expect(zipColumns({ COLUMNS: ["A"], DATA: [[{ nested: true }]] })[0].A).toBeNull();
+  });
+});

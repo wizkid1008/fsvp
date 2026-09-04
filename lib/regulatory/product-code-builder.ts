@@ -85,7 +85,13 @@ export function pcbCredentialsFromEnv(
  */
 export type ColumnarResult = {
   COLUMNS?: string[];
-  DATA?: Array<Array<string | null>>;
+  /**
+   * Cells are `unknown`, not `string | null`, because FDA sends whatever the
+   * underlying column holds — numeric ids arrive as JSON numbers, not quoted.
+   * Declaring them strings was a claim about FDA's JSON that nothing checked,
+   * and it held only because /industry happens to return everything quoted.
+   */
+  DATA?: unknown[][];
 };
 
 export type ParentResult = {
@@ -97,6 +103,28 @@ export type ParentResult = {
 
 export type PcbRow = Record<string, string | null>;
 
+/**
+ * One cell, as a string or null.
+ *
+ * FDA does not quote everything. A subclass or PIC id comes back as a JSON
+ * number while its code and description come back as strings, in the same row.
+ * Every consumer of PcbRow treats values as text — .trim(), .test(), regex
+ * matching — so a number reaching them crashed the request with "f.trim is not
+ * a function", which as an unhandled edge error surfaced as a bare 500.
+ *
+ * Coercing here rather than at each call site is what makes PcbRow's type
+ * honest: one conversion at the boundary, and nothing downstream has to know
+ * FDA is inconsistent. Objects and arrays become null — a nested value is not
+ * a cell, and "[object Object]" would be worse than admitting there is nothing
+ * readable there.
+ */
+function cell(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return null;
+}
+
 /** COLUMNS + DATA → row objects. Missing cells become null, not undefined. */
 export function zipColumns(result: ColumnarResult | null | undefined): PcbRow[] {
   const columns = result?.COLUMNS;
@@ -106,7 +134,7 @@ export function zipColumns(result: ColumnarResult | null | undefined): PcbRow[] 
   return data.map((row) => {
     const out: PcbRow = {};
     columns.forEach((column, i) => {
-      out[column] = Array.isArray(row) && row[i] !== undefined ? row[i] : null;
+      out[column] = Array.isArray(row) ? cell(row[i]) : null;
     });
     return out;
   });
