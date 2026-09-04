@@ -24,6 +24,9 @@ export type SupplierRow = {
   contact_json: Record<string, string> | null;
   supplier_type?: string | null;
   evidence_count?: number;
+  /** Facilities this exporter OWNS — shared access is a different fact. */
+  facility_count?: number;
+  product_count?: number;
   updated_at: string;
   record_mode?: string | null;
   managed_by_importer_id?: string | null;
@@ -81,12 +84,21 @@ export function SupplierTable({
   importerId,
   suspensions = [],
   recordSummary = {},
+  scoped = false,
 }: {
   /** FSVP record counts per supplier id — see recordLabel for why. */
   recordSummary?: Record<string, RecordSummary>;
   countries: CountryOption[];
   suppliers: SupplierRow[];
   importerId?: string;
+  /**
+   * True when the list is one tenant's own, and therefore limited to
+   * export-eligible types. It drives the naming: an administrator's unscoped
+   * view carries manufacturers and brokers too, and heading that column
+   * "Exporter" would mislabel them. Distinct from `importerId`, which a
+   * tenant-confined reviewer does not have.
+   */
+  scoped?: boolean;
   /** Live suspensions for THIS importer only — suspension is never global. */
   suspensions?: SuspensionRow[];
 }) {
@@ -277,13 +289,19 @@ export function SupplierTable({
         <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
           {filtered.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-slate-400">
-              No {isImporter ? "exporters" : "suppliers"} match your search.
+              No {scoped ? "exporters" : "suppliers"} match your search.
             </div>
           ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-slate-50">
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
+                {/* "Supplier" over a list the page itself calls "My Exporters"
+                    made the reader do the reconciling. Only renamed when the
+                    list is actually limited to export-eligible types — the
+                    unscoped view carries manufacturers and brokers. */}
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                  {scoped ? "Exporter" : "Supplier"}
+                </th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Country</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FSVP Records</th>
@@ -292,6 +310,9 @@ export function SupplierTable({
                 )}
                 {isImporter && (
                   <th className="px-4 py-3 text-left font-semibold text-slate-700">Facilities</th>
+                )}
+                {isImporter && (
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700">Products</th>
                 )}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Last Updated</th>
@@ -343,14 +364,27 @@ export function SupplierTable({
                       // A facility belongs to an exporter, so it is reached from
                       // that exporter's row rather than from a global page where
                       // you would have to name it again in a dropdown.
+                      // One link, not a count beside an Add: the destination is
+                      // the same either way, and /facilities?supplier= both
+                      // lists them and adds one. Same reasoning as Evidence.
                       <td className="px-4 py-3">
                         <a
                           href={`/facilities?supplier=${supplier.id}`}
                           className="inline-flex items-center gap-1.5 font-semibold text-forest hover:underline"
                         >
                           <Warehouse className="h-3.5 w-3.5" />
-                          Add facility
+                          {(supplier.facility_count ?? 0) === 0
+                            ? "Add facility"
+                            : `${supplier.facility_count} ${supplier.facility_count === 1 ? "facility" : "facilities"}`}
                         </a>
+                      </td>
+                    )}
+                    {isImporter && (
+                      // Plain text rather than a link: /products takes ?view=
+                      // and ?facility= but has no supplier filter, so a link
+                      // would land on an unfiltered list looking filtered.
+                      <td className="px-4 py-3 text-slate-600">
+                        {supplier.product_count ?? 0}
                       </td>
                     )}
                     {/* "0 documents" read as a status rather than a way in, so

@@ -107,16 +107,36 @@ export default async function ExportersPage() {
     recordsQuery = recordsQuery.eq("importer_id", importerId);
   }
 
+  // Everything below reads through the admin client, so RLS does not scope it
+  // and tenancy has to be applied by hand — the same rule the supplier query
+  // above already follows.
+  //
+  // A product record belongs to exactly one importer, so counting them is a
+  // strict match. Documents are not: an exporter serving several importers
+  // uploads its corporate evidence with importer_id null on purpose (see
+  // app/api/documents/upload/route.ts), and that evidence genuinely belongs to
+  // every importer who reads it. So the document filter is "mine, or nobody's
+  // in particular" — anything else either undercounts the exporter's own
+  // policies or, as before this change, counted another importer's uploads.
+  let productsQuery = (admin.from("products_verify") as any).select("id, supplier_id");
+  let documentsQuery = (admin.from("documents") as any)
+    .select("linked_entity_type, linked_entity_id");
+
+  if (scoped && importerId) {
+    productsQuery = productsQuery.eq("importer_id", importerId);
+    documentsQuery = documentsQuery.or(`importer_id.eq.${importerId},importer_id.is.null`);
+  }
+
   const [{ data: rawSuppliers }, { data: countries }, { data: products }, { data: facilities }, { data: facilityAccess }, { data: documents }, { data: rawRecords }] = await Promise.all([
     suppliersQuery,
     (admin.from("countries") as any)
       .select("country_code,country_name")
       .eq("is_active", true)
       .order("country_name"),
-    (admin.from("products_verify") as any).select("id, supplier_id"),
+    productsQuery,
     (admin.from("facilities_verify") as any).select("id, supplier_id"),
     (admin.from("facility_supplier_access") as any).select("facility_id, supplier_id"),
-    admin.from("documents").select("linked_entity_type, linked_entity_id"),
+    documentsQuery,
     recordsQuery,
   ]);
 
@@ -168,9 +188,35 @@ export default async function ExportersPage() {
     }
   }
 
+  // Counted from the rows already fetched above, so this costs no extra query.
+  //
+  // Facilities are counted by OWNERSHIP only. facility_supplier_access grants a
+  // second exporter working access to somebody else's site, and folding those in
+  // would tell an importer this exporter has four facilities when it operates
+  // one — a different fact from the one the column claims to report.
+  const facilityCountBySupplier = new Map<string, number>();
+  for (const facility of (facilities ?? []) as Array<{ supplier_id: string | null }>) {
+    if (!facility.supplier_id) continue;
+    facilityCountBySupplier.set(
+      facility.supplier_id,
+      (facilityCountBySupplier.get(facility.supplier_id) ?? 0) + 1
+    );
+  }
+
+  const productCountBySupplier = new Map<string, number>();
+  for (const product of (products ?? []) as Array<{ supplier_id: string | null }>) {
+    if (!product.supplier_id) continue;
+    productCountBySupplier.set(
+      product.supplier_id,
+      (productCountBySupplier.get(product.supplier_id) ?? 0) + 1
+    );
+  }
+
   const suppliers = ((rawSuppliers ?? []) as SupplierRow[]).map((s) => ({
     ...s,
     evidence_count: evidenceCountBySupplier.get(s.id) ?? 0,
+    facility_count: facilityCountBySupplier.get(s.id) ?? 0,
+    product_count: productCountBySupplier.get(s.id) ?? 0,
   }));
 
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
@@ -200,6 +246,7 @@ export default async function ExportersPage() {
         importerId={role === "us_importer" ? (importerId ?? undefined) : undefined}
         suspensions={suspensions}
         recordSummary={recordSummary}
+        scoped={scoped}
       />
     </AppShell>
   );
