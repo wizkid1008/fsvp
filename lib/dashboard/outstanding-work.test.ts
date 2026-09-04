@@ -13,23 +13,33 @@ import {
  * `over` keys by step id: `{ classification: { done: 2, total: 5 } }`.
  */
 function steps(
-  over: Record<string, { done?: number; total?: number; blockers?: number }> = {}
+  over: Record<string, {
+    done?: number;
+    total?: number;
+    blockers?: number;
+    /** One href per blocker, when the test cares where they point. */
+    blockerHrefs?: string[];
+    /** Blocker action label, when it should differ from the stage's. */
+    blockerLabel?: string;
+  }> = {}
 ): SetupStep[] {
   return FSVP_SETUP_STEPS.map((step) => {
     const o = over[step.id] ?? {};
     const total = o.total ?? 1;
     const done = o.done ?? total;
+    const hrefs = o.blockerHrefs
+      ?? Array.from({ length: o.blockers ?? Math.max(0, total - done) }, () => step.href);
     return {
       id: step.id,
       title: step.title,
       description: step.description,
       href: step.href,
       actionLabel: step.actionLabel,
-      blockers: Array.from({ length: o.blockers ?? Math.max(0, total - done) }, (_, i) => ({
+      blockers: hrefs.map((href, i) => ({
         id: `${step.id}-${i}`,
         message: `${step.id} blocker ${i}`,
-        href: step.href,
-        actionLabel: step.actionLabel,
+        href,
+        actionLabel: o.blockerLabel ?? step.actionLabel,
       })),
       progress: { done, total },
     };
@@ -174,18 +184,83 @@ describe("outstandingCount", () => {
 });
 
 describe("detailHref", () => {
-  it("points every gate at its own anchor on the pipeline page", () => {
+  it("points a clear gate at its own anchor on the pipeline page", () => {
     for (const gate of outstandingWork(steps())) {
       expect(gate.detailHref).toBe(`/setup/fsvp#gate-${gate.id}`);
     }
   });
 
-  it("keeps the doing-screen separate from the detail view", () => {
-    // href is where the work happens, detailHref is where the blockers are
-    // listed. Collapsing them would lose one or the other.
+  it("keeps the doing-screen separate when there is nothing to collapse to", () => {
+    // With no blockers there is no single destination to prefer, so href is
+    // where the work happens and detailHref is the stage listing.
     const classify = outstandingWork(steps()).find((g) => g.id === "classification");
     expect(classify?.href).toBe("/products");
     expect(classify?.detailHref).not.toBe(classify?.href);
+  });
+
+  it("goes straight to the item when every blocker names the same screen", () => {
+    // The row already says "1 product", so the system knows which product.
+    // Routing through the stage listing to click again makes the reader
+    // re-derive an answer it already had.
+    const gates = outstandingWork(steps({
+      classification: { done: 4, total: 5, blockerHrefs: ["/products/fonio"] },
+    }));
+    const classify = gates.find((g) => g.id === "classification");
+
+    expect(classify?.detailHref).toBe("/products/fonio");
+    expect(classify?.href).toBe("/products/fonio");
+  });
+
+  it("collapses on destination, not on blocker count", () => {
+    // One product with two problems is still one destination. Counting
+    // blockers instead would send the reader to the listing for no reason.
+    const gates = outstandingWork(steps({
+      admissibility: { done: 4, total: 5, blockerHrefs: ["/products/fonio", "/products/fonio"] },
+    }));
+    const admissibility = gates.find((g) => g.id === "admissibility");
+
+    expect(admissibility?.blockers).toBe(2);
+    expect(admissibility?.detailHref).toBe("/products/fonio");
+  });
+
+  it("falls back to the pipeline when the blockers disagree", () => {
+    // Five products, five destinations. Now the listing is the only place that
+    // can say which is which, so the detour earns itself.
+    const gates = outstandingWork(steps({
+      classification: {
+        done: 0,
+        total: 5,
+        blockerHrefs: ["/products/a", "/products/b", "/products/c"],
+      },
+    }));
+    const classify = gates.find((g) => g.id === "classification");
+
+    expect(classify?.detailHref).toBe("/setup/fsvp#gate-classification");
+    expect(classify?.href).toBe("/products");
+  });
+
+  it("prefers the blocker's own label when it collapses", () => {
+    // "Classify product" is more specific than the stage's "Review
+    // classifications", and once the row goes to one product it should say the
+    // thing that will be done to it.
+    const gates = outstandingWork(steps({
+      classification: {
+        done: 4, total: 5,
+        blockerHrefs: ["/products/fonio"],
+        blockerLabel: "Classify product",
+      },
+    }));
+    expect(gates.find((g) => g.id === "classification")?.actionLabel).toBe("Classify product");
+  });
+
+  it("keeps the stage label when the row does not collapse", () => {
+    // The row is going to the listing, so it should say what the stage is,
+    // not what would be done to one of the several items behind it.
+    const gates = outstandingWork(steps({
+      admissibility: { done: 3, total: 5, blockerHrefs: ["/products/a", "/products/b"] },
+    }));
+    const stage = FSVP_SETUP_STEPS.find((s) => s.id === "admissibility");
+    expect(gates.find((g) => g.id === "admissibility")?.actionLabel).toBe(stage?.actionLabel);
   });
 
   it("matches the anchor ids the pipeline page renders", () => {

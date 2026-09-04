@@ -49,7 +49,7 @@ export function WhatNeedsDoing({
           <p className="mt-1 text-sm text-slate-500">
             {remaining === 0
               ? "Nothing is open. Every gate is clear."
-              : `${remaining} of ${gates.length} gates have work open — each applies per item, so more than one can be open at once. Each row opens the pipeline with the affected items named.`}
+              : `${remaining} of ${gates.length} gates have work open — each applies per item, so more than one can be open at once. A row goes straight to the item when only one is affected, and to the pipeline when several are, where each is named.`}
           </p>
         </div>
         {next && (

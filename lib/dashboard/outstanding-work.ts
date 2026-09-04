@@ -62,15 +62,26 @@ const STAGE_UNITS: Record<string, string | null> = {
 
 export type WorkGate = {
   id: FsvpSetupStepId;
+  /**
+   * The screen that does the work — where the action button goes. Collapses to
+   * the single item when this stage has only one destination; see below.
+   */
   title: string;
-  /** The screen that does the work — where the action button goes. */
   href: string;
   /**
-   * The same gate on /setup/fsvp, where its blockers are named per item.
+   * Where the row goes.
    *
-   * The row says "Classify product — 5 products"; the obvious next question is
-   * WHICH five, and the pipeline page has already answered it with a message
-   * and a fix button each.
+   * Normally the same gate on /setup/fsvp, where its blockers are named per
+   * item: the row says "Classify product — 5 products", the obvious next
+   * question is WHICH five, and the pipeline has already answered it with a
+   * message and a fix button each.
+   *
+   * But when every blocker at the stage points at the SAME screen, the pipeline
+   * has nothing left to disambiguate — it would show one blocker whose button
+   * goes exactly where the reader already asked to go. The row said "1 product",
+   * so it knows which product; sending them to a stage listing to click again is
+   * making them re-derive an answer the system already had. So in that case the
+   * row goes straight there.
    */
   detailHref: string;
   actionLabel: string;
@@ -95,22 +106,39 @@ export type WorkGate = {
 };
 
 export function outstandingWork(steps: SetupStep[]): WorkGate[] {
-  return steps.map((step) => ({
-    id: step.id as FsvpSetupStepId,
-    title: step.title,
-    href: step.href,
-    // Matches the `id={`gate-${step.id}`}` anchors on /setup/fsvp.
-    detailHref: `/setup/fsvp#gate-${step.id}`,
-    actionLabel: step.actionLabel,
-    // Items outstanding, not blockers: one product can carry two blockers, and
-    // "2 products" when there is one product with two problems would overstate
-    // how much is left. The blocker count travels alongside for the pipeline.
-    count: Math.max(0, step.progress.total - step.progress.done),
-    blockers: step.blockers.length,
-    unit: STAGE_UNITS[step.id] ?? null,
-    setup: isOnboardingStep(step.id),
-    optional: step.id === "package",
-  }));
+  return steps.map((step) => {
+    /**
+     * Where this stage's blockers actually point.
+     *
+     * Comparing DESTINATIONS rather than counting blockers is what makes this
+     * right in both awkward cases. One product carrying two blockers still has
+     * one destination, so the row should go to it. Five products carrying one
+     * blocker each have five, so the row must go to the pipeline where they are
+     * named. Counting blockers would get the first case wrong.
+     */
+    const destinations = new Set(step.blockers.map((blocker) => blocker.href));
+    const labels = new Set(step.blockers.map((blocker) => blocker.actionLabel));
+    const onlyDestination = destinations.size === 1 ? [...destinations][0] : null;
+
+    return {
+      id: step.id as FsvpSetupStepId,
+      title: step.title,
+      href: onlyDestination ?? step.href,
+      // Matches the `id={`gate-${step.id}`}` anchors on /setup/fsvp.
+      detailHref: onlyDestination ?? `/setup/fsvp#gate-${step.id}`,
+      // The blocker's own label is the more specific one ("Classify product"
+      // over "Review classifications"), but only when the blockers agree.
+      actionLabel: onlyDestination && labels.size === 1 ? [...labels][0] : step.actionLabel,
+      // Items outstanding, not blockers: one product can carry two blockers, and
+      // "2 products" when there is one product with two problems would overstate
+      // how much is left. The blocker count travels alongside for the pipeline.
+      count: Math.max(0, step.progress.total - step.progress.done),
+      blockers: step.blockers.length,
+      unit: STAGE_UNITS[step.id] ?? null,
+      setup: isOnboardingStep(step.id),
+      optional: step.id === "package",
+    };
+  });
 }
 
 /** The first gate with work outstanding — what the old card called next step. */
