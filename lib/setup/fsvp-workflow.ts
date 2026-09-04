@@ -40,6 +40,17 @@ export type SetupStep = {
   actionLabel: string;
   blockers: SetupBlocker[];
   progress: SetupProgress;
+  /**
+   * A second sentence for stages whose progress counts one thing while the
+   * work is done to another.
+   *
+   * Screening is the only one so far: progress counts RECORDS, because that is
+   * what the gate is evaluated against, but a screening is recorded per
+   * SUPPLIER under § 1.505(a)(1)(iv) and one covers every record from that
+   * firm. "2 of 2 done" against two records and one screening is true and
+   * still reads as though two screenings happened.
+   */
+  progressNote?: string;
 };
 
 export type SetupSummary = {
@@ -422,15 +433,27 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       "Open FSVP record first"
     ));
   }
+  // Records whose screening gate is clear, and the FIRMS behind them. A
+  // supplier's FDA history is one fact about that firm — the same refusals and
+  // inspections whichever of its foods you import — so one screening clears
+  // every record from it. Counting only records hides that: two records going
+  // green off a single screening reads as two screenings.
+  const screenedRecords = input.records.filter((r) =>
+    (input.gateBlocksByRecordId.get(r.id) ?? []).every((b) => !b.code.startsWith("compliance_screening"))
+  );
+  const suppliersInvolved = new Set(input.records.map((r) => r.supplier_id)).size;
+  const suppliersScreened = new Set(screenedRecords.map((r) => r.supplier_id)).size;
+
   steps.push({
     ...STEP_COPY.screening,
     blockers: screeningBlockers,
-    progress: progress(
-      countWhere(input.records, (r) =>
-        (input.gateBlocksByRecordId.get(r.id) ?? []).every((b) => !b.code.startsWith("compliance_screening"))
-      ),
-      input.records.length
-    ),
+    progress: progress(screenedRecords.length, input.records.length),
+    // Only worth saying when the two counts actually differ. With one record
+    // per supplier the note would restate the progress label in other words.
+    progressNote: input.records.length > suppliersInvolved
+      ? `${suppliersScreened} of ${suppliersInvolved} supplier${suppliersInvolved === 1 ? "" : "s"} ` +
+        `screened — one screening covers every record from that firm`
+      : undefined,
   });
 
   const evidenceBlockers: SetupBlocker[] = [];

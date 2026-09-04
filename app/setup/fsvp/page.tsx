@@ -193,6 +193,9 @@ export default async function CompleteFsvpSetupPage() {
                   <span className="text-sm font-semibold text-ink">{step.title}</span>
                   <StatusBadge tone={stepTone(step)}>{stepLabel(step)}</StatusBadge>
                   <span className="text-xs font-medium text-slate-500">{stepProgressLabel(step)}</span>
+                  {step.progressNote && (
+                    <span className="text-xs text-slate-400">· {step.progressNote}</span>
+                  )}
                   {/* Kept: it is how the list behind a cleared stage is reached
                       from here at all, and a row with nowhere to go is a dead
                       end rather than a tidy one. */}
@@ -233,6 +236,9 @@ export default async function CompleteFsvpSetupPage() {
                         {step.actionLabel}
                       </Link>
                     </div>
+                    {step.progressNote && (
+                      <p className="mt-1.5 text-xs leading-5 text-slate-400">{step.progressNote}</p>
+                    )}
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                       <div
                         className={`h-full rounded-full ${complete ? "bg-emerald-500" : "bg-amber-400"}`}

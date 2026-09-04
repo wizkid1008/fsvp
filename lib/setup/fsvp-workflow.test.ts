@@ -281,3 +281,42 @@ describe("buildCompleteFsvpSetupPlan", () => {
     expect(plan.steps.every((step) => step.progress.total > 0)).toBe(true);
   });
 });
+
+describe("screening progress note", () => {
+  /** Two records from the SAME supplier, both screened. */
+  function twoRecordsOneSupplier() {
+    const base = cleanInput();
+    return {
+      ...base,
+      records: [
+        { ...base.records[0], id: "record-1", product_id: "product-1" },
+        { ...base.records[0], id: "record-2", product_id: "product-2" },
+      ],
+    };
+  }
+
+  it("says how many SUPPLIERS were screened when records outnumber them", () => {
+    // "2 of 2 done" is true and still reads as though two screenings happened.
+    // A supplier's FDA history is one fact about that firm, so one screening
+    // clears every record from it.
+    const plan = buildCompleteFsvpSetupPlan(twoRecordsOneSupplier());
+    const screening = plan.steps.find((step) => step.id === "screening")!;
+
+    expect(screening.progress).toEqual({ done: 2, total: 2 });
+    expect(screening.progressNote).toContain("1 of 1 supplier");
+  });
+
+  it("stays quiet when there is one record per supplier", () => {
+    // The note would only restate the progress label in other words.
+    const plan = buildCompleteFsvpSetupPlan(cleanInput());
+    expect(plan.steps.find((step) => step.id === "screening")!.progressNote).toBeUndefined();
+  });
+
+  it("is the only stage that carries a note", () => {
+    // Every other stage counts the thing it acts on, so a second sentence
+    // would be noise rather than a correction.
+    const plan = buildCompleteFsvpSetupPlan(twoRecordsOneSupplier());
+    const noted = plan.steps.filter((step) => step.progressNote).map((step) => step.id);
+    expect(noted).toEqual(["screening"]);
+  });
+});
