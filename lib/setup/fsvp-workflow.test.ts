@@ -155,8 +155,10 @@ describe("buildCompleteFsvpSetupPlan", () => {
       href: "/products/product-1",
       actionLabel: "Classify product",
     });
+    // Carries the product, so /applicability opens its determination form
+    // rather than a grid of every food with this one somewhere inside it.
     expect(record.blockers[0]).toMatchObject({
-      href: "/applicability",
+      href: "/applicability?product=product-1",
       actionLabel: "Determine applicability",
     });
   });

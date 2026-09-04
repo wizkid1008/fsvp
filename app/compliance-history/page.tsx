@@ -17,7 +17,12 @@ import { REGULATORY_SOURCES } from "@/lib/regulatory/sources";
 
 export const runtime = "edge";
 
-export default async function ComplianceHistoryPage() {
+export default async function ComplianceHistoryPage({
+  searchParams,
+}: {
+  // ?supplier= arrives from a pipeline blocker that already named the firm.
+  searchParams: { supplier?: string };
+}) {
   const { role, realRole, user } = await requireProfileRole("/compliance-history", [
     "us_importer", "reviewer", "administrator",
   ]);
@@ -204,6 +209,7 @@ export default async function ComplianceHistoryPage() {
         // An administrator previewing a tenant reads this queue but cannot
         // decide in their name; the API refuses it too.
         canDecide={realRole !== "administrator"}
+        focusSupplierId={searchParams.supplier}
       />
     </AppShell>
   );

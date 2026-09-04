@@ -354,14 +354,25 @@ function EntitySizeForm({ onClose }: { onClose: () => void }) {
 }
 
 export function ApplicabilityClient({
-  pairs, entitySizes, viewerIsActiveQi, canManageSize,
+  pairs, entitySizes, viewerIsActiveQi, canManageSize, focusProductId,
 }: {
   pairs: PairRow[];
   entitySizes: EntitySizeRow[];
   viewerIsActiveQi: boolean;
   canManageSize: boolean;
+  /**
+   * Set from ?product= when the reader arrived from a blocker naming one.
+   * "Fonio has no FSVP applicability determination" followed by a grid of every
+   * food, with Fonio somewhere in it, asks the question back. Opens the
+   * determination form on that food instead.
+   */
+  focusProductId?: string;
 }) {
-  const [determining, setDetermining] = useState<PairRow | null>(null);
+  const [determining, setDetermining] = useState<PairRow | null>(
+    // Only when the pair is really here. A stale or foreign id opens the list
+    // as normal rather than a form about nothing.
+    () => pairs.find((pair) => pair.product_id === focusProductId) ?? null
+  );
   const [sizing, setSizing] = useState(false);
 
   const undetermined = pairs.filter((p) => !p.determination).length;

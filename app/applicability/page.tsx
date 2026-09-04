@@ -11,7 +11,12 @@ import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 
 export const runtime = "edge";
 
-export default async function ApplicabilityPage() {
+export default async function ApplicabilityPage({
+  searchParams,
+}: {
+  // ?product= arrives from a pipeline blocker that already named the food.
+  searchParams: { product?: string };
+}) {
   const { role, realRole, user } = await requireProfileRole("/applicability", [
     "us_importer", "reviewer", "administrator",
   ]);
@@ -218,6 +223,7 @@ export default async function ApplicabilityPage() {
         entitySizes={(rawSizes ?? []) as EntitySizeRow[]}
         viewerIsActiveQi={Boolean(qi && isActiveOn(qi))}
         canManageSize={canManageSize}
+        focusProductId={searchParams.product}
       />
     </AppShell>
   );

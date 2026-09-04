@@ -302,14 +302,22 @@ function FindingCard({
 }
 
 function ScreeningForm({
-  suppliers, confirmedBySupplier, onClose,
+  suppliers, confirmedBySupplier, onClose, initialSupplierId,
 }: {
   suppliers: SupplierOption[];
   confirmedBySupplier: Map<string, number>;
   onClose: () => void;
+  /** The supplier the reader arrived asking about, when they named one. */
+  initialSupplierId?: string;
 }) {
   const router = useRouter();
-  const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
+  const [supplierId, setSupplierId] = useState(
+    // Only honour it if it is really on the list — a stale link should open on
+    // the usual default rather than on an empty select.
+    (initialSupplierId && suppliers.some((s) => s.id === initialSupplierId)
+      ? initialSupplierId
+      : suppliers[0]?.id) ?? ""
+  );
   const [conclusion, setConclusion] = useState<ScreeningRow["conclusion"]>("no_adverse_history");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -432,7 +440,7 @@ function ScreeningForm({
 }
 
 export function ComplianceHistoryClient({
-  sources, findings, screenings, suppliers, viewerIsActiveQi, canDecide,
+  sources, findings, screenings, suppliers, viewerIsActiveQi, canDecide, focusSupplierId,
 }: {
   sources: SourceStatus[];
   findings: FindingRow[];
@@ -440,9 +448,18 @@ export function ComplianceHistoryClient({
   suppliers: SupplierOption[];
   viewerIsActiveQi: boolean;
   canDecide: boolean;
+  /**
+   * Set from ?supplier= when the reader arrived from a blocker naming one.
+   * The pipeline says "Andes Ingredients: screening not recorded"; landing on
+   * the queue with a Record screening button to hunt for makes them ask for the
+   * same thing twice. Opens the form on that supplier instead.
+   */
+  focusSupplierId?: string;
 }) {
   const [tab, setTab] = useState<"queue" | "confirmed" | "screenings">("queue");
-  const [screening, setScreening] = useState(false);
+  const [screening, setScreening] = useState(
+    Boolean(focusSupplierId && canDecide && suppliers.some((s) => s.id === focusSupplierId))
+  );
   const [decided, setDecided] = useState<Set<string>>(new Set());
 
   const candidates = useMemo(
@@ -603,6 +620,7 @@ export function ComplianceHistoryClient({
           suppliers={suppliers}
           confirmedBySupplier={confirmedBySupplier}
           onClose={() => setScreening(false)}
+          initialSupplierId={focusSupplierId}
         />
       )}
     </div>

@@ -7,7 +7,17 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 export const runtime = "edge";
 
-export default function NewFsvpRecordPage() {
+/**
+ * `searchParams` reaches a client page component the same way it reaches a
+ * server one, so ?product= is read as a prop rather than through
+ * useSearchParams — which would need a Suspense boundary around the whole page
+ * to avoid bailing the route out of static rendering.
+ */
+export default function NewFsvpRecordPage({
+  searchParams,
+}: {
+  searchParams: { product?: string };
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +54,22 @@ export default function NewFsvpRecordPage() {
       const vers = versionsRes.data ?? [];
       setRuleVersions(vers);
       if (vers.length > 0) setRuleVersionId(vers[0].id);
+
+      // Arriving from a blocker that already named the product: fill in what
+      // that product implies rather than asking for it again. Its exporter and
+      // facility come with it, because the three selects cascade — setting the
+      // product alone would leave it filtered out of its own dropdown.
+      const wanted = (productsRes.data ?? []).find(
+        (p: { id: string }) => p.id === searchParams.product
+      );
+      if (wanted) {
+        if (wanted.supplier_id) setSupplierId(wanted.supplier_id);
+        if (wanted.facility_id) setFacilityId(wanted.facility_id);
+        setProductId(wanted.id);
+      }
     }
     void load();
-  }, []);
+  }, [searchParams.product]);
 
   const filteredFacilities = supplierId
     ? facilities.filter((f) => f.supplier_id === supplierId)

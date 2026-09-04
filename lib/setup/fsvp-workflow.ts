@@ -349,7 +349,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       recordBlockers.push(blocker(
         `applicability-${product.id}`,
         `${productLabel(product)} has no FSVP applicability determination.`,
-        "/applicability",
+        `/applicability?product=${product.id}`,
         "Determine applicability"
       ));
       continue;
@@ -358,7 +358,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       recordBlockers.push(blocker(
         `applicability-expired-${product.id}`,
         `${productLabel(product)} has an expired FSVP applicability determination.`,
-        "/applicability",
+        `/applicability?product=${product.id}`,
         "Renew determination"
       ));
       continue;
@@ -367,7 +367,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       recordBlockers.push(blocker(
         `record-${product.id}`,
         `${productLabel(product)} is subject to FSVP or modified requirements, but no FSVP record has been opened.`,
-        "/fsvp-records/new",
+        `/fsvp-records/new?product=${product.id}`,
         "Open FSVP record"
       ));
     }
@@ -402,7 +402,9 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
       screeningBlockers.push(blocker(
         `screening-${record.id}-${item.code}`,
         `${recordLabel(record, productsById, suppliersById)}: ${item.message}`,
-        "/compliance-history",
+        // Screening is recorded against the SUPPLIER, not the record, so the
+        // record's supplier is what the destination can act on.
+        `/compliance-history?supplier=${record.supplier_id}`,
         "Record screening"
       ));
     }
