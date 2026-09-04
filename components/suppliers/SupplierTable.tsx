@@ -387,13 +387,15 @@ export function SupplierTable({
                         {supplier.product_count ?? 0}
                       </td>
                     )}
-                    {/* "0 documents" read as a status rather than a way in, so
-                        with nothing uploaded the cell said only that nothing was
-                        uploaded. The destination is the same either way — the
-                        evidence page opens with this exporter preselected. */}
+                    {/* A raw upload count could not distinguish two accepted
+                        policies from two irrelevant PDFs, and the document
+                        library it pointed at can only show what HAS been filed,
+                        never what is still owed. Both now go to the exporter's
+                        own page, which answers the question the column is
+                        really asking. */}
                     <td className="px-4 py-3">
                       <a
-                        href={`/evidence?entity=supplier&id=${supplier.id}`}
+                        href={`/exporters/${supplier.id}`}
                         className="inline-flex items-center gap-1.5 font-semibold text-forest hover:underline"
                       >
                         {(supplier.evidence_count ?? 0) === 0 ? (
