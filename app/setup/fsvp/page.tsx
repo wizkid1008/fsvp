@@ -164,6 +164,45 @@ export default async function CompleteFsvpSetupPage() {
               ? 0
               : Math.round((step.progress.done / step.progress.total) * 100);
 
+            // A cleared stage collapses to a single line.
+            //
+            // It used to get the identical two-column layout as a blocked one,
+            // with a panel the height of a blocker list whose whole content was
+            // "Nothing blocking this stage." Five clear stages meant five of
+            // those, so the gates that actually needed reading were spaced out
+            // by the ones that did not.
+            //
+            // The stage stays in the list rather than disappearing. These are
+            // gates a product passes repeatedly, not steps an account finishes:
+            // add a sixth exporter with no facility and stage 2 blocks again.
+            // Collapsing keeps the whole path visible and lets a stage expand
+            // itself when it re-blocks, with no state to manage.
+            if (complete) {
+              return (
+                <section
+                  key={step.id}
+                  id={`gate-${step.id}`}
+                  className="flex scroll-mt-6 flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3"
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                    Stage {index + 1}
+                  </span>
+                  <span className="text-sm font-semibold text-ink">{step.title}</span>
+                  <StatusBadge tone={stepTone(step)}>{stepLabel(step)}</StatusBadge>
+                  <span className="text-xs font-medium text-slate-500">{stepProgressLabel(step)}</span>
+                  {/* Kept: it is how the list behind a cleared stage is reached
+                      from here at all, and a row with nowhere to go is a dead
+                      end rather than a tidy one. */}
+                  <Link href={step.href} className="ml-auto text-sm font-semibold text-forest hover:underline">
+                    {step.actionLabel}
+                  </Link>
+                </section>
+              );
+            }
+
             return (
               <section
                 key={step.id}
@@ -203,29 +242,25 @@ export default async function CompleteFsvpSetupPage() {
                   </div>
                 </div>
 
-                {complete ? (
-                  <div className="rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    Nothing blocking this stage.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {step.blockers.map((item) => (
-                      <div key={item.id} className="flex flex-col gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex gap-2">
-                          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-                          <p className="text-sm leading-6 text-amber-950">{item.message}</p>
-                        </div>
-                        <Link
-                          href={item.href}
-                          className="inline-flex h-8 shrink-0 items-center gap-2 rounded-md border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                        >
-                          <PackageSearch className="h-3.5 w-3.5" />
-                          {item.actionLabel}
-                        </Link>
+                {/* Only blocked stages reach here — a clear one returned above,
+                    so there is no longer an empty-state panel to render. */}
+                <div className="space-y-2">
+                  {step.blockers.map((item) => (
+                    <div key={item.id} className="flex flex-col gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex gap-2">
+                        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                        <p className="text-sm leading-6 text-amber-950">{item.message}</p>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <Link
+                        href={item.href}
+                        className="inline-flex h-8 shrink-0 items-center gap-2 rounded-md border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                      >
+                        <PackageSearch className="h-3.5 w-3.5" />
+                        {item.actionLabel}
+                      </Link>
+                    </div>
+                  ))}
+                </div>
               </section>
             );
           })}
