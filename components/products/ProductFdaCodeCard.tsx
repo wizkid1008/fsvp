@@ -138,8 +138,12 @@ function productChoiceFromRow(row: Record<string, string | null>): ProductChoice
   const text = Object.values(row).map(cellText).filter(Boolean).join(" ");
   const paren = text.match(/\(([A-Z])-([A-Z0-9]{2})\)/i);
   const fullCode = productCodeFromRow(row);
+  // FDA's own column is CLASSCODE, no underscore -- matching group's `_?code`
+  // pattern below. A stricter `_code` here (mandatory underscore) never
+  // matches FDA's real column name, so classCode always fell through to
+  // fullCode/paren and came up empty on rows that plainly carried it.
   const classCode = (
-    rowValue(row, [/^class(_code|_id)?$/i, /prod(uct)?.*class/i]) ??
+    rowValue(row, [/^class(_?code|_?id)?$/i, /prod(uct)?.*class/i]) ??
     fullCode?.[2] ??
     paren?.[1] ??
     ""
