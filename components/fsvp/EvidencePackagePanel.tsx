@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Plus, Trash2, FileCheck2, LockKeyhole } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
@@ -34,11 +35,22 @@ export function EvidencePackagePanel({
   recordId,
   attachedDocs,
   availableDocs,
+  totalDocCount,
   readonly,
 }: {
   recordId: string;
   attachedDocs: AttachedDoc[];
   availableDocs: AvailableDoc[];
+  /**
+   * Every document on file for this supplier, any status, not just accepted.
+   *
+   * "No accepted evidence exists" was itself still ambiguous: it reads the
+   * same whether this supplier has never submitted anything, or submitted
+   * documents that are sitting in Exporter Submissions waiting on review.
+   * Only one of those has a fix available on this page -- the other means
+   * send the reviewer to Exporter Submissions, not to this panel.
+   */
+  totalDocCount: number;
   readonly: boolean;
 }) {
   const router = useRouter();
@@ -53,6 +65,13 @@ export function EvidencePackagePanel({
   // to say the same thing for both: every accepted document is attached, or
   // this supplier has none accepted at all. Only the first is "all attached".
   const nothingAccepted = availableDocs.length === 0;
+  const pendingCount = Math.max(0, totalDocCount - availableDocs.length);
+  const emptyReason = !nothingAccepted
+    ? null
+    : pendingCount > 0
+      ? `This supplier has ${pendingCount} document${pendingCount === 1 ? "" : "s"} on file, but none are ` +
+        "accepted yet. Review them under Exporter Submissions before they can be attached here."
+      : "This supplier has not submitted any evidence documents yet — nothing exists to attach.";
 
   function handleAttach() {
     if (!selectedId) { setError("Select a document."); return; }
@@ -90,9 +109,15 @@ export function EvidencePackagePanel({
           <FileCheck2 className="mx-auto h-8 w-8 text-slate-300" />
           <p className="mt-2 text-sm font-semibold text-ink">No evidence attached</p>
           <p className="mt-1 text-xs text-slate-500">
-            {nothingAccepted
-              ? "This supplier has no accepted evidence documents yet — nothing exists to attach."
-              : "Attach accepted evidence documents to this FSVP record."}
+            {emptyReason ?? "Attach accepted evidence documents to this FSVP record."}
+            {pendingCount > 0 && (
+              <>
+                {" "}
+                <Link href="/importer-review" className="font-medium text-forest hover:underline">
+                  Go to Exporter Submissions →
+                </Link>
+              </>
+            )}
           </p>
         </div>
       ) : (
@@ -202,7 +227,9 @@ export function EvidencePackagePanel({
               <Plus className="h-4 w-4" />
               {unattached.length === 0
                 ? nothingAccepted
-                  ? "No accepted evidence exists for this supplier"
+                  ? pendingCount > 0
+                    ? `${pendingCount} document${pendingCount === 1 ? "" : "s"} awaiting review`
+                    : "No evidence submitted for this supplier"
                   : "All accepted evidence attached"
                 : "Attach Evidence"}
             </button>

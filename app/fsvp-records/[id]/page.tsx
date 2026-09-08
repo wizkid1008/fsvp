@@ -161,6 +161,15 @@ export default async function FsvpRecordPage({
     .is("soft_deleted_at", null)
     .order("title");
 
+  // Distinguishes "this supplier has never submitted anything" from "they
+  // submitted something and it's stuck waiting on review" -- both look like
+  // zero accepted documents, but only one of them means there is nothing to
+  // do here. The other means the fix is in Exporter Submissions, not here.
+  const { count: totalDocCount } = await (supabase.from("documents") as any)
+    .select("id", { count: "exact", head: true })
+    .eq("supplier_id", supplier.id)
+    .is("soft_deleted_at", null);
+
   type AvailableRow = {
     id: string;
     title: string;
@@ -651,6 +660,7 @@ export default async function FsvpRecordPage({
             recordId={id}
             attachedDocs={attachedDocs}
             availableDocs={availableDocs}
+            totalDocCount={totalDocCount ?? 0}
             readonly={!isEditable}
           />
         </section>
