@@ -164,11 +164,24 @@ function productChoiceFromRow(row: Record<string, string | null>): ProductChoice
 export function ProductFdaCodeCard({
   productId,
   productName,
+  commodityName,
   current,
   canManage,
 }: {
   productId: string;
   productName: string;
+  /**
+   * The classified commodity's name, when this product has one.
+   *
+   * product_name is whatever free text was typed when the product was
+   * created and never changes on its own. Reclassifying (Step 1 on the
+   * Admissibility card) updates commodity_id, not product_name -- so a
+   * product entered as "Fonio" and later classified as Garlic keeps showing
+   * "Fonio" here forever unless something else is preferred. FDA's own
+   * taxonomy is a search over what the product actually IS, which is the
+   * classification, not whatever the creator originally typed.
+   */
+  commodityName?: string | null;
   current: ProductFdaCode;
   canManage: boolean;
 }) {
@@ -176,7 +189,15 @@ export function ProductFdaCodeCard({
   const [code, setCode] = useState(current.code ?? "");
   const [industryRows, setIndustryRows] = useState<Array<{ id: string; name: string }> | null>(null);
   const [industryId, setIndustryId] = useState("");
-  const [industryFilter, setIndustryFilter] = useState(productName);
+  // The taxonomy names a commodity "Garlic, bulb" -- the part after the comma
+  // is OUR qualifier (migration 018's plant_part), not a word FDA uses. Left
+  // in, it turns one search into two: the strict tier (every word must match)
+  // finds nothing because no FDA row says "bulb" right next to "garlic", and
+  // the loose tier (any word matches) then matches every row that merely
+  // mentions "bulb" -- hundreds of unrelated entries drowning out the actual
+  // garlic rows in the 50-row cap. Searching FDA on the plain name avoids
+  // both failure modes at once.
+  const [industryFilter, setIndustryFilter] = useState((commodityName || productName).split(",")[0].trim());
   const [industryProductRows, setIndustryProductRows] = useState<Array<Record<string, string | null>>>([]);
   const [selectedProductKey, setSelectedProductKey] = useState("");
   const [subclassOptions, setSubclassOptions] = useState<FdaOption[]>([]);
@@ -431,6 +452,7 @@ export function ProductFdaCodeCard({
           fallback?: boolean;
           scope?: "industry" | "global";
           source_count?: number;
+          source_error?: string | null;
         };
         if (!res.ok) {
           setIndustryNote(json.error ?? "FDA industry search is unavailable.");
@@ -444,7 +466,13 @@ export function ProductFdaCodeCard({
         setIndustryNote(
           rows.length === 0
             ? hasFilter
-              ? "FDA returned no products for that filter, in that industry or any other. Try a different word."
+              ? json.source_error
+                // "Not found" and "could not check" look identical to the
+                // browse, but only one of them means the product truly has
+                // no FDA code -- the other means FDA's own catalog could not
+                // be reached, and saying "no products" would be a guess.
+                ? `FDA's broader catalog could not be checked (${json.source_error}), so this only reflects the selected industry.`
+                : "FDA returned no products for that filter, in that industry or any other. Try a different word."
               : `FDA returned ${json.source_count ?? 0} products for that industry. Try another industry.`
             : choices.length === 0
               ? "FDA returned broader rows for that industry, but none carried the class and product-group codes needed for the next step. Try clearing the filter or choose another industry."

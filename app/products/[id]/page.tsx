@@ -224,6 +224,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             <ProductFdaCodeCard
               productId={params.id}
               productName={product.product_name}
+              commodityName={commodity?.common_name ?? null}
               canManage={canManageAdmissibility}
               current={{
                 code:        productFdaCode?.fda_product_code ?? null,
