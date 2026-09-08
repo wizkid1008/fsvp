@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ClipboardCheck } from "lucide-react";
+import { Plus, ClipboardCheck, Pencil, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
 
@@ -18,6 +18,19 @@ type VerificationRecord = {
   performed_by_name: string | null;
   next_due_at: string | null;
 };
+
+const RESULT_LABELS: Record<string, string> = {
+  acceptable: "Acceptable", unacceptable: "Unacceptable", inconclusive: "Inconclusive", pending: "Pending",
+};
+const STATUS_LABELS: Record<string, string> = {
+  planned: "Planned", in_progress: "In Progress", completed: "Completed",
+  overdue: "Overdue", cancelled: "Cancelled",
+};
+
+/** yyyy-MM-dd for a date input, from a date or timestamp string. */
+function toDateInputValue(value: string | null): string {
+  return value ? value.slice(0, 10) : "";
+}
 
 function resultTone(r: string | null): StatusTone {
   if (r === "acceptable") return "success";
@@ -133,6 +146,120 @@ function AddVerificationForm({ recordId, onDone }: { recordId: string; onDone: (
   );
 }
 
+function EditVerificationForm({ record, onDone }: { record: VerificationRecord; onDone: () => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    start(async () => {
+      try {
+        const res = await fetch("/api/fsvp/verification-records", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: record.id,
+            activity_type: fd.get("activity_type"),
+            scheduled_date: fd.get("scheduled_date") || null,
+            performed_by_name: fd.get("performed_by_name") || null,
+            next_due_at: fd.get("next_due_at") || null,
+            is_sahcodha_audit: fd.get("is_sahcodha_audit") === "on",
+            status: fd.get("status"),
+            result: fd.get("result") || null,
+            completed_at: fd.get("completed_at") ? new Date(fd.get("completed_at") as string).toISOString() : null,
+            result_notes: fd.get("result_notes") || null,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+        router.refresh();
+        onDone();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update record");
+      }
+    });
+  }
+
+  const inputClass = "mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest";
+  const labelClass = "block text-xs font-medium text-slate-600";
+
+  return (
+    <form onSubmit={submit} className="mt-4 rounded-lg border border-forest/40 bg-slate-50 p-4 space-y-3">
+      <p className="text-sm font-semibold text-ink">Edit Verification Activity</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={labelClass}>
+          Activity Type <span className="text-red-500">*</span>
+          <select name="activity_type" required defaultValue={record.activity_type} className={inputClass}>
+            {Object.entries(ACTIVITY_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+        </label>
+        <label className={labelClass}>
+          Status <span className="text-red-500">*</span>
+          <select name="status" required defaultValue={record.status} className={inputClass}>
+            {Object.entries(STATUS_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+        </label>
+        <label className={labelClass}>
+          Scheduled Date
+          <input type="date" name="scheduled_date" defaultValue={toDateInputValue(record.scheduled_date)} className={inputClass} />
+        </label>
+        <label className={labelClass}>
+          Next Due
+          <input type="date" name="next_due_at" defaultValue={toDateInputValue(record.next_due_at)} className={inputClass} />
+        </label>
+        <label className={labelClass}>
+          Completed
+          <input type="date" name="completed_at" defaultValue={toDateInputValue(record.completed_at)} className={inputClass} />
+        </label>
+        <label className={labelClass}>
+          Result
+          <select name="result" defaultValue={record.result ?? ""} className={inputClass}>
+            <option value="">—</option>
+            {Object.entries(RESULT_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+        </label>
+        <label className={labelClass}>
+          Performed By (QI name)
+          <input name="performed_by_name" defaultValue={record.performed_by_name ?? ""} placeholder="Name" className={inputClass} />
+        </label>
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600 mt-5 col-span-2">
+          <input type="checkbox" name="is_sahcodha_audit" defaultChecked={record.is_sahcodha_audit} className="h-4 w-4 rounded border-line" />
+          SAHCODHA audit (§ 1.506(b)(2)) — must be onsite audit, cannot use assurance substitution
+        </label>
+      </div>
+      <label className={labelClass}>
+        Notes
+        <textarea
+          name="result_notes"
+          rows={2}
+          defaultValue={record.result_notes ?? ""}
+          className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-forest"
+          placeholder="Result notes…"
+        />
+      </label>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button type="submit" disabled={pending}
+          className="h-8 rounded-md bg-forest px-4 text-xs font-semibold text-white hover:bg-[#195f4d] disabled:opacity-50">
+          {pending ? "Saving…" : "Save Changes"}
+        </button>
+        <button type="button" onClick={onDone}
+          className="h-8 rounded-md border border-line px-4 text-xs font-medium text-slate-600 hover:bg-white">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function VerificationRecordsPanel({
   recordId,
   records,
@@ -142,7 +269,27 @@ export function VerificationRecordsPanel({
   records: VerificationRecord[];
   readonly: boolean;
 }) {
+  const router = useRouter();
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  function handleDelete(record: VerificationRecord) {
+    const label = ACTIVITY_LABELS[record.activity_type] ?? record.activity_type;
+    if (!confirm(`Remove this ${label} activity? This cannot be undone.`)) return;
+    setDeletingId(record.id);
+    fetch("/api/fsvp/verification-records", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: record.id }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error((await res.json()).error ?? "Failed to delete");
+        router.refresh();
+      })
+      .catch((err) => alert(err instanceof Error ? err.message : "Failed to delete"))
+      .finally(() => setDeletingId(null));
+  }
 
   if (records.length === 0 && !showAdd) {
     return (
@@ -190,6 +337,7 @@ export function VerificationRecordsPanel({
               <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Result</th>
               <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Next Due</th>
               <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Status</th>
+              {!readonly && <th className="w-20 px-4 py-2.5" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -236,12 +384,40 @@ export function VerificationRecordsPanel({
                       {r.status.charAt(0).toUpperCase() + r.status.slice(1).replace(/_/g, " ")}
                     </StatusBadge>
                   </td>
+                  {!readonly && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setEditingId(r.id)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          title="Edit activity"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(r)}
+                          disabled={deletingId === r.id}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                          title="Delete activity"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {editingId && (
+        <EditVerificationForm
+          record={records.find((r) => r.id === editingId)!}
+          onDone={() => setEditingId(null)}
+        />
+      )}
 
       {showAdd && (
         <AddVerificationForm recordId={recordId} onDone={() => setShowAdd(false)} />

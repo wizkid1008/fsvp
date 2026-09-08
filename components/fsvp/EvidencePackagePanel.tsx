@@ -49,6 +49,10 @@ export function EvidencePackagePanel({
 
   const attachedDocIds = new Set(attachedDocs.map((d) => d.document_id));
   const unattached = availableDocs.filter((d) => !attachedDocIds.has(d.id));
+  // unattached.length === 0 means two different things, and the button used
+  // to say the same thing for both: every accepted document is attached, or
+  // this supplier has none accepted at all. Only the first is "all attached".
+  const nothingAccepted = availableDocs.length === 0;
 
   function handleAttach() {
     if (!selectedId) { setError("Select a document."); return; }
@@ -86,7 +90,9 @@ export function EvidencePackagePanel({
           <FileCheck2 className="mx-auto h-8 w-8 text-slate-300" />
           <p className="mt-2 text-sm font-semibold text-ink">No evidence attached</p>
           <p className="mt-1 text-xs text-slate-500">
-            Attach accepted evidence documents to this FSVP record.
+            {nothingAccepted
+              ? "This supplier has no accepted evidence documents yet — nothing exists to attach."
+              : "Attach accepted evidence documents to this FSVP record."}
           </p>
         </div>
       ) : (
@@ -194,7 +200,11 @@ export function EvidencePackagePanel({
               className="inline-flex h-9 items-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             >
               <Plus className="h-4 w-4" />
-              {unattached.length === 0 ? "All accepted evidence attached" : "Attach Evidence"}
+              {unattached.length === 0
+                ? nothingAccepted
+                  ? "No accepted evidence exists for this supplier"
+                  : "All accepted evidence attached"
+                : "Attach Evidence"}
             </button>
           )}
           {error && <p className="mt-1.5 text-sm text-red-600">{error}</p>}
