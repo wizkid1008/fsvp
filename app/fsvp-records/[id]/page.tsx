@@ -802,7 +802,7 @@ export default async function FsvpRecordPage({
             </div>
             <ApprovalDecisionForm
               recordId={id}
-              currentDecision={record.status}
+              currentDecision={record.approval_decision}
               blockingReasons={[
                 ...(applicabilityBlock ? [applicabilityBlock] : []),
                 ...attestationEval.reasons,

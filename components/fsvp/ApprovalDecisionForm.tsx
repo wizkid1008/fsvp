@@ -93,7 +93,10 @@ export function ApprovalDecisionForm({
     });
   }
 
-  if (currentDecision && currentDecision !== "needs_corrective_action") {
+  // approval_decision is null until an actual decision is made, and set back
+  // to null on "revision_requested" (see the approve route), so a plain
+  // truthiness check is enough -- no need to special-case any status string.
+  if (currentDecision) {
     const decisionTone: Record<string, StatusTone> = {
       importer_approved: "success",
       conditionally_approved: "warning",
