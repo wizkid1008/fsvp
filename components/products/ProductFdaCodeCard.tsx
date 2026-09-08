@@ -429,6 +429,7 @@ export function ProductFdaCodeCard({
           total?: number;
           truncated?: boolean;
           fallback?: boolean;
+          scope?: "industry" | "global";
           source_count?: number;
         };
         if (!res.ok) {
@@ -439,15 +440,18 @@ export function ProductFdaCodeCard({
         const choices = rows.map(productChoiceFromRow).filter(Boolean);
         setIndustryProductRows(rows);
         const hasFilter = nextFilter.trim().length > 0;
+        const isGlobal = json.scope === "global";
         setIndustryNote(
           rows.length === 0
             ? hasFilter
-              ? "FDA returned no products in that industry for the filter. Try removing a word."
+              ? "FDA returned no products for that filter, in that industry or any other. Try a different word."
               : `FDA returned ${json.source_count ?? 0} products for that industry. Try another industry.`
             : choices.length === 0
               ? "FDA returned broader rows for that industry, but none carried the class and product-group codes needed for the next step. Try clearing the filter or choose another industry."
             : json.fallback
-              ? "No exact filter match. Showing broader results from the selected industry."
+              ? isGlobal
+                ? "Not found in that industry. Showing matches from FDA's full product list instead — check the code applies to the industry you selected."
+                : "No exact filter match. Showing broader results from the selected industry."
             : json.truncated
               ? `Showing first ${rows.length} of ${json.total ?? "many"} matches. Add a filter to narrow it.`
               : null
