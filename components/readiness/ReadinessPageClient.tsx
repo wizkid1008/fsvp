@@ -123,7 +123,7 @@ export function ReadinessPageClient({ assessments, suppliers, selectedSupplierId
             icon={Gauge}
             title={`No assessment yet for ${selected?.company_name ?? "this exporter"}`}
             description="Run a readiness assessment to score their FSVP records, surface critical gaps, and generate reports. The section breakdown below already reflects the evidence on file."
-            action={canAssess ? { label: "Start Assessment", href: "#" } : undefined}
+            action={canAssess ? { label: "Start Assessment", onClick: () => setShowModal(true) } : undefined}
           />
         </div>
       ) : (
@@ -244,7 +244,13 @@ export function ReadinessPageClient({ assessments, suppliers, selectedSupplierId
         </div>
       )}
 
-      {showModal && <StartAssessmentModal onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <StartAssessmentModal
+          suppliers={suppliers}
+          defaultSupplierId={selectedSupplierId}
+          onClose={() => setShowModal(false)}
+        />
+      )}
     </>
   );
 }

@@ -25,14 +25,37 @@ export async function GET(req: NextRequest) {
   const listSuppliers = req.nextUrl.searchParams.get("list_suppliers") === "1";
 
   if (listSuppliers) {
-    // Return suppliers linked to this importer for dropdown population
-    const { data: links } = await (supabase.from("importer_supplier_links") as any)
-      .select("supplier_id, foreign_suppliers!inner(id, supplier_name)")
-      .eq("importer_id", profile.importer_id);
+    // Suppliers linked to this importer, for dropdown population. This read
+    // importer_supplier_links / foreign_suppliers, both dropped in the baseline;
+    // the query errored, the error was ignored, and every dropdown fed by it
+    // said "No linked suppliers found". Same source as the readiness page.
+    if (!ALLOWED_ROLES.has(profile.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (!profile.importer_id) return NextResponse.json({ suppliers: [] });
 
-    const suppliers = (links ?? []).map((l: any) => ({
-      id: l.foreign_suppliers.id,
-      supplier_name: l.foreign_suppliers.supplier_name,
+    const admin = createAdminSupabaseClient();
+    const { data: links, error: linkErr } = await (admin.from("supplier_relationships") as any)
+      .select("supplier_id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("importer_id", profile.importer_id)
+      .in("status", ["active", "pending_invite"]);
+    if (linkErr) return NextResponse.json({ error: linkErr.message }, { status: 500 });
+
+    const ids = ((links ?? []) as Array<{ supplier_id: string | null }>)
+      .map((l) => l.supplier_id)
+      .filter(Boolean);
+    if (ids.length === 0) return NextResponse.json({ suppliers: [] });
+
+    const { data: rows, error: rowErr } = await (admin.from("suppliers") as any)
+      .select("id, company_name")
+      .in("id", ids)
+      .order("company_name");
+    if (rowErr) return NextResponse.json({ error: rowErr.message }, { status: 500 });
+
+    const suppliers = ((rows ?? []) as Array<{ id: string; company_name: string }>).map((s) => ({
+      id: s.id,
+      supplier_name: s.company_name,
     }));
     return NextResponse.json({ suppliers });
   }

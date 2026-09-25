@@ -1,33 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Loader2 } from "lucide-react";
 
-interface Supplier { id: string; supplier_name: string }
+interface Supplier { id: string; company_name: string; country: string }
 
 interface Props {
+  /** The page's own exporter list — the modal no longer fetches a second, differently-sourced one. */
+  suppliers: Supplier[];
+  /** The exporter already selected on the page, so the modal opens on it. */
+  defaultSupplierId: string | null;
   onClose: () => void;
 }
 
-export function StartAssessmentModal({ onClose }: Props) {
+export function StartAssessmentModal({ suppliers, defaultSupplierId, onClose }: Props) {
   const router = useRouter();
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [supplierId, setSupplierId] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [supplierId, setSupplierId] = useState(defaultSupplierId ?? suppliers[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/corrective-actions?list_suppliers=1")
-      .then((r) => r.json())
-      .then((d) => {
-        setSuppliers(d.suppliers ?? []);
-        if (d.suppliers?.length) setSupplierId(d.suppliers[0].id);
-      })
-      .catch(() => setError("Failed to load suppliers"))
-      .finally(() => setLoading(false));
-  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,11 +62,7 @@ export function StartAssessmentModal({ onClose }: Props) {
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Supplier <span className="text-red-500">*</span>
             </label>
-            {loading ? (
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading suppliers…
-              </div>
-            ) : suppliers.length === 0 ? (
+            {suppliers.length === 0 ? (
               <p className="text-sm text-slate-400">No linked suppliers found.</p>
             ) : (
               <select
@@ -85,7 +72,7 @@ export function StartAssessmentModal({ onClose }: Props) {
                 className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink focus:border-forest focus:outline-none"
               >
                 {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.supplier_name}</option>
+                  <option key={s.id} value={s.id}>{s.company_name} — {s.country}</option>
                 ))}
               </select>
             )}
@@ -99,7 +86,7 @@ export function StartAssessmentModal({ onClose }: Props) {
             </button>
             <button
               type="submit"
-              disabled={saving || loading || !supplierId}
+              disabled={saving || !supplierId}
               className="flex items-center gap-2 rounded-lg bg-forest px-4 py-2 text-sm font-semibold text-white hover:bg-forest/90 disabled:opacity-50"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
