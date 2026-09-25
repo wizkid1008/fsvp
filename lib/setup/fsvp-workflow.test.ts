@@ -46,6 +46,7 @@ function cleanInput(): PlannerInput {
     attestationsByRecordId: new Map([["record-1", {
       satisfied: true,
       reasons: [],
+      undocumented: [],
       required: ["hazard_analysis", "supplier_evaluation", "verification_determination"],
       state: {
         hazard_analysis: "signed",

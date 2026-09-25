@@ -119,12 +119,24 @@ export function ReadinessPageClient({ assessments, suppliers, selectedSupplierId
 
       {!latest ? (
         <div className="mt-6">
+          {/* EmptyState renders on the server and so takes only a link; the
+              button that opens the modal lives here, in the client component. */}
           <EmptyState
             icon={Gauge}
             title={`No assessment yet for ${selected?.company_name ?? "this exporter"}`}
             description="Run a readiness assessment to score their FSVP records, surface critical gaps, and generate reports. The section breakdown below already reflects the evidence on file."
-            action={canAssess ? { label: "Start Assessment", onClick: () => setShowModal(true) } : undefined}
           />
+          {canAssess && (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowModal(true)}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
+              >
+                Start Assessment
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mt-6 space-y-6">
