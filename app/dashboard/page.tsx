@@ -4,7 +4,7 @@ import { ManufacturerDashboard } from "@/components/dashboard/ManufacturerDashbo
 import { ReviewerDashboard } from "@/components/dashboard/ReviewerDashboard";
 import { requireUser } from "@/lib/auth/protection";
 import { getSupplierContext, getSupplierContextById, isExporterType } from "@/lib/supplier-context";
-import { getPreviewRole, getPreviewSupplierId, resolveEffectiveRole } from "@/lib/preview-role";
+import { getPreviewRole, getPreviewSupplierId, resolveEffectiveRole, resolvePreviewedAccountId } from "@/lib/preview-role";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { Profile } from "@/types/database";
 
@@ -24,19 +24,26 @@ import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
 import { ArrowRight, ClipboardList, ShieldCheck } from "lucide-react";
 
 async function ImporterDashboard({
-  profile,
+  importerId,
+  organizationName,
+  userStatus,
   displayName,
+  isPreview,
   supabase,
 }: {
-  profile: Profile | null;
+  importerId: string | null;
+  organizationName: string | null;
+  userStatus: string | null;
   displayName: string;
+  /** An administrator viewing a picked importer account, not their own. */
+  isPreview: boolean;
   supabase: any;
 }) {
-  const { count: supplierCount } = await (supabase
-    .from("suppliers")
-    .select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>);
-
-  const importerId: string | null = profile?.importer_id ?? null;
+  const { count: supplierCount } = isPreview
+    ? { count: null }
+    : await (supabase
+        .from("suppliers")
+        .select("id", { count: "exact", head: true }) as Promise<{ count: number | null }>);
 
   const { data: rels } = importerId
     ? await (supabase.from("supplier_relationships") as any)
@@ -86,20 +93,24 @@ async function ImporterDashboard({
 
   return (
     <div className="space-y-6">
-      {(supplierCount ?? 0) === 0 && <OnboardingModal role="us_importer" />}
+      {!isPreview && (supplierCount ?? 0) === 0 && <OnboardingModal role="us_importer" />}
 
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-ink">
-              {profile?.organization_name ?? displayName}
+              {organizationName ?? displayName}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">Welcome back, {displayName}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {isPreview ? `Previewing as this importer — signed in as ${displayName}` : `Welcome back, ${displayName}`}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone={profile?.user_status === "active" ? "success" : "warning"}>
-              {profile?.user_status ?? "pending"}
-            </StatusBadge>
+            {!isPreview && (
+              <StatusBadge tone={userStatus === "active" ? "success" : "warning"}>
+                {userStatus ?? "pending"}
+              </StatusBadge>
+            )}
             <Link
               href="/setup/fsvp"
               className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
@@ -143,6 +154,30 @@ async function ImporterDashboard({
   );
 }
 
+type ImporterView =
+  | { kind: "none" }
+  | { kind: "pick" }
+  | { kind: "show"; importerId: string | null; organizationName: string | null; isPreview: boolean; client: any };
+
+async function resolveAdminImporterView(previewImporterId: string | null): Promise<ImporterView> {
+  if (!previewImporterId) return { kind: "pick" };
+  const admin = createAdminSupabaseClient();
+  const { data: importer } = await (admin.from("importers") as any)
+    .select("id, display_name")
+    .eq("id", previewImporterId)
+    .maybeSingle();
+  // The preview cookie may name a supplier left over from previewing another
+  // role; that is not an importer, so ask for one rather than show zeros.
+  if (!importer) return { kind: "pick" };
+  return {
+    kind: "show",
+    importerId: importer.id,
+    organizationName: importer.display_name,
+    isPreview: true,
+    client: admin,
+  };
+}
+
 // ── Main dashboard page ────────────────────────────────────────
 
 export default async function DashboardPage() {
@@ -175,6 +210,27 @@ export default async function DashboardPage() {
 
   const supplierId = supplierCtx?.supplierId ?? null;
 
+  // Which importer the importer dashboard is about. A real importer sees their
+  // own. An administrator previewing the importer role used to get their OWN
+  // profile here — unlinked to any importer — so the page showed the admin's
+  // organization name, zero products, and "Nothing is open. Every gate is
+  // clear." Other importer pages already scope to the previewed account via
+  // resolvePreviewedAccountId; this one now does too, with the admin client
+  // (the admin's own session is not a member of that tenant). Every query
+  // below is filtered by importerId or its linked suppliers, so bypassing RLS
+  // does not widen what is shown.
+  const importerView: ImporterView = !isImporter
+    ? { kind: "none" }
+    : realRole !== "administrator"
+      ? {
+          kind: "show",
+          importerId: profile?.importer_id ?? null,
+          organizationName: profile?.organization_name ?? null,
+          isPreview: false,
+          client: supabase,
+        }
+      : await resolveAdminImporterView(resolvePreviewedAccountId(realRole, null));
+
   return (
     <AppShell role={role} realRole={realRole}>
       {isExporter && (
@@ -195,11 +251,25 @@ export default async function DashboardPage() {
         />
       )}
 
-      {isImporter && (
+      {isImporter && importerView.kind === "pick" && (
+        <div className="rounded-lg border border-line bg-white px-6 py-10 text-center">
+          <p className="text-sm font-semibold text-ink">Pick an importer account to preview</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+            You are signed in as an administrator, which is not linked to any importer. In the role
+            preview, choose a specific importer account rather than &ldquo;Generic US Importer&rdquo;
+            to see their dashboard.
+          </p>
+        </div>
+      )}
+
+      {isImporter && importerView.kind === "show" && (
         <ImporterDashboard
-          profile={profile}
+          importerId={importerView.importerId}
+          organizationName={importerView.organizationName}
+          userStatus={profile?.user_status ?? null}
           displayName={displayName}
-          supabase={supabase}
+          isPreview={importerView.isPreview}
+          supabase={importerView.client}
         />
       )}
 
