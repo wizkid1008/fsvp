@@ -104,6 +104,12 @@ export type AttestationEvaluation = {
   state: Record<RequiredAttestationType, "signed" | "missing" | "stale" | "not_required">;
   /** Which types this record actually has to carry, given its applicability. */
   required: readonly RequiredAttestationType[];
+  /**
+   * Required types with no narrative yet. These are "missing" in `state` too,
+   * but a qualified individual cannot sign them — the importer has to write
+   * them first — so a signing queue must not present them as work to sign.
+   */
+  undocumented: RequiredAttestationType[];
 };
 
 function narrativeFor(record: AttestationRecordInput, type: RequiredAttestationType): string | null {
@@ -130,6 +136,7 @@ export async function evaluateAttestations(
 ): Promise<AttestationEvaluation> {
   const reasons: string[] = [];
   const state = {} as AttestationEvaluation["state"];
+  const undocumented: RequiredAttestationType[] = [];
   const required = requiredTypesFor(outcome);
 
   for (const type of REQUIRED_ATTESTATION_TYPES) {
@@ -143,6 +150,7 @@ export async function evaluateAttestations(
 
     if (!narrative || narrative.trim() === "") {
       state[type] = "missing";
+      undocumented.push(type);
       reasons.push(`${label} has not been documented.`);
       continue;
     }
@@ -167,5 +175,5 @@ export async function evaluateAttestations(
     state[type] = "signed";
   }
 
-  return { satisfied: reasons.length === 0, reasons, state, required };
+  return { satisfied: reasons.length === 0, reasons, state, required, undocumented };
 }

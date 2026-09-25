@@ -69,6 +69,7 @@ export async function ReviewerDashboard({
     fetchAttestationQueue(supabase),
   ]);
 
+  const { signable, waitingOnImporter } = attestationQueue;
   const pendingCount = (pendingRes as any).count ?? 0;
   const queue = (recentRes.data ?? []) as Array<{
     id: string;
@@ -115,24 +116,40 @@ export async function ReviewerDashboard({
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
         <h1 className="text-xl font-semibold text-ink">Review Queue</h1>
         <p className="mt-1 text-sm text-slate-500">Welcome back, {displayName}</p>
-        {pendingCount > 0 ? (
-          <p className="mt-2 text-sm font-semibold text-amber-700">
-            {pendingCount} document{pendingCount > 1 ? "s" : ""} awaiting review
-          </p>
-        ) : (
-          <p className="mt-2 text-sm text-emerald-700 font-semibold">Queue is clear — no documents pending review.</p>
-        )}
-        {attestationQueue.length === 0 && (
-          <p className="mt-1 text-sm text-emerald-700">
-            Every open FSVP record carries current qualified-individual signatures.
-          </p>
-        )}
+        {/* One line per kind of work, so "clear" is never said about the whole
+            page while signatures are still waiting below it. */}
+        <div className="mt-2 space-y-0.5 text-sm font-semibold">
+          {pendingCount > 0 ? (
+            <p className="text-amber-700">
+              {pendingCount} document{pendingCount > 1 ? "s" : ""} awaiting review
+            </p>
+          ) : (
+            <p className="text-emerald-700">No documents pending review.</p>
+          )}
+          {signable.length > 0 ? (
+            <p className="text-amber-700">
+              {signable.length} FSVP record{signable.length > 1 ? "s" : ""} awaiting your signature
+            </p>
+          ) : waitingOnImporter.length === 0 ? (
+            <p className="text-emerald-700">
+              Every open FSVP record carries current qualified-individual signatures.
+            </p>
+          ) : (
+            <p className="text-emerald-700">Nothing is ready for your signature.</p>
+          )}
+          {waitingOnImporter.length > 0 && (
+            <p className="font-normal text-slate-500">
+              {waitingOnImporter.length} more record{waitingOnImporter.length > 1 ? "s are" : " is"} waiting
+              on the importer to write the determinations before they can be signed.
+            </p>
+          )}
+        </div>
       </section>
 
       {/* First, because it is the only thing on this page that nobody else can
           do. The importer dashboard has counted "Records unsigned" all along;
           the person who signs them had no such list anywhere. */}
-      {attestationQueue.length > 0 && (
+      {signable.length > 0 && (
         <section className="rounded-lg border border-amber-200 bg-white shadow-soft">
           <div className="border-b border-amber-200 bg-amber-50 px-5 py-4">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900">
@@ -145,7 +162,7 @@ export async function ReviewerDashboard({
             </p>
           </div>
           <div className="divide-y divide-line">
-            {attestationQueue.map((item) => (
+            {signable.map((item) => (
               <Link
                 key={item.recordId}
                 href={`/fsvp-records/${item.recordId}`}
@@ -159,15 +176,55 @@ export async function ReviewerDashboard({
                     {item.supplierName ?? "Supplier"} · {item.status.replace(/_/g, " ")}
                   </p>
                   <ul className="mt-1 space-y-0.5">
-                    {item.reasons.map((reason) => (
+                    {item.toSign.map((reason) => (
                       <li key={reason} className="text-xs leading-5 text-amber-800">
                         {reason}
+                      </li>
+                    ))}
+                    {item.undocumented.map((reason) => (
+                      <li key={reason} className="text-xs leading-5 text-slate-400">
+                        {reason} Not yet signable.
                       </li>
                     ))}
                   </ul>
                 </div>
                 <StatusBadge tone="warning">
-                  {item.reasons.length} to sign
+                  {item.toSign.length} to sign
+                </StatusBadge>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Listed so a QI can see what is coming, but apart from the signing
+          queue: none of these has anything to sign until the importer writes
+          the determinations. */}
+      {waitingOnImporter.length > 0 && (
+        <section className="rounded-lg border border-line bg-white shadow-soft">
+          <div className="border-b border-line px-5 py-4">
+            <h2 className="text-sm font-semibold text-ink">Not ready to sign</h2>
+            <p className="mt-0.5 text-xs leading-5 text-slate-500">
+              The importer has not yet written these determinations, so there is nothing to sign.
+            </p>
+          </div>
+          <div className="divide-y divide-line">
+            {waitingOnImporter.map((item) => (
+              <Link
+                key={item.recordId}
+                href={`/fsvp-records/${item.recordId}#evidence-package`}
+                className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-slate-50"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-ink">
+                    {item.productName ?? "FSVP record"}
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {item.supplierName ?? "Supplier"} · {item.status.replace(/_/g, " ")}
+                  </p>
+                </div>
+                <StatusBadge tone="neutral">
+                  {item.undocumented.length} unwritten
                 </StatusBadge>
               </Link>
             ))}

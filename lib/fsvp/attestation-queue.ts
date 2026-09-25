@@ -14,7 +14,7 @@
  * user-scoped client, never the admin one.
  */
 
-import { evaluateAttestations, type AttestationInput } from "./qi-attestation";
+import { ATTESTATION_LABEL, evaluateAttestations, type AttestationInput } from "./qi-attestation";
 import { isDeterminationLive, type ApplicabilityOutcome } from "./applicability";
 
 type SupabaseLike = { from: (table: string) => any };
@@ -37,8 +37,17 @@ export type AttestationQueueItem = {
   productName: string | null;
   supplierName: string | null;
   status: string;
-  /** Blocking reasons, already phrased for a person — see evaluateAttestations. */
-  reasons: string[];
+  /** What a QI can sign right now: unsigned or stale, never unwritten. */
+  toSign: string[];
+  /** Sections the importer has not written yet, so nothing exists to sign. */
+  undocumented: string[];
+};
+
+export type AttestationQueue = {
+  /** Records with at least one determination a QI can sign today. */
+  signable: AttestationQueueItem[];
+  /** Records blocked only on the importer writing the determinations. */
+  waitingOnImporter: AttestationQueueItem[];
 };
 
 type RecordRow = {
@@ -57,7 +66,7 @@ type RecordRow = {
 export async function fetchAttestationQueue(
   supabase: SupabaseLike,
   limit = 12
-): Promise<AttestationQueueItem[]> {
+): Promise<AttestationQueue> {
   const { data: rawRecords } = await (supabase.from("fsvp_records") as any)
     .select(
       "id, status, supplier_id, product_id, importer_id, " +
@@ -68,7 +77,7 @@ export async function fetchAttestationQueue(
     .order("created_at", { ascending: true });
 
   const records = (rawRecords ?? []) as RecordRow[];
-  if (records.length === 0) return [];
+  if (records.length === 0) return { signable: [], waitingOnImporter: [] };
 
   // Determinations and attestations in two bulk queries rather than two per
   // record — this runs on a dashboard, not a detail page.
@@ -126,14 +135,25 @@ export async function fetchAttestationQueue(
     })
   );
 
-  return evaluated
+  // evaluateAttestations emits exactly one reason per required type, each
+  // starting with that type's label, so the label is enough to split them.
+  const items = evaluated
     .filter(({ evaluation }) => !evaluation.satisfied)
-    .slice(0, limit)
-    .map(({ record, evaluation }) => ({
-      recordId: record.id,
-      productName: record.products_verify?.product_name ?? null,
-      supplierName: record.suppliers?.company_name ?? null,
-      status: record.status,
-      reasons: evaluation.reasons,
-    }));
+    .map(({ record, evaluation }): AttestationQueueItem => {
+      const unwritten = evaluation.undocumented.map((t) => ATTESTATION_LABEL[t]);
+      const isUnwritten = (reason: string) => unwritten.some((label) => reason.startsWith(label));
+      return {
+        recordId: record.id,
+        productName: record.products_verify?.product_name ?? null,
+        supplierName: record.suppliers?.company_name ?? null,
+        status: record.status,
+        toSign: evaluation.reasons.filter((r) => !isUnwritten(r)),
+        undocumented: evaluation.reasons.filter(isUnwritten),
+      };
+    });
+
+  return {
+    signable: items.filter((i) => i.toSign.length > 0).slice(0, limit),
+    waitingOnImporter: items.filter((i) => i.toSign.length === 0).slice(0, limit),
+  };
 }
