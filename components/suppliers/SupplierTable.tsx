@@ -332,7 +332,14 @@ export function SupplierTable({
                 return (
                   <tr key={supplier.id} className={`relative border-l-4 ${borderColor} hover:bg-slate-50 transition-colors`}>
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-ink">{supplier.company_name}</p>
+                      {/* The name opens the exporter's page. It used to be plain
+                          text, leaving "Add company docs" as the only way in. */}
+                      <a
+                        href={`/exporters/${supplier.id}`}
+                        className="block font-semibold text-ink hover:text-forest hover:underline"
+                      >
+                        {supplier.company_name}
+                      </a>
                       {supplier.supplier_type && (
                         <span className="mt-0.5 inline-block text-xs capitalize text-slate-400">
                           {supplier.supplier_type.replace(/_/g, " ")}
