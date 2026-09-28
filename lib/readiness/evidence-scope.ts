@@ -160,6 +160,42 @@ export function statusesByItem(
   return out;
 }
 
+export type EvidenceProgress = {
+  required: number;
+  accepted: number;
+  /** Filed and not yet decided — submitted or under review. */
+  awaitingReview: number;
+  /** Sent back: needs_revision or rejected, with nothing better on file. */
+  needsAttention: number;
+  missing: number;
+};
+
+/**
+ * Where each required item stands, by its best status — the same judgement the
+ * checklist renders per row, so a summary of it cannot disagree with the list.
+ * The five counts always sum to `required`.
+ */
+export function evidenceProgress(
+  requiredItems: ScopedItem[],
+  statuses: Map<string, string[]>
+): EvidenceProgress {
+  const progress: EvidenceProgress = {
+    required: requiredItems.length,
+    accepted: 0,
+    awaitingReview: 0,
+    needsAttention: 0,
+    missing: 0,
+  };
+  for (const item of requiredItems) {
+    const status = bestStatus(statuses.get(item.id) ?? []);
+    if (status === "accepted") progress.accepted += 1;
+    else if (status === "under_review" || status === "submitted") progress.awaitingReview += 1;
+    else if (status === "needs_revision" || status === "rejected") progress.needsAttention += 1;
+    else progress.missing += 1;
+  }
+  return progress;
+}
+
 /**
  * How many of the required items are accepted, for this viewer.
  * Shared so the score and any "n of m" label are computed the same way.

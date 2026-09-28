@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   acceptedCount,
   bestStatus,
+  evidenceProgress,
   isRelationshipScoped,
   statusesByItem,
   type ScopedDocument,
@@ -159,5 +160,34 @@ describe("acceptedCount", () => {
       { kind: "importer", importerId: "importer-a" }
     );
     expect(acceptedCount(ITEMS, statuses)).toBe(1);
+  });
+});
+
+describe("evidenceProgress", () => {
+  it("reads all-submitted-but-undecided as awaiting review, not missing", () => {
+    const statuses = statusesByItem(
+      ITEMS,
+      [
+        doc("item-policy", "accepted"),
+        doc("item-assurance", "under_review", "importer-a"),
+        doc("item-legacy", "rejected"),
+        doc("item-legacy", "submitted"),
+      ],
+      { kind: "importer", importerId: "importer-a" }
+    );
+    expect(evidenceProgress(ITEMS, statuses)).toEqual({
+      required: 3, accepted: 1, awaitingReview: 2, needsAttention: 0, missing: 0,
+    });
+  });
+
+  it("separates sent-back items from ones never filed", () => {
+    const statuses = statusesByItem(
+      ITEMS,
+      [doc("item-policy", "needs_revision")],
+      { kind: "importer", importerId: "importer-a" }
+    );
+    expect(evidenceProgress(ITEMS, statuses)).toEqual({
+      required: 3, accepted: 0, awaitingReview: 0, needsAttention: 1, missing: 2,
+    });
   });
 });

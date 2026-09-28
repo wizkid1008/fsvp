@@ -9,6 +9,7 @@ import { SuspensionControl, type SuspensionRow } from "@/components/suppliers/Su
 import { Building2, Pencil, Search, Plus, Link2, MailWarning, Warehouse, FileUp } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 import type { Country } from "@/types/database";
+import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -24,6 +25,11 @@ export type SupplierRow = {
   contact_json: Record<string, string> | null;
   supplier_type?: string | null;
   evidence_count?: number;
+  /**
+   * Required company items by status. Absent when no rule version is published,
+   * in which case the column falls back to the raw count.
+   */
+  evidence_progress?: EvidenceProgress;
   /** Facilities this exporter OWNS — shared access is a different fact. */
   facility_count?: number;
   product_count?: number;
@@ -98,6 +104,51 @@ function approvalLabel(summary: RecordSummary | undefined): string {
   return "Approved";
 }
 
+/**
+ * The company-evidence line for a row. "All submitted" is the state the raw
+ * count could never show: nothing left for the exporter to send, with the next
+ * move the reviewer's.
+ */
+function evidenceSummary(p: EvidenceProgress): { label: string; detail: string | null; tone: StatusTone } {
+  const filed = p.accepted + p.awaitingReview;
+  if (p.accepted === p.required) {
+    return { label: "All accepted", detail: `${p.required} of ${p.required} company docs`, tone: "success" };
+  }
+  if (p.missing === 0 && p.needsAttention === 0) {
+    return {
+      label: "All submitted",
+      detail: `${p.awaitingReview} awaiting review${p.accepted > 0 ? ` · ${p.accepted} accepted` : ""}`,
+      tone: "info",
+    };
+  }
+  const parts: string[] = [];
+  if (p.awaitingReview > 0) parts.push(`${p.awaitingReview} awaiting review`);
+  if (p.needsAttention > 0) parts.push(`${p.needsAttention} sent back`);
+  return {
+    label: `${filed} of ${p.required} submitted`,
+    detail: parts.length > 0 ? parts.join(" · ") : null,
+    tone: p.needsAttention > 0 ? "danger" : filed === 0 ? "neutral" : "warning",
+  };
+}
+
+function EvidenceCell({ supplierId, progress }: { supplierId: string; progress: EvidenceProgress }) {
+  const summary = evidenceSummary(progress);
+  return (
+    <a href={`/exporters/${supplierId}`} className="group block">
+      <StatusBadge tone={summary.tone}>{summary.label}</StatusBadge>
+      {summary.detail && (
+        <p className="mt-1 text-xs text-slate-500 group-hover:text-forest group-hover:underline">
+          {summary.detail}
+        </p>
+      )}
+    </a>
+  );
+}
+
+function isAwaitingReview(p: EvidenceProgress | undefined): boolean {
+  return !!p && p.missing === 0 && p.needsAttention === 0 && p.awaitingReview > 0;
+}
+
 export function SupplierTable({
   countries,
   suppliers,
@@ -151,7 +202,8 @@ export function SupplierTable({
         (statusFilter === "none"     && total === 0) ||
         (statusFilter === "open"     && (sum?.open ?? 0) > 0) ||
         (statusFilter === "blocked"  && (sum?.blocked ?? 0) > 0) ||
-        (statusFilter === "approved" && total > 0 && (sum?.approved ?? 0) === total);
+        (statusFilter === "approved" && total > 0 && (sum?.approved ?? 0) === total) ||
+        (statusFilter === "docs_awaiting_review" && isAwaitingReview(s.evidence_progress));
       return matchesSearch && matchesStatus;
     });
   }, [suppliers, search, statusFilter, recordSummary]);
@@ -280,6 +332,7 @@ export function SupplierTable({
             <option value="open">Records in progress</option>
             <option value="blocked">Records blocked</option>
             <option value="approved">All records approved</option>
+            <option value="docs_awaiting_review">Company docs awaiting review</option>
           </select>
           {isImporter ? (
             <>
@@ -424,19 +477,23 @@ export function SupplierTable({
                         own page, which answers the question the column is
                         really asking. */}
                     <td className="px-4 py-3">
-                      <a
-                        href={`/exporters/${supplier.id}`}
-                        className="inline-flex items-center gap-1.5 font-semibold text-forest hover:underline"
-                      >
-                        {(supplier.evidence_count ?? 0) === 0 ? (
-                          <>
-                            <FileUp className="h-3.5 w-3.5" />
-                            Add company docs
-                          </>
-                        ) : (
-                          `${supplier.evidence_count} company docs`
-                        )}
-                      </a>
+                      {supplier.evidence_progress && supplier.evidence_progress.required > 0 ? (
+                        <EvidenceCell supplierId={supplier.id} progress={supplier.evidence_progress} />
+                      ) : (
+                        <a
+                          href={`/exporters/${supplier.id}`}
+                          className="inline-flex items-center gap-1.5 font-semibold text-forest hover:underline"
+                        >
+                          {(supplier.evidence_count ?? 0) === 0 ? (
+                            <>
+                              <FileUp className="h-3.5 w-3.5" />
+                              Add company docs
+                            </>
+                          ) : (
+                            `${supplier.evidence_count} company docs`
+                          )}
+                        </a>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-500">
                       {new Date(supplier.updated_at).toLocaleDateString()}
