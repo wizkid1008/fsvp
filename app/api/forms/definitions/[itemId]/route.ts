@@ -41,12 +41,12 @@ export async function GET(
 
   const supplierId = req.nextUrl.searchParams.get("supplier_id") || profile.supplier_id || "";
   if (!supplierId) {
-    return NextResponse.json({ definition, response: null, read_only: profile.role === "administrator" });
+    return NextResponse.json({ definition, response: null, read_only: false });
   }
 
   // A supplier only ever sees their own; an importer must be linked to the one
   // they are asking about. An administrator previewing an account sees any
-  // supplier's form, read-only — previewing looks, it never writes.
+  // supplier's form, and may answer it on the account's behalf (029).
   // Admins need no relationship check — they already read every tenant elsewhere.
   const isAdministrator = profile.role === "administrator";
 
@@ -96,9 +96,10 @@ export async function GET(
 
   return NextResponse.json({
     definition,
-    // Signals the fill panel to drop its Save/Submit buttons: an administrator
-    // may read a supplier's answers but may not stand behind them.
-    read_only: isAdministrator,
+    // An administrator may now answer on the account's behalf; the submission
+    // is labelled administrator_entered (migration 029). read_only stays in the
+    // contract for callers that still honour it.
+    read_only: false,
     response: current
       ? {
           id:              current.id,

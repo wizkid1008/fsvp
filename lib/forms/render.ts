@@ -26,6 +26,7 @@ const SOURCE_LABEL: Record<string, string> = {
   supplier_attested: "Completed by the supplier",
   importer_uploaded: "Completed by the importer on the supplier's behalf",
   third_party:       "Completed by a third party",
+  administrator_entered: "Entered by a platform administrator on the account's behalf",
 };
 
 export function esc(v: unknown): string {

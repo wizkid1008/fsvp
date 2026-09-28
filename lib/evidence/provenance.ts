@@ -17,7 +17,11 @@
  *     stamps attested_at, so the record still says who stood behind it.
  */
 
-export type EvidenceSource = "supplier_attested" | "importer_uploaded" | "third_party";
+export type EvidenceSource =
+  | "supplier_attested"
+  | "importer_uploaded"
+  | "third_party"
+  | "administrator_entered";
 export type EvidenceStatus = "submitted" | "accepted";
 
 export type ProvenanceInput = {
@@ -30,6 +34,12 @@ export type ProvenanceInput = {
   /** Who at the supplier furnished it, when an importer submits on their behalf. */
   attestedByName?: string | null;
   attestedAt?: string | null;
+  /**
+   * The submitter is platform staff previewing the account (migration 029).
+   * Their evidence is labelled as such and goes to the importer for review —
+   * an administrator is not the importer, so it is not accepted on arrival.
+   */
+  uploaderIsAdministrator?: boolean;
 };
 
 export type Provenance = {
@@ -41,6 +51,16 @@ export type Provenance = {
 };
 
 export function resolveProvenance(input: ProvenanceInput): Provenance {
+  if (input.uploaderIsAdministrator) {
+    return {
+      evidence_source:     "administrator_entered",
+      evidence_status:     "submitted",
+      reviewer_profile_id: null,
+      attested_by_name:    input.attestedByName?.trim() || null,
+      attested_at:         input.attestedAt || null,
+    };
+  }
+
   const uploaderIsSupplierSide =
     Boolean(input.uploaderSupplierId) && input.uploaderSupplierId === input.targetSupplierId;
 

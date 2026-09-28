@@ -4,7 +4,6 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvenance } from "@/lib/evidence/provenance";
 import { ACTIVE_LINK_STATUSES, canWriteSupplierEntity } from "@/lib/auth/entity-access";
-import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 import type { Database } from "@/types/database";
 
 export const runtime = "edge";
@@ -72,11 +71,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Your user profile is not set up for evidence uploads." }, { status: 403 });
   }
 
-  // An admin previewing an account has no supplier_id or importer_id of their
-  // own, so nothing below would have stopped them: the upload went through and
-  // landed as importer_uploaded with the admin recorded as its reviewer.
-  const previewRefusal = refusePreviewWrite(uploaderProfile?.role, "upload evidence");
-  if (previewRefusal) return previewRefusal;
+  // An admin previewing an account may upload on its behalf. That used to be
+  // refused, because the upload landed as importer_uploaded with the admin
+  // recorded as its reviewer — a provenance the record could not support. It
+  // is now filed as administrator_entered (migration 029) and goes to the
+  // importer for review; see resolveProvenance below.
+  const uploaderIsAdministrator = uploaderProfile?.role === "administrator";
 
   let resolvedImporterId: string | null = importerId || uploaderProfile?.importer_id || null;
   const resolvedSupplierId = supplierId || uploaderProfile?.supplier_id || "";
@@ -276,6 +276,7 @@ export async function POST(request: Request) {
     uploaderProfileId: user.id,
     attestedByName,
     attestedAt,
+    uploaderIsAdministrator,
   });
 
   const documentRecord: Record<string, unknown> = {

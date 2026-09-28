@@ -42,6 +42,7 @@ export function RequirementItemRow({
   isRelationshipScoped = false,
   importerOptions = [],
   isForm = false,
+  viewerImporterId = null,
 }: {
   itemName: string;
   status: string;
@@ -63,6 +64,12 @@ export function RequirementItemRow({
    * documents row, so the status and scoring above work unchanged.
    */
   isForm?: boolean;
+  /**
+   * The importer whose view this is — the previewed one, when an administrator
+   * is previewing. An admin's own profile has no importer_id, so without this
+   * their upload would be filed for no importer in particular.
+   */
+  viewerImporterId?: string | null;
   // "supplier" is company-level evidence, where the supplier IS the entity —
   // /api/documents/upload already defaults link_type to it and takes
   // supplier_id separately, so the two entity branches below simply do not fire.
@@ -178,7 +185,7 @@ export function RequirementItemRow({
         const relationshipImporterId = isRelationshipScoped
           ? chosenImporterId || (importerOptions.length === 1 ? importerOptions[0].id : "")
           : "";
-        const uploadImporterId = profile?.importer_id ?? relationshipImporterId;
+        const uploadImporterId = profile?.importer_id ?? viewerImporterId ?? relationshipImporterId;
         if (uploadImporterId) body.append("importer_id", uploadImporterId);
 
         const res = await fetch("/api/documents/upload", { method: "POST", body });

@@ -12,6 +12,10 @@
  * attested to it or to the importer acting on their behalf, and nothing else
  * (`lib/evidence/provenance.ts`). An administrator is neither, so a document
  * written while previewing carries an attribution the record cannot support.
+ *
+ * Exception: evidence uploads and form answers no longer call this. They file
+ * an administrator's entry as evidence_source = 'administrator_entered'
+ * (migration 029), which states the attribution truthfully.
  */
 
 import { NextResponse } from "next/server";

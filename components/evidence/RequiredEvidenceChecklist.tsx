@@ -298,6 +298,7 @@ export async function RequiredEvidenceChecklist({
               // Contacts and the questionnaire are answered in the app, not
               // uploaded — see 006_evidence_forms.sql.
               isForm={item.evidence_type === "form"}
+              viewerImporterId={importerId}
             />
           ))}
         </div>

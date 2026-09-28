@@ -62,6 +62,7 @@ const SOURCE_LABEL: Record<string, string> = {
   supplier_attested: "Supplier attested",
   importer_uploaded: "Importer provided",
   third_party:       "Third party",
+  administrator_entered: "Entered by administrator",
 };
 
 export async function POST(req: NextRequest) {

@@ -14,7 +14,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { refusePreviewWrite } from "@/lib/auth/preview-guard";
 import { DOCUMENT_BUCKET } from "@/lib/constants";
 import { resolveProvenance } from "@/lib/evidence/provenance";
 import { parseFormSchema, validateAnswers, type FormAnswers } from "@/lib/forms/schema";
@@ -63,9 +62,10 @@ export async function POST(req: NextRequest) {
   if (!definition) return NextResponse.json({ error: "Form not found." }, { status: 404 });
 
   // ── Who is this for, and may the caller act for them? ────────────────────
-  // An admin previewing a supplier account reaches here with neither id set.
-  const previewRefusal = refusePreviewWrite(profile.role, "answer its forms");
-  if (previewRefusal) return previewRefusal;
+  // An admin previewing an account reaches here with neither id set. They may
+  // answer on the account's behalf; the response is filed as
+  // administrator_entered (migration 029) so the record says who did it.
+  const callerIsAdministrator = profile.role === "administrator";
 
   const callerSupplierId: string | null = profile.supplier_id ?? null;
   let supplierId = body.supplier_id?.trim() || callerSupplierId || "";
@@ -95,6 +95,12 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
+  } else if (callerIsAdministrator) {
+    const { data: target } = await (admin.from("suppliers") as any)
+      .select("id")
+      .eq("id", supplierId)
+      .maybeSingle();
+    if (!target) return NextResponse.json({ error: "Supplier not found." }, { status: 404 });
   } else {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -188,6 +194,7 @@ export async function POST(req: NextRequest) {
     uploaderSupplierId: callerSupplierId,
     targetSupplierId:   supplierId,
     uploaderProfileId:  user.id,
+    uploaderIsAdministrator: callerIsAdministrator,
   });
 
   const { data: supplier } = await (admin.from("suppliers") as any)
@@ -295,15 +302,18 @@ export async function POST(req: NextRequest) {
     new_value:        { form_key: definition.form_key, version, document_id: document.id },
   });
 
-  // Only when the supplier submitted it — an importer filling it in for a
+  // Only when it is waiting on the importer — an importer filling it in for a
   // managed exporter is not news to themselves, and the row is already accepted.
-  if (provenance.evidence_source === "supplier_attested") {
+  // An administrator's entry is submitted for review, so the importer is told.
+  if (provenance.evidence_source !== "importer_uploaded") {
     await notify(admin, {
       importerId,
       supplierId,
       type:      "form_response_submitted",
       title:     `${definition.title} submitted`,
-      body:      `${supplier?.company_name ?? "A supplier"} completed the ${definition.title}. It is waiting in your review queue.`,
+      body:      callerIsAdministrator
+        ? `An administrator completed the ${definition.title} for ${supplier?.company_name ?? "a supplier"}. It is waiting in your review queue.`
+        : `${supplier?.company_name ?? "A supplier"} completed the ${definition.title}. It is waiting in your review queue.`,
       targetUrl: "/importer-review",
       severity:  "info",
     });
