@@ -67,7 +67,10 @@ export async function POST(req: NextRequest) {
   // administrator_entered (migration 029) so the record says who did it.
   const callerIsAdministrator = profile.role === "administrator";
 
-  const callerSupplierId: string | null = profile.supplier_id ?? null;
+  // An administrator never answers AS a supplier, even if their profile carries
+  // a supplier_id — otherwise the branch below would silently retarget their
+  // answers from the exporter on screen to that one.
+  const callerSupplierId: string | null = callerIsAdministrator ? null : profile.supplier_id ?? null;
   let supplierId = body.supplier_id?.trim() || callerSupplierId || "";
 
   if (!supplierId) {
