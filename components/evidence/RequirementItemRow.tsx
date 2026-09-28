@@ -232,10 +232,10 @@ export function RequirementItemRow({
             </button>
           )
         )}
-        {isForm ? (
+        {isForm && (
           <button
             type="button"
-            onClick={() => setFilling((v) => !v)}
+            onClick={() => { setFilling((v) => !v); setOpen(false); }}
             className={
               isAccepted
                 ? "inline-flex h-7 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold text-slate-600 hover:border-forest hover:text-forest"
@@ -244,11 +244,20 @@ export function RequirementItemRow({
           >
             <ClipboardList className="h-3 w-3" /> {isAccepted ? "View" : "Fill in"}
           </button>
-        ) : !isAccepted && (
+        )}
+        {/* A form item can still be satisfied by a completed copy — a signed
+            letter on letterhead, a questionnaire filled in offline — matching
+            CorporateScopeUploadTile. Secondary styling when a form is on offer. */}
+        {!isAccepted && (
           <button
             type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-7 items-center gap-1 rounded-md border border-forest px-2.5 text-xs font-semibold text-forest hover:bg-emerald-50"
+            onClick={() => { setOpen((v) => !v); setFilling(false); }}
+            title={isForm ? "Attach a completed copy instead of answering here" : undefined}
+            className={
+              isForm
+                ? "inline-flex h-7 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold text-slate-600 hover:border-forest hover:text-forest"
+                : "inline-flex h-7 items-center gap-1 rounded-md border border-forest px-2.5 text-xs font-semibold text-forest hover:bg-emerald-50"
+            }
           >
             <Upload className="h-3 w-3" /> Upload
           </button>
@@ -290,7 +299,7 @@ export function RequirementItemRow({
         />
       )}
 
-      {open && !isForm && (
+      {open && (
         <div className="border-t border-line bg-slate-50 px-4 py-3">
           <form onSubmit={submit} className="space-y-2">
             {/* An assurance is given to one importer, so a shared exporter has
