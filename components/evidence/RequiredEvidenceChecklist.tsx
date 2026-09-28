@@ -70,7 +70,7 @@ export async function RequiredEvidenceChecklist({
       .order("sort_order"),
 
     (supabase.from("requirement_sections") as any)
-      .select("id, requirement_items(id, item_key, item_name, is_required, is_critical_blocker, sort_order, evidence_scope)")
+      .select("id, requirement_items(id, item_key, item_name, is_required, is_critical_blocker, sort_order, evidence_scope, evidence_type)")
       .eq("rule_version_id", pubVersion.id)
       .eq("applies_to", linkType),
 
@@ -114,6 +114,7 @@ export async function RequiredEvidenceChecklist({
   type RawItem = {
     id: string; item_key: string; item_name: string; is_required: boolean;
     is_critical_blocker: boolean; sort_order: number; evidence_scope?: string | null;
+    evidence_type?: string | null;
   };
   type RawSec = { id: string; requirement_items: RawItem[] };
 
@@ -294,6 +295,9 @@ export async function RequiredEvidenceChecklist({
               // arrives with no importer named and satisfies nobody.
               isRelationshipScoped={item.evidence_scope === RELATIONSHIP_SCOPE}
               importerOptions={importerOptions}
+              // Contacts and the questionnaire are answered in the app, not
+              // uploaded — see 006_evidence_forms.sql.
+              isForm={item.evidence_type === "form"}
             />
           ))}
         </div>

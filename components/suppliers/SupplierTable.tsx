@@ -78,6 +78,26 @@ function recordLabel(summary: RecordSummary | undefined): string {
   return parts.join(" · ");
 }
 
+/**
+ * Whether the importer may buy from this exporter yet, read from the same
+ * per-product records. Until at least one record is approved there is no
+ * product it is cleared to supply, so the exporter is flagged "Not approved" —
+ * the record count alone ("No records", "1 in progress") left that implicit.
+ */
+function approvalTone(summary: RecordSummary | undefined): StatusTone {
+  const approved = summary?.approved ?? 0;
+  if (approved === 0) return "danger";
+  if ((summary?.open ?? 0) + (summary?.blocked ?? 0) > 0) return "warning";
+  return "success";
+}
+
+function approvalLabel(summary: RecordSummary | undefined): string {
+  const approved = summary?.approved ?? 0;
+  if (approved === 0) return "Not approved";
+  if ((summary?.open ?? 0) + (summary?.blocked ?? 0) > 0) return "Partly approved";
+  return "Approved";
+}
+
 export function SupplierTable({
   countries,
   suppliers,
@@ -127,6 +147,7 @@ export function SupplierTable({
       const total = (sum?.approved ?? 0) + (sum?.open ?? 0) + (sum?.blocked ?? 0);
       const matchesStatus =
         !statusFilter ||
+        (statusFilter === "not_approved" && (sum?.approved ?? 0) === 0) ||
         (statusFilter === "none"     && total === 0) ||
         (statusFilter === "open"     && (sum?.open ?? 0) > 0) ||
         (statusFilter === "blocked"  && (sum?.blocked ?? 0) > 0) ||
@@ -254,6 +275,7 @@ export function SupplierTable({
             {/* Filters the FSVP record state now, not the dead
                 suppliers.approval_status column it used to read. */}
             <option value="">All exporters</option>
+            <option value="not_approved">Not approved</option>
             <option value="none">No records yet</option>
             <option value="open">Records in progress</option>
             <option value="blocked">Records blocked</option>
@@ -304,7 +326,7 @@ export function SupplierTable({
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Country</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">FSVP Records</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">FSVP Approval</th>
                 {isImporter && (
                   <th className="px-4 py-3 text-left font-semibold text-slate-700">Record</th>
                 )}
@@ -352,7 +374,8 @@ export function SupplierTable({
                     <td className="px-4 py-3 text-slate-600">{supplier.country}</td>
                     <td className="px-4 py-3 text-slate-600">{supplier.fda_registration_number ?? "-"}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge tone={tone}>{recordLabel(summary)}</StatusBadge>
+                      <StatusBadge tone={approvalTone(summary)}>{approvalLabel(summary)}</StatusBadge>
+                      <p className="mt-1 text-xs text-slate-500">{recordLabel(summary)}</p>
                     </td>
                     {isImporter && (
                       <td className="px-4 py-3">

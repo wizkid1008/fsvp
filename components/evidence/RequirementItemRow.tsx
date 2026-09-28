@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Clock, AlertCircle, XCircle, Upload, FileText, X, PenLine } from "lucide-react";
+import { CheckCircle2, Clock, AlertCircle, XCircle, Upload, FileText, X, PenLine, ClipboardList } from "lucide-react";
+import { FormFillPanel } from "@/components/forms/FormFillPanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
@@ -40,6 +41,7 @@ export function RequirementItemRow({
   createAction,
   isRelationshipScoped = false,
   importerOptions = [],
+  isForm = false,
 }: {
   itemName: string;
   status: string;
@@ -55,6 +57,12 @@ export function RequirementItemRow({
    * view, where the answer is itself and no question needs asking.
    */
   importerOptions?: Array<{ id: string; name: string }>;
+  /**
+   * The item is answered by typing into a form rather than by attaching a file
+   * — contact details, the supplier questionnaire. Submitting it still files a
+   * documents row, so the status and scoring above work unchanged.
+   */
+  isForm?: boolean;
   // "supplier" is company-level evidence, where the supplier IS the entity —
   // /api/documents/upload already defaults link_type to it and takes
   // supplier_id separately, so the two entity branches below simply do not fire.
@@ -79,6 +87,7 @@ export function RequirementItemRow({
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
+  const [filling, setFilling] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -216,7 +225,19 @@ export function RequirementItemRow({
             </button>
           )
         )}
-        {!isAccepted && (
+        {isForm ? (
+          <button
+            type="button"
+            onClick={() => setFilling((v) => !v)}
+            className={
+              isAccepted
+                ? "inline-flex h-7 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold text-slate-600 hover:border-forest hover:text-forest"
+                : "inline-flex h-7 items-center gap-1 rounded-md bg-forest px-2.5 text-xs font-semibold text-white hover:bg-[#195f4d]"
+            }
+          >
+            <ClipboardList className="h-3 w-3" /> {isAccepted ? "View" : "Fill in"}
+          </button>
+        ) : !isAccepted && (
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -254,7 +275,15 @@ export function RequirementItemRow({
         </div>
       )}
 
-      {open && (
+      {filling && (
+        <FormFillPanel
+          requirementItemId={requirementItemId}
+          supplierId={supplierId}
+          onClose={() => setFilling(false)}
+        />
+      )}
+
+      {open && !isForm && (
         <div className="border-t border-line bg-slate-50 px-4 py-3">
           <form onSubmit={submit} className="space-y-2">
             {/* An assurance is given to one importer, so a shared exporter has
