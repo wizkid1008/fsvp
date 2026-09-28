@@ -105,42 +105,47 @@ function approvalLabel(summary: RecordSummary | undefined): string {
 }
 
 /**
- * The company-evidence line for a row. "All submitted" is the state the raw
- * count could never show: nothing left for the exporter to send, with the next
- * move the reviewer's.
+ * All four counts, always in the same order, so rows can be compared down the
+ * column at a glance. Zeros are dimmed rather than hidden: "0 returned" is
+ * information, and a row whose lines come and go would not scan.
  */
-function evidenceSummary(p: EvidenceProgress): { label: string; detail: string | null; tone: StatusTone } {
-  const filed = p.accepted + p.awaitingReview;
-  if (p.accepted === p.required) {
-    return { label: "All accepted", detail: `${p.required} of ${p.required} company docs`, tone: "success" };
-  }
-  if (p.missing === 0 && p.needsAttention === 0) {
-    return {
-      label: "All submitted",
-      detail: `${p.awaitingReview} awaiting review${p.accepted > 0 ? ` · ${p.accepted} accepted` : ""}`,
-      tone: "info",
-    };
-  }
-  const parts: string[] = [];
-  if (p.awaitingReview > 0) parts.push(`${p.awaitingReview} awaiting review`);
-  if (p.needsAttention > 0) parts.push(`${p.needsAttention} sent back`);
-  return {
-    label: `${filed} of ${p.required} submitted`,
-    detail: parts.length > 0 ? parts.join(" · ") : null,
-    tone: p.needsAttention > 0 ? "danger" : filed === 0 ? "neutral" : "warning",
-  };
-}
-
 function EvidenceCell({ supplierId, progress }: { supplierId: string; progress: EvidenceProgress }) {
-  const summary = evidenceSummary(progress);
+  const rows = [
+    { key: "missing",  label: "Not submitted",   count: progress.missing,        dot: "bg-slate-300",   bar: "bg-slate-200" },
+    { key: "awaiting", label: "Awaiting review", count: progress.awaitingReview, dot: "bg-sky-500",     bar: "bg-sky-500" },
+    { key: "accepted", label: "Approved",        count: progress.accepted,       dot: "bg-emerald-500", bar: "bg-emerald-500" },
+    { key: "returned", label: "Returned",        count: progress.needsAttention, dot: "bg-red-500",     bar: "bg-red-500" },
+  ];
   return (
-    <a href={`/exporters/${supplierId}`} className="group block">
-      <StatusBadge tone={summary.tone}>{summary.label}</StatusBadge>
-      {summary.detail && (
-        <p className="mt-1 text-xs text-slate-500 group-hover:text-forest group-hover:underline">
-          {summary.detail}
-        </p>
-      )}
+    <a
+      href={`/exporters/${supplierId}`}
+      className="group block min-w-[9.5rem]"
+      title={`${progress.required} required company documents`}
+    >
+      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+        {/* Bar reads left to right from done to not started. */}
+        {[rows[2], rows[1], rows[3], rows[0]].map((row) =>
+          row.count > 0 ? (
+            <span
+              key={row.key}
+              className={row.bar}
+              style={{ width: `${(row.count / progress.required) * 100}%` }}
+            />
+          ) : null
+        )}
+      </div>
+      <ul className="mt-1.5 space-y-0.5">
+        {rows.map((row) => (
+          <li
+            key={row.key}
+            className={`flex items-center gap-1.5 text-xs ${row.count === 0 ? "text-slate-300" : "text-slate-600"}`}
+          >
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${row.count === 0 ? "bg-slate-200" : row.dot}`} />
+            <span className="w-4 text-right font-semibold tabular-nums">{row.count}</span>
+            <span className="group-hover:text-forest">{row.label}</span>
+          </li>
+        ))}
+      </ul>
     </a>
   );
 }
