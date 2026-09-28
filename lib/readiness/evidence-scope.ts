@@ -197,6 +197,41 @@ export function evidenceProgress(
 }
 
 /**
+ * Two product items are answered by the hazard analysis the app generates on
+ * the product's FSVP record, not by an upload. Null for every other item, or
+ * when there is no analysis yet — the item then falls back to its documents.
+ */
+export type GeneratedHazardAnalysis = { status: string; itemCount: number };
+
+export function generatedItemStatus(
+  itemKey: string,
+  analysis: GeneratedHazardAnalysis | null
+): string | null {
+  if (!analysis) return null;
+  if (itemKey === "product_hazard_analysis_doc") {
+    return analysis.status === "final" ? "accepted" : "in_progress";
+  }
+  if (itemKey === "known_or_reasonably_foreseeable") {
+    if (analysis.itemCount === 0) return "in_progress";
+    return analysis.status === "final" ? "accepted" : "in_progress";
+  }
+  return null;
+}
+
+/** Adds several entities' progress together — for a dashboard total. */
+export function sumProgress(all: Iterable<EvidenceProgress>): EvidenceProgress {
+  const total: EvidenceProgress = { required: 0, accepted: 0, awaitingReview: 0, needsAttention: 0, missing: 0 };
+  for (const p of all) {
+    total.required += p.required;
+    total.accepted += p.accepted;
+    total.awaitingReview += p.awaitingReview;
+    total.needsAttention += p.needsAttention;
+    total.missing += p.missing;
+  }
+  return total;
+}
+
+/**
  * How many of the required items are accepted, for this viewer.
  * Shared so the score and any "n of m" label are computed the same way.
  */

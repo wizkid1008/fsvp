@@ -3,6 +3,7 @@ import { fetchDetermination, recordCreationAction } from "@/lib/fsvp/applicabili
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import {
   bestStatus,
+  generatedItemStatus,
   RELATIONSHIP_SCOPE,
   statusesByItem,
   type EvidenceViewer,
@@ -232,16 +233,14 @@ export async function RequiredEvidenceChecklist({
         )
       : null;
 
+  // Shared with lib/readiness/evidence-progress.ts, so the list counts on the
+  // products table agree with this checklist.
   function generatedStatusFor(item: RawItem): string | null {
     if (linkType !== "product" || !hazardAnalysis) return null;
-    if (item.item_key === "product_hazard_analysis_doc") {
-      return hazardAnalysis.status === "final" ? "accepted" : "in_progress";
-    }
-    if (item.item_key === "known_or_reasonably_foreseeable") {
-      if ((hazardAnalysis.fsvp_plan_hazard_items ?? []).length === 0) return "in_progress";
-      return hazardAnalysis.status === "final" ? "accepted" : "in_progress";
-    }
-    return null;
+    return generatedItemStatus(item.item_key, {
+      status: hazardAnalysis.status,
+      itemCount: (hazardAnalysis.fsvp_plan_hazard_items ?? []).length,
+    });
   }
 
   function createActionFor(item: RawItem) {

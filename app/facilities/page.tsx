@@ -13,6 +13,7 @@ import { getSupplierType } from "@/lib/supplier-context";
 import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
 import { isTenantConfined } from "@/lib/auth/tenancy";
+import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -201,9 +202,18 @@ export default async function FacilitiesPage({
     "facility",
     facilitiesBeforeStatus.map((f) => f.id)
   );
+  // Required facility documents by status — Not submitted / Awaiting review /
+  // Approved / Returned — judged as the facility page's checklist judges them.
+  const progressByFacility = await fetchEvidenceProgress(
+    supabase,
+    "facility",
+    facilitiesBeforeStatus.map((f) => f.id),
+    { importerId }
+  );
   const facilities = facilitiesBeforeStatus.map((f) => ({
     ...f,
     approval_status: approvalStatusByFacility.get(f.id) ?? f.approval_status,
+    evidence_progress: progressByFacility.get(f.id),
   }));
 
   const facilitiesAdded = facilities.length;

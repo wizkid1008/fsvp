@@ -9,6 +9,8 @@ import { InlineAddExporter } from "@/components/products/InlineAddExporter";
 import { InlineAddFacility } from "@/components/products/InlineAddFacility";
 import { LIFECYCLE_LABEL, retentionEndsOn, type ProductLifecycle } from "@/lib/fsvp/product-lifecycle";
 import type { Country } from "@/types/database";
+import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
+import { EvidenceProgressCell } from "@/components/evidence/EvidenceProgressCell";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -41,6 +43,8 @@ export type ProductRow = {
   suppliers: { company_name: string } | null;
   facilities_verify: { facility_name: string } | null;
   evidence_count?: number;
+  /** Required product items by status; absent when no rule version is published. */
+  evidence_progress?: EvidenceProgress;
   approval_status?: string;
   admissibility_status?: "unclassified" | "not_determined" | "action_required" | "permitted" | "restricted" | "prohibited" | "importer_review";
   lifecycle?: ProductLifecycle;
@@ -698,12 +702,16 @@ export function ProductTable({
                   <td className="px-4 py-3 text-slate-600 capitalize">{labelize(product.intended_use)}</td>
                   <td className="px-4 py-3 text-slate-600">{product.allergen_information ?? "None declared"}</td>
                   <td className="px-4 py-3">
-                    <a
-                      href={`/products/${product.id}`}
-                      className="font-semibold text-forest hover:underline"
-                    >
-                      {product.evidence_count ?? 0} documents
-                    </a>
+                    {product.evidence_progress && product.evidence_progress.required > 0 ? (
+                      <EvidenceProgressCell href={`/products/${product.id}`} progress={product.evidence_progress} noun="product documents" />
+                    ) : (
+                      <a
+                        href={`/products/${product.id}`}
+                        className="font-semibold text-forest hover:underline"
+                      >
+                        {product.evidence_count ?? 0} documents
+                      </a>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <button

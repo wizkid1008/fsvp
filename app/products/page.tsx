@@ -13,6 +13,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
 import { isTenantConfined } from "@/lib/auth/tenancy";
+import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -260,11 +261,15 @@ export default async function ProductsPage({
     "product",
     productsBeforeStatus.map((p) => p.id)
   );
+  // Required product documents by status, counting the generated hazard
+  // analysis the way the product page's checklist does.
+  const progressByProduct = await fetchEvidenceProgress(supabase, "product", productIds, { importerId });
   const products = productsBeforeStatus.map((p) => {
     const status = admissibilityStatus(p);
     const scoreStatus = approvalStatusByProduct.get(p.id) ?? p.approval_status;
     return {
       ...p,
+      evidence_progress: progressByProduct.get(p.id),
       admissibility_status: status,
       // Suppliers cannot read importer-owned determinations. Preserve the
       // evidence status in their view rather than turning hidden data into a

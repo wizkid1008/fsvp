@@ -8,6 +8,8 @@ import { CountryCombobox } from "@/components/profile/CountryCombobox";
 import { FacilityMapPicker } from "@/components/facilities/FacilityMapPicker";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Country, Json } from "@/types/database";
+import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
+import { EvidenceProgressCell } from "@/components/evidence/EvidenceProgressCell";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -31,6 +33,8 @@ export type FacilityRow = {
   supplier_names?: string[];
   suppliers: { company_name: string } | null;
   evidence_count?: number;
+  /** Required facility items by status; absent when no rule version is published. */
+  evidence_progress?: EvidenceProgress;
   approval_status?: string;
 };
 
@@ -613,12 +617,16 @@ export function FacilityTable({
                       </a>
                     </td>
                     <td className="px-4 py-3">
-                      <a
-                        href={`/facilities/${facility.id}`}
-                        className="font-semibold text-forest hover:underline"
-                      >
-                        {facility.evidence_count ?? 0} documents
-                      </a>
+                      {facility.evidence_progress && facility.evidence_progress.required > 0 ? (
+                        <EvidenceProgressCell href={`/facilities/${facility.id}`} progress={facility.evidence_progress} noun="facility documents" />
+                      ) : (
+                        <a
+                          href={`/facilities/${facility.id}`}
+                          className="font-semibold text-forest hover:underline"
+                        >
+                          {facility.evidence_count ?? 0} documents
+                        </a>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <button

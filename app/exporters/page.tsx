@@ -8,13 +8,7 @@ import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { isTenantConfined } from "@/lib/auth/tenancy";
-import {
-  evidenceProgress,
-  statusesByItem,
-  type EvidenceProgress,
-  type EvidenceViewer,
-  type ScopedDocument,
-} from "@/lib/readiness/evidence-scope";
+import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -221,80 +215,14 @@ export default async function ExportersPage() {
 
   // Company evidence against the required items, so the row can say "all
   // submitted, awaiting review" rather than a raw upload count that cannot tell
-  // a finished set from a pile of duplicates. Judged by the same rule the
-  // exporter page's checklist uses (lib/readiness/evidence-scope.ts), with the
-  // same document tenancy as the count above.
-  const visibleSupplierIds = ((rawSuppliers ?? []) as SupplierRow[]).map((s) => s.id);
-  const progressBySupplier = new Map<string, EvidenceProgress>();
-
-  if (visibleSupplierIds.length > 0) {
-    const { data: pubVersion } = await (admin.from("rule_versions") as any)
-      .select("id")
-      .eq("status", "published")
-      .order("version_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (pubVersion?.id) {
-      let companyDocsQuery = (admin.from("documents") as any)
-        .select("supplier_id, requirement_item_id, evidence_status, importer_id")
-        .is("soft_deleted_at", null)
-        .not("requirement_item_id", "is", null);
-      // Scoped lists are short, so filter by id; an unscoped admin list could
-      // be long enough to overflow the URL, and reads everything anyway.
-      if (scoped) companyDocsQuery = companyDocsQuery.in("supplier_id", visibleSupplierIds);
-      if (scoped && importerId) {
-        companyDocsQuery = companyDocsQuery.or(`importer_id.eq.${importerId},importer_id.is.null`);
-      }
-
-      const [{ data: itemSections }, { data: companyDocs }, { data: allLinks }] = await Promise.all([
-        (admin.from("requirement_sections") as any)
-          .select("requirement_items(id, is_required, evidence_scope)")
-          .eq("rule_version_id", pubVersion.id)
-          .eq("applies_to", "supplier"),
-        companyDocsQuery,
-        // Only needed without an importer: relationship items are then judged
-        // across every importer the exporter serves, as the exporter sees them.
-        scoped && importerId
-          ? Promise.resolve({ data: [] })
-          : (admin.from("supplier_relationships") as any)
-              .select("supplier_id, importer_id")
-              .eq("relationship_type", "importer_supplier")
-              .in("status", ["active", "pending_invite"]),
-      ]);
-
-      const requiredItems = ((itemSections ?? []) as Array<{
-        requirement_items: Array<{ id: string; is_required: boolean; evidence_scope?: string | null }>;
-      }>).flatMap((s) => (s.requirement_items ?? []).filter((i) => i.is_required));
-
-      type CompanyDoc = ScopedDocument & { supplier_id: string | null };
-      const docsBySupplier = new Map<string, CompanyDoc[]>();
-      for (const doc of (companyDocs ?? []) as CompanyDoc[]) {
-        if (!doc.supplier_id) continue;
-        const list = docsBySupplier.get(doc.supplier_id) ?? [];
-        list.push(doc);
-        docsBySupplier.set(doc.supplier_id, list);
-      }
-
-      const importersBySupplier = new Map<string, string[]>();
-      for (const link of (allLinks ?? []) as Array<{ supplier_id: string; importer_id: string | null }>) {
-        if (!link.importer_id) continue;
-        const list = importersBySupplier.get(link.supplier_id) ?? [];
-        if (!list.includes(link.importer_id)) list.push(link.importer_id);
-        importersBySupplier.set(link.supplier_id, list);
-      }
-
-      if (requiredItems.length > 0) {
-        for (const supplierId of visibleSupplierIds) {
-          const viewer: EvidenceViewer = scoped && importerId
-            ? { kind: "importer", importerId }
-            : { kind: "exporter", linkedImporterIds: importersBySupplier.get(supplierId) ?? [] };
-          const statuses = statusesByItem(requiredItems, docsBySupplier.get(supplierId) ?? [], viewer);
-          progressBySupplier.set(supplierId, evidenceProgress(requiredItems, statuses));
-        }
-      }
-    }
-  }
+  // a finished set from a pile of duplicates. Same judgement as the exporter
+  // page's checklist, and the same document tenancy as the count above.
+  const progressBySupplier = await fetchEvidenceProgress(
+    admin,
+    "supplier",
+    ((rawSuppliers ?? []) as SupplierRow[]).map((s) => s.id),
+    { importerId: scoped ? importerId : null }
+  );
 
   const suppliers = ((rawSuppliers ?? []) as SupplierRow[]).map((s) => ({
     ...s,

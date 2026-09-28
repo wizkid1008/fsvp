@@ -22,6 +22,9 @@ import { outstandingCount, outstandingWork } from "@/lib/dashboard/outstanding-w
 import { loadCompleteFsvpSetupPlan } from "@/lib/setup/fsvp-workflow";
 import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
 import { ArrowRight, ClipboardList, ShieldCheck } from "lucide-react";
+import { EvidenceOverview, type EvidenceOverviewRow } from "@/components/dashboard/EvidenceOverview";
+import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
+import { sumProgress, type EvidenceProgress } from "@/lib/readiness/evidence-scope";
 
 async function ImporterDashboard({
   importerId,
@@ -79,6 +82,31 @@ async function ImporterDashboard({
   const plan = importerId ? await loadCompleteFsvpSetupPlan(supabase, importerId) : null;
   const gates = plan ? outstandingWork(plan.steps) : [];
   const gatesClear = outstandingCount(gates) === 0;
+
+  // Required evidence at each level, summed. Scoped by hand — the client is the
+  // admin client when previewing — to this importer's linked exporters, the
+  // facilities they own (as /exporters counts them) and this importer's own
+  // products, with documents limited by importerId inside the helper.
+  const [{ data: dashFacilities }, { data: dashProducts }] = importerId && supplierIds.length > 0
+    ? await Promise.all([
+        (supabase.from("facilities_verify") as any).select("id").in("supplier_id", supplierIds),
+        (supabase.from("products_verify") as any).select("id").eq("importer_id", importerId),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const facilityIds = ((dashFacilities ?? []) as Array<{ id: string }>).map((f) => f.id);
+  const productIds = ((dashProducts ?? []) as Array<{ id: string }>).map((p) => p.id);
+  const [exporterProgress, facilityProgress, productProgress] = importerId
+    ? await Promise.all([
+        fetchEvidenceProgress(supabase, "supplier", supplierIds, { importerId }),
+        fetchEvidenceProgress(supabase, "facility", facilityIds, { importerId }),
+        fetchEvidenceProgress(supabase, "product", productIds, { importerId }),
+      ])
+    : [new Map<string, EvidenceProgress>(), new Map<string, EvidenceProgress>(), new Map<string, EvidenceProgress>()];
+  const evidenceRows: EvidenceOverviewRow[] = [
+    { label: "Exporters",  entityCount: supplierIds.length, entityNoun: ["exporter", "exporters"],   href: "/exporters",  progress: sumProgress(exporterProgress.values()) },
+    { label: "Facilities", entityCount: facilityIds.length, entityNoun: ["facility", "facilities"], href: "/facilities", progress: sumProgress(facilityProgress.values()) },
+    { label: "Products",   entityCount: productIds.length,  entityNoun: ["product", "products"],     href: "/products",   progress: sumProgress(productProgress.values()) },
+  ];
   const productSummary = summariseProducts(plan?.productStandings ?? []);
   const setupSummary = plan?.summary ?? {
     exporters: 0,
@@ -132,6 +160,8 @@ async function ImporterDashboard({
           approvedFacilities: setupSummary.approvedFacilities,
         }}
       />
+
+      {importerId && <EvidenceOverview rows={evidenceRows} />}
 
       <WhatNeedsDoing gates={gates} />
 

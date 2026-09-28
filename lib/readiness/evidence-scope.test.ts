@@ -3,6 +3,7 @@ import {
   acceptedCount,
   bestStatus,
   evidenceProgress,
+  sumProgress,
   isRelationshipScoped,
   statusesByItem,
   type ScopedDocument,
@@ -189,5 +190,15 @@ describe("evidenceProgress", () => {
     expect(evidenceProgress(ITEMS, statuses)).toEqual({
       required: 3, accepted: 0, awaitingReview: 0, needsAttention: 1, missing: 2,
     });
+  });
+});
+
+describe("sumProgress", () => {
+  it("adds counts field by field, and is all zeros for nothing", () => {
+    expect(sumProgress([])).toEqual({ required: 0, accepted: 0, awaitingReview: 0, needsAttention: 0, missing: 0 });
+    expect(sumProgress([
+      { required: 3, accepted: 1, awaitingReview: 1, needsAttention: 0, missing: 1 },
+      { required: 2, accepted: 0, awaitingReview: 0, needsAttention: 2, missing: 0 },
+    ])).toEqual({ required: 5, accepted: 1, awaitingReview: 1, needsAttention: 2, missing: 1 });
   });
 });

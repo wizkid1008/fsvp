@@ -10,6 +10,7 @@ import { Building2, Pencil, Search, Plus, Link2, MailWarning, Warehouse, FileUp 
 import type { StatusTone } from "@/types/platform";
 import type { Country } from "@/types/database";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
+import { EvidenceProgressCell, isAwaitingReview } from "@/components/evidence/EvidenceProgressCell";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -102,56 +103,6 @@ function approvalLabel(summary: RecordSummary | undefined): string {
   if (approved === 0) return "Not approved";
   if ((summary?.open ?? 0) + (summary?.blocked ?? 0) > 0) return "Partly approved";
   return "Approved";
-}
-
-/**
- * All four counts, always in the same order, so rows can be compared down the
- * column at a glance. Zeros are dimmed rather than hidden: "0 returned" is
- * information, and a row whose lines come and go would not scan.
- */
-function EvidenceCell({ supplierId, progress }: { supplierId: string; progress: EvidenceProgress }) {
-  const rows = [
-    { key: "missing",  label: "Not submitted",   count: progress.missing,        dot: "bg-slate-300",   bar: "bg-slate-200" },
-    { key: "awaiting", label: "Awaiting review", count: progress.awaitingReview, dot: "bg-sky-500",     bar: "bg-sky-500" },
-    { key: "accepted", label: "Approved",        count: progress.accepted,       dot: "bg-emerald-500", bar: "bg-emerald-500" },
-    { key: "returned", label: "Returned",        count: progress.needsAttention, dot: "bg-red-500",     bar: "bg-red-500" },
-  ];
-  return (
-    <a
-      href={`/exporters/${supplierId}`}
-      className="group block min-w-[9.5rem]"
-      title={`${progress.required} required company documents`}
-    >
-      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-        {/* Bar reads left to right from done to not started. */}
-        {[rows[2], rows[1], rows[3], rows[0]].map((row) =>
-          row.count > 0 ? (
-            <span
-              key={row.key}
-              className={row.bar}
-              style={{ width: `${(row.count / progress.required) * 100}%` }}
-            />
-          ) : null
-        )}
-      </div>
-      <ul className="mt-1.5 space-y-0.5">
-        {rows.map((row) => (
-          <li
-            key={row.key}
-            className={`flex items-center gap-1.5 text-xs ${row.count === 0 ? "text-slate-300" : "text-slate-600"}`}
-          >
-            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${row.count === 0 ? "bg-slate-200" : row.dot}`} />
-            <span className="w-4 text-right font-semibold tabular-nums">{row.count}</span>
-            <span className="group-hover:text-forest">{row.label}</span>
-          </li>
-        ))}
-      </ul>
-    </a>
-  );
-}
-
-function isAwaitingReview(p: EvidenceProgress | undefined): boolean {
-  return !!p && p.missing === 0 && p.needsAttention === 0 && p.awaitingReview > 0;
 }
 
 export function SupplierTable({
@@ -483,7 +434,7 @@ export function SupplierTable({
                         really asking. */}
                     <td className="px-4 py-3">
                       {supplier.evidence_progress && supplier.evidence_progress.required > 0 ? (
-                        <EvidenceCell supplierId={supplier.id} progress={supplier.evidence_progress} />
+                        <EvidenceProgressCell href={`/exporters/${supplier.id}`} progress={supplier.evidence_progress} noun="company documents" />
                       ) : (
                         <a
                           href={`/exporters/${supplier.id}`}
