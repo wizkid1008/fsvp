@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronRight } from "lucide-react";
 
 /**
  * One section of an exporter, facility or product page: a title, whether it is
@@ -44,6 +44,28 @@ export function DetailSection({
       </div>
       {children && <div className="mt-4">{children}</div>}
     </section>
+  );
+}
+
+/**
+ * What an exporter or facility contains — facilities, products — as links to
+ * their own pages, each one level further down the same drill-down.
+ */
+export function ChildList({ items }: { items: Array<{ href: string; name: string; detail?: string }> }) {
+  return (
+    <ul className="divide-y divide-line overflow-hidden rounded-md border border-line">
+      {items.map((item) => (
+        <li key={item.href}>
+          <a href={item.href} className="group flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-slate-50">
+            <span className="font-medium text-forest underline-offset-2 group-hover:underline">{item.name}</span>
+            <span className="flex items-center gap-2 text-xs capitalize text-slate-500">
+              {item.detail}
+              <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }
 

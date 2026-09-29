@@ -9,7 +9,7 @@ import type { Country } from "@/types/database";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 
-type EditableSupplier = {
+export type EditableSupplier = {
   id: string;
   company_name: string;
   legal_entity_name: string | null;

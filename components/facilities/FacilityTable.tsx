@@ -12,9 +12,9 @@ import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import { EvidenceProgressCell } from "@/components/evidence/EvidenceProgressCell";
 import { approvalLabel, approvalTone } from "@/lib/approval/status";
 
-type CountryOption = Pick<Country, "country_code" | "country_name">;
+export type CountryOption = Pick<Country, "country_code" | "country_name">;
 
-type SupplierOption = {
+export type SupplierOption = {
   id: string;
   company_name: string;
 };
@@ -113,7 +113,7 @@ function readCoordinate(value: FormDataEntryValue | null, min: number, max: numb
   return numeric;
 }
 
-function AddFacilityForm({
+export function AddFacilityForm({
   countries,
   facility,
   onClose,
