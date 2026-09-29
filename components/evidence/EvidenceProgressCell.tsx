@@ -34,26 +34,46 @@ export function EvidenceProgressBar({ progress }: { progress: EvidenceProgress }
 }
 
 /**
- * The four counts in a row, for a total rather than a table cell — the
- * dashboard card and the top of each checklist. Same labels, order and dimming
- * as the cell, so a number reads the same at every step of the drill-down.
+ * A total as a stacked bar with its legend underneath — the dashboard card and
+ * the top of each checklist. Segments run in the legend's order (Not submitted,
+ * Awaiting review, Approved, Returned), so each count sits under the colour it
+ * names, and each segment's width is its share of the required documents.
+ * Hovering a segment names it; the legend carries every number, so nothing
+ * depends on colour alone.
  */
-export function EvidenceCounts({ progress }: { progress: EvidenceProgress }) {
+export function EvidenceBreakdown({ progress }: { progress: EvidenceProgress }) {
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-      {EVIDENCE_ROWS.map((status) => {
-        const count = progress[status.key];
-        return (
-          <div key={status.key} className="flex items-center gap-1.5 text-xs">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${count === 0 ? "bg-slate-200" : status.dot}`} />
-            <dt className={count === 0 ? "text-slate-400" : "text-slate-600"}>{status.label}</dt>
-            <dd className={`ml-auto font-semibold tabular-nums sm:ml-1 ${count === 0 ? "text-slate-300" : "text-ink"}`}>
-              {count}
-            </dd>
-          </div>
-        );
-      })}
-    </dl>
+    <div>
+      <div className="flex h-5 w-full gap-[2px] overflow-hidden rounded-md bg-slate-100">
+        {EVIDENCE_ROWS.map((status) => {
+          const count = progress[status.key];
+          return count > 0 && progress.required > 0 ? (
+            <span
+              key={status.key}
+              className={`${status.key === "missing" ? "bg-slate-300" : status.bar} transition-opacity hover:opacity-80`}
+              style={{ flexGrow: count, flexBasis: 0 }}
+              title={`${status.label}: ${count} of ${progress.required}`}
+            />
+          ) : null;
+        })}
+      </div>
+      <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+        {EVIDENCE_ROWS.map((status) => {
+          const count = progress[status.key];
+          return (
+            <div key={status.key} className="flex items-center gap-1.5 text-xs">
+              <span
+                className={`h-2.5 w-2.5 shrink-0 rounded-sm ${
+                  count === 0 ? "bg-slate-200" : status.key === "missing" ? "bg-slate-300" : status.dot
+                }`}
+              />
+              <dt className={count === 0 ? "text-slate-400" : "text-slate-600"}>{status.label}</dt>
+              <dd className={`font-semibold tabular-nums ${count === 0 ? "text-slate-300" : "text-ink"}`}>{count}</dd>
+            </div>
+          );
+        })}
+      </dl>
+    </div>
   );
 }
 

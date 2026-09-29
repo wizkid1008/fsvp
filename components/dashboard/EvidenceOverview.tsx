@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { EvidenceCounts, EvidenceProgressBar } from "@/components/evidence/EvidenceProgressCell";
+import { EvidenceBreakdown } from "@/components/evidence/EvidenceProgressCell";
 import type { EvidenceOverviewRow } from "@/lib/dashboard/evidence-overview";
 
 /**
@@ -74,14 +74,9 @@ export function EvidenceOverview() {
                     {row.entityCount === 0 ? `No ${row.entityNoun[1]} yet.` : "No documents required yet."}
                   </p>
                 ) : (
-                  <>
-                    <div className="mt-2">
-                      <EvidenceProgressBar progress={row.progress} />
-                    </div>
-                    <div className="mt-2">
-                      <EvidenceCounts progress={row.progress} />
-                    </div>
-                  </>
+                  <div className="mt-2">
+                    <EvidenceBreakdown progress={row.progress} />
+                  </div>
                 )}
               </Link>
             </li>

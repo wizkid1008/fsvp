@@ -1,7 +1,7 @@
 import { RequirementItemRow } from "./RequirementItemRow";
 import { fetchDetermination, recordCreationAction } from "@/lib/fsvp/applicability";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
-import { EvidenceCounts, EvidenceProgressBar } from "./EvidenceProgressCell";
+import { EvidenceBreakdown } from "./EvidenceProgressCell";
 import {
   bestStatus,
   evidenceProgress,
@@ -298,10 +298,7 @@ export async function RequiredEvidenceChecklist({
           {summary.required} required document{summary.required === 1 ? "" : "s"}
         </p>
         <div className="mt-2">
-          <EvidenceProgressBar progress={summary} />
-        </div>
-        <div className="mt-2">
-          <EvidenceCounts progress={summary} />
+          <EvidenceBreakdown progress={summary} />
         </div>
       </div>
       {sectionsWithItems.map((sec) => (
