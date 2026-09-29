@@ -16,6 +16,12 @@
  * Exception: evidence uploads and form answers no longer call this. They file
  * an administrator's entry as evidence_source = 'administrator_entered'
  * (migration 029), which states the attribution truthfully.
+ *
+ * Exception: product classification (app/api/products/classify). Linking a
+ * product to the commodity taxonomy is a factual edit administrators already
+ * make when resolving classification requests, and its audit row records the
+ * administrator as the actor. The admissibility DETERMINATION that follows is
+ * the importer's own dated answer, and still refuses here.
  */
 
 import { NextResponse } from "next/server";

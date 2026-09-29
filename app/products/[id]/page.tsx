@@ -135,6 +135,11 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       ].filter(Boolean).join(" ")
     : null;
   const canManageAdmissibility = realRole === "us_importer" && Boolean(profile?.importer_id);
+  // An administrator previewing an importer may classify (a factual link,
+  // audited as theirs — see app/api/products/classify) but not record the
+  // importer's admissibility determination.
+  const isAdminPreviewingImporter = realRole === "administrator" && Boolean(resolvePreviewedAccountId(realRole, null));
+  const canClassify = canManageAdmissibility || isAdminPreviewingImporter;
 
   const rawRequest = requestResult?.data as
     | (Omit<ClassificationRequestRow, "resolved_commodity_name"> & { commodities: { common_name: string } | null })
@@ -220,7 +225,9 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           {/* Whether it is imported at all is a property of the product as a
               whole, so it sits with the name rather than in a section. */}
           <ProductImportStatus
-            canEdit={!isSupplierView}
+            // /api/products/lifecycle refuses preview writes, so an
+            // administrator is not offered a Change that can only fail.
+            canEdit={!isSupplierView && realRole !== "administrator"}
             product={{
               id: product.id,
               product_name: product.product_name,
@@ -289,8 +296,8 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
                 action the page never offers. */}
             {!canManageAdmissibility && (
               <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                {realRole === "administrator"
-                  ? "You're previewing as an administrator. Classifying the product and recording admissibility are done by the importer's own users."
+                {isAdminPreviewingImporter
+                  ? "You're previewing as an administrator. You can classify the product (it's recorded as done by an administrator), but the admissibility determination is the importer's own answer and has to be recorded by their users."
                   : "Classifying the product and recording admissibility are done by the importer's users."}
               </p>
             )}
@@ -304,6 +311,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               determinations={(determinationsResult.data ?? []) as AdmissibilityDeterminationRow[]}
               blockers={admissibilityBlocks}
               canManage={canManageAdmissibility}
+              canClassify={canClassify}
               defaultUse={defaultUse}
               defaultState=""
               classificationRequest={classificationRequest}

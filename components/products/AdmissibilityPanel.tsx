@@ -100,6 +100,7 @@ export function AdmissibilityPanel({
   determinations,
   blockers,
   canManage,
+  canClassify = canManage,
   defaultUse,
   defaultState,
   classificationRequest,
@@ -113,7 +114,15 @@ export function AdmissibilityPanel({
   commodities: ProductCommodityOption[];
   determinations: AdmissibilityDeterminationRow[];
   blockers: AdmissibilityBlock[];
+  /** Record an admissibility determination — the importer's own answer. */
   canManage: boolean;
+  /**
+   * Link the product to the taxonomy. Defaults to canManage; the product page
+   * also grants it to an administrator previewing the importer, since a
+   * classification is a factual link rather than a determination in the
+   * importer's name.
+   */
+  canClassify?: boolean;
   defaultUse: string;
   defaultState: string;
   classificationRequest: ClassificationRequestRow | null;
@@ -331,7 +340,7 @@ export function AdmissibilityPanel({
           dropdown under a blocker saying "classify it first" is a dead end, and
           the whole path is behind it: no commodity means no admissibility, which
           means no FSVP record. Say so, and name who can fix it. */}
-      {canManage && commodities.length === 0 && (
+      {canClassify && commodities.length === 0 && (
         <div className="mt-5 rounded-md border border-line bg-slate-50 px-4 py-4">
           <h3 className="text-sm font-semibold text-ink">The commodity taxonomy is empty</h3>
           <p className="mt-1 text-sm leading-relaxed text-slate-600">
@@ -349,7 +358,7 @@ export function AdmissibilityPanel({
         </div>
       )}
 
-      {canManage && commodities.length > 0 && (
+      {canClassify && commodities.length > 0 && (
         <div id="classify-product" className={`mt-5 border-t border-line pt-5 ${anchorClass}`}>
           <h3 className="text-sm font-semibold text-ink">1. Classify the product</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">

@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 
 export const runtime = "edge";
 
@@ -20,9 +21,29 @@ export async function POST(req: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profile?.role !== "us_importer" || !profile.importer_id) {
+  // An administrator may classify too, for the importer being previewed.
+  // Classification is a factual link from the product to the taxonomy — not a
+  // regulatory determination made in the importer's name, which is why the
+  // admissibility route still refuses preview writes — and administrators
+  // already set it when resolving classification requests. The audit row
+  // records actor_role, so the entry is attributed truthfully.
+  const isAdministrator = profile?.role === "administrator";
+  if (profile?.role !== "us_importer" && !isAdministrator) {
     return NextResponse.json(
       { error: "The US importer responsible for the movement must classify this product." },
+      { status: 403 }
+    );
+  }
+  const importerId: string | null = isAdministrator
+    ? resolvePreviewedAccountId("administrator", null)
+    : profile?.importer_id ?? null;
+  if (!importerId) {
+    return NextResponse.json(
+      {
+        error: isAdministrator
+          ? "Preview the importer this product belongs to before classifying it."
+          : "The US importer responsible for the movement must classify this product.",
+      },
       { status: 403 }
     );
   }
@@ -59,7 +80,7 @@ export async function POST(req: NextRequest) {
   const { data: relationship } = await (admin.from("supplier_relationships") as any)
     .select("id")
     .eq("relationship_type", "importer_supplier")
-    .eq("importer_id", profile.importer_id)
+    .eq("importer_id", importerId)
     .eq("supplier_id", product.supplier_id)
     .in("status", ["active", "pending_invite"])
     .maybeSingle();
@@ -86,7 +107,7 @@ export async function POST(req: NextRequest) {
     );
   }
   const belongsToAnotherImporter = (liveDeterminations ?? []).some(
-    (row: { importer_id: string }) => row.importer_id !== profile.importer_id
+    (row: { importer_id: string }) => row.importer_id !== importerId
   );
   if (belongsToAnotherImporter) {
     return NextResponse.json(
@@ -109,7 +130,7 @@ export async function POST(req: NextRequest) {
   const { error: supersedeError } = await (admin.from("admissibility_determinations") as any)
     .update({ superseded_at: changedAt })
     .eq("product_id", productId)
-    .eq("importer_id", profile.importer_id)
+    .eq("importer_id", importerId)
     .is("superseded_at", null);
 
   if (supersedeError) {
@@ -126,7 +147,7 @@ export async function POST(req: NextRequest) {
   }
 
   await (admin.from("audit_logs") as any).insert({
-    importer_id: profile.importer_id,
+    importer_id: importerId,
     actor_profile_id: user.id,
     actor_role: profile.role,
     action: "product_classified",
