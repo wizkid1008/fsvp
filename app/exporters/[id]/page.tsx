@@ -163,7 +163,10 @@ export default async function ExporterDetailPage({ params }: { params: { id: str
               items={facilities.map((f) => ({
                 href: `/facilities/${f.id}`,
                 name: f.facility_name,
-                detail: [f.facility_type?.replace(/_/g, " "), f.facility_address_json?.country].filter(Boolean).join(" · "),
+                detail: [
+                  f.facility_type ? f.facility_type.charAt(0).toUpperCase() + f.facility_type.slice(1).replace(/_/g, " ") : null,
+                  f.facility_address_json?.country,
+                ].filter(Boolean).join(" · "),
               }))}
             />
           )}

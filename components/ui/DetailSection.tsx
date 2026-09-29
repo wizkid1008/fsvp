@@ -58,7 +58,7 @@ export function ChildList({ items }: { items: Array<{ href: string; name: string
         <li key={item.href}>
           <a href={item.href} className="group flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-slate-50">
             <span className="font-medium text-forest underline-offset-2 group-hover:underline">{item.name}</span>
-            <span className="flex items-center gap-2 text-xs capitalize text-slate-500">
+            <span className="flex items-center gap-2 text-xs text-slate-500">
               {item.detail}
               <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
             </span>
