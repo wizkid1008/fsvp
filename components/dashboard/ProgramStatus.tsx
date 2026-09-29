@@ -1,10 +1,10 @@
-import { AlertTriangle, Building2, PackageCheck, ShipWheel } from "lucide-react";
+﻿import { AlertTriangle, Building2, PackageCheck, ShipWheel } from "lucide-react";
 import type { ProductSummary } from "@/lib/dashboard/product-journey";
 
 /**
  * A compact approval snapshot for the importer dashboard.
  * The detailed gate list below owns "what still needs doing"; this card answers
- * the simpler executive question: how many products, facilities, and exporters
+ * the simpler executive question: how many exporters, facilities, and products
  * are approved right now.
  */
 
@@ -23,9 +23,9 @@ export function ProgramStatus({
   const { total, blocked, approved } = summary;
   const metrics = [
     {
-      label: "Approved products",
-      value: approved,
-      icon: PackageCheck,
+      label: "Approved exporters",
+      value: supplyChain.approvedExporters,
+      icon: ShipWheel,
       tone: "text-emerald-700",
     },
     {
@@ -35,9 +35,9 @@ export function ProgramStatus({
       tone: "text-emerald-700",
     },
     {
-      label: "Approved exporters",
-      value: supplyChain.approvedExporters,
-      icon: ShipWheel,
+      label: "Approved products",
+      value: approved,
+      icon: PackageCheck,
       tone: "text-emerald-700",
     },
     {
