@@ -25,7 +25,7 @@ export type EvidenceOverviewRow = {
 /**
  * Scoped by hand — the client is the admin client when an administrator is
  * previewing — to this importer's linked exporters, the facilities they own (as
- * /exporters counts them) and this importer's own products, with documents
+ * /exporters counts them) and those exporters' products, with documents
  * limited by importerId inside fetchEvidenceProgress. Throws on any failed
  * query, so the card can say it could not load rather than show zeros.
  */
@@ -46,12 +46,19 @@ export async function loadEvidenceOverview(
       .filter((id): id is string => Boolean(id))
   )];
 
-  const [facilitiesRes, productsRes] = await Promise.all([
-    supplierIds.length > 0
-      ? (client.from("facilities_verify") as any).select("id").in("supplier_id", supplierIds)
-      : Promise.resolve({ data: [], error: null }),
-    (client.from("products_verify") as any).select("id").eq("importer_id", importerId),
-  ]);
+  // Products by exporter, as /products and the setup pipeline find them — an
+  // exporter-created product carries no importer_id, and filtering on it alone
+  // showed Vegan Meats "0 products" beside a pipeline listing eight. A product
+  // another importer has claimed as its own record is still excluded.
+  const [facilitiesRes, productsRes] = supplierIds.length > 0
+    ? await Promise.all([
+        (client.from("facilities_verify") as any).select("id").in("supplier_id", supplierIds),
+        (client.from("products_verify") as any)
+          .select("id")
+          .in("supplier_id", supplierIds)
+          .or(`importer_id.eq.${importerId},importer_id.is.null`),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
   if (facilitiesRes.error) throw new Error(`Evidence overview: facilities failed — ${facilitiesRes.error.message}`);
   if (productsRes.error) throw new Error(`Evidence overview: products failed — ${productsRes.error.message}`);
 
