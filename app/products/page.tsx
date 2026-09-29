@@ -11,7 +11,8 @@ import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
-import { fetchApprovalStatusMap } from "@/lib/scoring";
+import { resolveApprovalStatuses } from "@/lib/scoring";
+import { isApproved, needsUpdates, NOT_ASSESSED } from "@/lib/approval/status";
 import { isTenantConfined } from "@/lib/auth/tenancy";
 import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
@@ -262,9 +263,9 @@ export default async function ProductsPage({
     return "permitted";
   }
 
-  // products_verify.approval_status is never written by the app — the real
-  // readiness state lives in scoring_results, resolved against approval_thresholds.
-  const approvalStatusByProduct = await fetchApprovalStatusMap(
+  // One status per product, from its score; unscored is "not assessed", never
+  // the stale column. See lib/approval/status.ts.
+  const approvalStatusByProduct = await resolveApprovalStatuses(
     supabase,
     "product",
     productsBeforeStatus.map((p) => p.id)
@@ -276,7 +277,7 @@ export default async function ProductsPage({
     .catch(() => new Map<string, EvidenceProgress>());
   const products = productsBeforeStatus.map((p) => {
     const status = admissibilityStatus(p);
-    const scoreStatus = approvalStatusByProduct.get(p.id) ?? p.approval_status;
+    const scoreStatus = approvalStatusByProduct.get(p.id) ?? NOT_ASSESSED;
     return {
       ...p,
       evidence_progress: progressByProduct.get(p.id),
@@ -298,10 +299,8 @@ export default async function ProductsPage({
   ).length;
 
   const productsAdded = products.length;
-  const productsApproved = products.filter((p) => p.approval_status === "importer_approved").length;
-  const productsNeedingUpdates = products.filter((p) =>
-    ["conditionally_approved", "needs_corrective_action", "rejected", "not_approved"].includes(p.approval_status ?? "")
-  ).length;
+  const productsApproved = products.filter((p) => isApproved(p.approval_status)).length;
+  const productsNeedingUpdates = products.filter((p) => needsUpdates(p.approval_status)).length;
 
   const metricTone = (v: number, warnAbove = 0): StatusTone =>
     v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";

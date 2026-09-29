@@ -11,7 +11,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getSupplierType } from "@/lib/supplier-context";
 import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
-import { fetchApprovalStatusMap } from "@/lib/scoring";
+import { resolveApprovalStatuses } from "@/lib/scoring";
+import { isApproved, needsUpdates, NOT_ASSESSED } from "@/lib/approval/status";
 import { isTenantConfined } from "@/lib/auth/tenancy";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
@@ -194,11 +195,10 @@ export default async function FacilitiesPage({
 
   const countryOptions = (countries ?? []) as Pick<Country, "country_code" | "country_name">[];
 
-  // facilities_verify.approval_status is never written by the app — the real
-  // readiness state lives in scoring_results (populated whenever the scoring
-  // engine runs for a facility), resolved against approval_thresholds. Override
-  // the stale DB column with the live resolved status before it reaches the table.
-  const approvalStatusByFacility = await fetchApprovalStatusMap(
+  // One status per facility, from its score; unscored is "not assessed", never
+  // the stale column — so the badge and the cards above count the same thing.
+  // See lib/approval/status.ts.
+  const approvalStatusByFacility = await resolveApprovalStatuses(
     supabase,
     "facility",
     facilitiesBeforeStatus.map((f) => f.id)
@@ -214,15 +214,13 @@ export default async function FacilitiesPage({
   ).catch(() => new Map<string, EvidenceProgress>());
   const facilities = facilitiesBeforeStatus.map((f) => ({
     ...f,
-    approval_status: approvalStatusByFacility.get(f.id) ?? f.approval_status,
+    approval_status: approvalStatusByFacility.get(f.id) ?? NOT_ASSESSED,
     evidence_progress: progressByFacility.get(f.id),
   }));
 
   const facilitiesAdded = facilities.length;
-  const facilitiesApproved = facilities.filter((f) => f.approval_status === "importer_approved").length;
-  const facilitiesNeedingUpdates = facilities.filter((f) =>
-    ["conditionally_approved", "needs_corrective_action", "rejected", "not_approved"].includes(f.approval_status ?? "")
-  ).length;
+  const facilitiesApproved = facilities.filter((f) => isApproved(f.approval_status)).length;
+  const facilitiesNeedingUpdates = facilities.filter((f) => needsUpdates(f.approval_status)).length;
 
   const metricTone = (v: number, warnAbove = 0): StatusTone =>
     v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";

@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Country, Json } from "@/types/database";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import { EvidenceProgressCell } from "@/components/evidence/EvidenceProgressCell";
+import { approvalLabel, approvalTone } from "@/lib/approval/status";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -63,12 +64,6 @@ function labelize(value: string) {
   return value.replace(/_/g, " ");
 }
 
-function approvalTone(status?: string): "success" | "warning" | "danger" | "neutral" {
-  if (status === "importer_approved") return "success";
-  if (status === "conditionally_approved") return "warning";
-  if (status === "needs_corrective_action" || status === "rejected" || status === "not_approved") return "danger";
-  return "neutral";
-}
 
 function readJsonString(value: Json | undefined) {
   return typeof value === "string" ? value : "";
@@ -547,7 +542,7 @@ export function FacilityTable({
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge tone={approvalTone(facility.approval_status)}>
-                        {labelize(facility.approval_status ?? "pending")}
+                        {approvalLabel(facility.approval_status)}
                       </StatusBadge>
                     </td>
                     <td className="px-4 py-3 text-slate-600">

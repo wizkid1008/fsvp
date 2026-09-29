@@ -3,7 +3,8 @@ import { fetchDetermination, isDeterminationLive, type LiveDetermination } from 
 import { evaluateGates, type GateBlock } from "@/lib/fsvp/gates";
 import { evaluateAttestations, type AttestationEvaluation, type AttestationInput } from "@/lib/fsvp/qi-attestation";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
-import { fetchApprovalStatusMap } from "@/lib/scoring";
+import { resolveApprovalStatuses } from "@/lib/scoring";
+import { isApproved, NOT_ASSESSED } from "@/lib/approval/status";
 import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import { FSVP_SETUP_STEP_COPY as STEP_COPY } from "./fsvp-steps";
 import type { FsvpSetupStepId } from "./fsvp-steps";
@@ -672,31 +673,12 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
     const records = recordsBySupplierId.get(supplier.id) ?? [];
     return records.length > 0 && records.every((record) => approvedRecordStatuses.has(record.status));
   }).length;
-  // Correcting a mistake made and pushed in this file: an earlier pass here
-  // read only the facilities_verify.approval_status CHECK constraint (values
-  // 'pending', 'approved', 'conditionally_approved', 'improvement_required',
-  // 'not_approved', 'suspended' — migration 000) and, seeing "importer_approved"
-  // was not one of them, concluded the check below was comparing against an
-  // impossible value and narrowed it to just "approved". That was wrong.
-  //
-  // input.facilities here is NOT the raw column. loadCompleteFsvpSetupPlan
-  // overlays it with fetchApprovalStatusMap before this function ever sees it
-  // — the live status resolved from scoring_results against approval_thresholds
-  // for any facility that has been scored. approval_thresholds is seeded
-  // (migration 002) to deliberately reuse the fsvp_records.status vocabulary
-  // for its resulting_status: 'importer_approved' for the top tier,
-  // 'conditionally_approved', 'needs_corrective_action', 'rejected' below it —
-  // see app/facilities/page.tsx, which does the same overlay and the same
-  // comparison for the exact same reason. The raw column's own 'approved'
-  // only ever surfaces as the fallback for a facility with no scoring_results
-  // row yet, since facilities_verify.approval_status is never written by the
-  // app (same comment, app/facilities/page.tsx). Checking only "approved"
-  // therefore undercounted every scored, genuinely approved facility — the
-  // common case — while narrowly fixing nothing, since a raw column matching
-  // "approved" was already rare to begin with.
-  const approvedFacilities = input.facilities.filter((facility) =>
-    ["importer_approved", "approved"].includes(facility.approval_status ?? "")
-  ).length;
+  // input.facilities carries the resolved status loadCompleteFsvpSetupPlan
+  // overlays from resolveApprovalStatuses — the one the Facilities page badges
+  // and counts. This also counted the raw column's "approved", which seed data
+  // preloads on facilities nobody has scored, so the dashboard said "2 approved
+  // facilities" beside a Facilities page saying 0. See lib/approval/status.ts.
+  const approvedFacilities = input.facilities.filter((facility) => isApproved(facility.approval_status)).length;
 
   return {
     steps,
@@ -825,14 +807,16 @@ export async function loadCompleteFsvpSetupPlan(
     .filter((row) => isActiveOn(row))
     .length;
 
-  const approvalStatusByFacility = await fetchApprovalStatusMap(
+  // The status the Facilities page shows — unscored is "not assessed", never
+  // the stale column. See lib/approval/status.ts.
+  const approvalStatusByFacility = await resolveApprovalStatuses(
     supabase,
     "facility",
     facilities.map((facility) => facility.id)
   );
   const facilitiesWithApprovalStatus = facilities.map((facility) => ({
     ...facility,
-    approval_status: approvalStatusByFacility.get(facility.id) ?? facility.approval_status,
+    approval_status: approvalStatusByFacility.get(facility.id) ?? NOT_ASSESSED,
   }));
 
   const determinationsByProductId = new Map<string, LiveDetermination | null>();

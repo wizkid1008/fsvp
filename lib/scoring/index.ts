@@ -15,7 +15,7 @@ import { evaluateAdmissibility, hardAdmissibilityBlocks, type AdmissibilityBlock
 
 export type { ScoreResult, SectionScore, ApprovalStatus } from "./types";
 export { sectionCompletionPercent } from "./engine";
-export { fetchApprovalStatusMap } from "./queries";
+export { fetchApprovalStatusMap, resolveApprovalStatuses } from "./queries";
 
 async function scoreEntity(
   entityType: "facility" | "product",

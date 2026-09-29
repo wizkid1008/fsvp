@@ -92,21 +92,19 @@ describe("buildCompleteFsvpSetupPlan", () => {
     expect(plan.summary.approvedFacilities).toBe(1);
   });
 
-  it("also counts the raw column's own 'approved', the fallback for an unscored facility", () => {
-    // facilities_verify.approval_status is never written by the app, so
-    // "approved" here only ever occurs pre-loaded (seed data, a direct DB
-    // edit) on a facility fetchApprovalStatusMap has no scoring_results row
-    // for yet — the overlay's ?? fallback then passes the raw value through
-    // unchanged.
-    const input = cleanInput();
-    input.facilities = [{
-      ...input.facilities[0],
-      approval_status: "approved",
-    }];
+  it("does not count an unscored facility, or the stale column's 'approved', as approved", () => {
+    // Unscored resolves to "not_assessed". The raw column's "approved" is
+    // seed data on facilities nobody scored; counting it made the dashboard
+    // say 2 approved beside a Facilities page saying 0.
+    for (const status of ["not_assessed", "approved"]) {
+      const input = cleanInput();
+      input.facilities = [{
+        ...input.facilities[0],
+        approval_status: status,
+      }];
 
-    const plan = buildCompleteFsvpSetupPlan(input);
-
-    expect(plan.summary.approvedFacilities).toBe(1);
+      expect(buildCompleteFsvpSetupPlan(input).summary.approvedFacilities).toBe(0);
+    }
   });
 
   it("does not count a conditionally approved facility as approved", () => {

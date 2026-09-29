@@ -9,17 +9,10 @@ import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSupplierType } from "@/lib/supplier-context";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
-import type { StatusTone } from "@/types/platform";
+import { resolveApprovalStatuses } from "@/lib/scoring";
+import { approvalLabel, approvalTone, NOT_ASSESSED } from "@/lib/approval/status";
 
 export const runtime = "edge";
-
-
-function approvalTone(status: string | null): StatusTone {
-  if (status === "approved") return "success";
-  if (status === "conditionally_approved") return "warning";
-  if (status === "improvement_required" || status === "not_approved" || status === "suspended") return "danger";
-  return "neutral";
-}
 
 export default async function FacilityDetailPage({ params }: { params: { id: string } }) {
   const { role, realRole, user } = await requireProfileRole(`/facilities/${params.id}`);
@@ -39,6 +32,11 @@ export default async function FacilityDetailPage({ params }: { params: { id: str
 
   if (!facility) notFound();
 
+  // The same status the Facilities list badges and counts — see
+  // lib/approval/status.ts. The raw approval_status column is never shown.
+  const approvalStatus =
+    (await resolveApprovalStatuses(supabase as any, "facility", [params.id])).get(params.id) ?? NOT_ASSESSED;
+
   return (
     <AppShell role={role} realRole={realRole} supplierType={await getSupplierType(supabase as any, ownSupplierId)}>
       <SectionHeader
@@ -47,8 +45,8 @@ export default async function FacilityDetailPage({ params }: { params: { id: str
       />
 
       <div className="mt-2 flex items-center gap-2">
-        <StatusBadge tone={approvalTone(facility.approval_status)}>
-          {(facility.approval_status ?? "pending").replace(/_/g, " ")}
+        <StatusBadge tone={approvalTone(approvalStatus)}>
+          {approvalLabel(approvalStatus)}
         </StatusBadge>
         <Link href="/facilities" className="text-sm text-forest hover:underline">
           ← Back to all facilities

@@ -20,21 +20,13 @@ import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSupplierType } from "@/lib/supplier-context";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
-import type { StatusTone } from "@/types/platform";
 import { evaluateAdmissibility, hardAdmissibilityBlocks } from "@/lib/admissibility/gate";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
+import { approvalLabel, approvalTone, NOT_ASSESSED } from "@/lib/approval/status";
 import { fetchDetermination } from "@/lib/fsvp/applicability";
 import { ApplicabilityCard } from "@/components/fsvp/ApplicabilityCard";
 
 export const runtime = "edge";
-
-
-function approvalTone(status: string | null): StatusTone {
-  if (status === "approved" || status === "importer_approved") return "success";
-  if (status === "conditionally_approved") return "warning";
-  if (status === "improvement_required" || status === "not_approved") return "danger";
-  return "neutral";
-}
 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
   const { role, realRole, user } = await requireProfileRole(`/products/${params.id}`);
@@ -119,7 +111,9 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   // confirmed zero hides it.
   const hasReferenceRule = (ruleCountResult as { count: number | null }).count !== 0;
 
-  const scoredStatus = scoreStatusMap.get(params.id) ?? product.approval_status ?? "pending";
+  // Unscored is "not assessed", never the stale column — the Products list
+  // shows the same. See lib/approval/status.ts.
+  const scoredStatus = scoreStatusMap.get(params.id) ?? NOT_ASSESSED;
   const hardBlocks = hardAdmissibilityBlocks(admissibilityBlocks);
   const gatedStatus = hardBlocks.length > 0 ? "not_approved" : scoredStatus;
   const commodity = product.commodities as {
@@ -176,7 +170,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
 
       <div className="mt-2 flex items-center gap-2">
         <StatusBadge tone={approvalTone(gatedStatus)}>
-          {gatedStatus.replace(/_/g, " ")}
+          {approvalLabel(gatedStatus)}
         </StatusBadge>
         <Link href="/products" className="text-sm text-forest hover:underline">
           ← Back to all products

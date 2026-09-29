@@ -2,6 +2,7 @@
 // These run server-side (admin client) so no RLS applies.
 
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { NOT_ASSESSED } from "@/lib/approval/status";
 import type {
   SectionWeight,
   RequirementItemRow,
@@ -159,6 +160,20 @@ export async function fetchApprovalStatusMap(
   }
 
   return statusByEntity;
+}
+
+/**
+ * The approval status of every id asked about — the one every screen shows.
+ * An entity never scored is NOT_ASSESSED; the raw approval_status column is
+ * never consulted. See lib/approval/status.ts for why.
+ */
+export async function resolveApprovalStatuses(
+  supabase: { from: (table: string) => any },
+  entityType: "facility" | "product",
+  entityIds: string[]
+): Promise<Map<string, string>> {
+  const scored = await fetchApprovalStatusMap(supabase, entityType, entityIds);
+  return new Map(entityIds.map((id) => [id, scored.get(id) ?? NOT_ASSESSED]));
 }
 
 export async function upsertScoringResult(
