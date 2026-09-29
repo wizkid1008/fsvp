@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { scoreFsvpRecord } from "@/lib/scoring";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { isApproved } from "@/lib/approval/status";
 
 export const runtime = "edge";
 
@@ -31,12 +33,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "supplier_id is required" }, { status: 400 });
   }
 
+  // The importer the Readiness page is showing — an administrator previewing
+  // an importer has no importer_id of their own, and filing under theirs
+  // failed the readiness_assessments NOT NULL constraint.
+  const importerId = resolvePreviewedAccountId(profile.role, profile.importer_id ?? null);
+  if (!importerId) {
+    return NextResponse.json(
+      { error: "Pick an importer account to preview before running an assessment." },
+      { status: 400 }
+    );
+  }
+
   const admin = createAdminSupabaseClient();
+
+  // The admin client bypasses RLS, so tenancy is applied here: only an
+  // exporter this importer is linked to can be assessed on its behalf.
+  const { data: link } = await (admin.from("supplier_relationships") as any)
+    .select("id")
+    .eq("relationship_type", "importer_supplier")
+    .eq("importer_id", importerId)
+    .eq("supplier_id", supplier_id)
+    .in("status", ["active", "pending_invite"])
+    .maybeSingle();
+  if (!link) {
+    return NextResponse.json(
+      { error: "That exporter is not linked to this importer." },
+      { status: 403 }
+    );
+  }
 
   // Fetch all FSVP records for this importer + supplier
   const { data: records } = await (admin.from("fsvp_records") as any)
     .select("id, facility_id, product_id, rule_version_id, status")
-    .eq("importer_id", profile.importer_id)
+    .eq("importer_id", importerId)
     .eq("supplier_id", supplier_id)
     .not("rule_version_id", "is", null);
 
@@ -64,7 +93,7 @@ export async function POST(req: NextRequest) {
       ? Math.round((successfulScores.reduce((sum, s) => sum + s.overall_score, 0) / successfulScores.length) * 100) / 100
       : 0;
 
-  const notApproved = successfulScores.filter((s) => s.approval_status !== "approved").length;
+  const notApproved = successfulScores.filter((s) => !isApproved(s.approval_status)).length;
   const gap_summary =
     successfulScores.length === 0
       ? "No FSVP records found for this supplier."
@@ -75,7 +104,7 @@ export async function POST(req: NextRequest) {
   // Insert readiness assessment
   const { data: assessment, error: assessErr } = await (admin.from("readiness_assessments") as any)
     .insert({
-      importer_id: profile.importer_id,
+      importer_id: importerId,
       supplier_id,
       status: "draft",
       overall_score,
@@ -92,7 +121,7 @@ export async function POST(req: NextRequest) {
       await (admin.from("readiness_scores") as any)
         .upsert(
           {
-            importer_id: profile.importer_id,
+            importer_id: importerId,
             assessment_id: assessment.id,
             category: sectionKey,
             score: section.raw_score,
@@ -104,7 +133,7 @@ export async function POST(req: NextRequest) {
   }
 
   await (admin.from("audit_logs") as any).insert({
-    importer_id: profile.importer_id,
+    importer_id: importerId,
     actor_profile_id: user.id,
     actor_role: profile.role,
     action: "readiness_assessment_created",
