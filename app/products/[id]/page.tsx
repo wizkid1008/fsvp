@@ -25,6 +25,14 @@ import { fetchApprovalStatusMap } from "@/lib/scoring";
 import { approvalTone, evidenceScoreLabel, NOT_ASSESSED } from "@/lib/approval/status";
 import { fetchDetermination } from "@/lib/fsvp/applicability";
 import { ApplicabilityCard } from "@/components/fsvp/ApplicabilityCard";
+import { ChevronRight } from "lucide-react";
+import { DetailFacts, DetailSection } from "@/components/ui/DetailSection";
+import {
+  ProductCompositionFacts,
+  ProductImportStatus,
+  ProductSectionEditButton,
+} from "@/components/products/ProductDetailActions";
+import type { ProductRow } from "@/components/products/ProductTable";
 
 export const runtime = "edge";
 
@@ -40,7 +48,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     role === "supplier" ? resolvePreviewedAccountId(realRole, profile?.supplier_id ?? null) : null;
 
   const { data: product } = await (supabase.from("products_verify") as any)
-    .select("id, product_name, approval_status, supplier_id, facility_id, commodity_id, country_of_origin, intended_use, raw_or_processed, suppliers(company_name), facilities_verify(facility_name), commodities(common_name, scientific_name, plant_part, is_propagative)")
+    .select("id, product_name, product_description, ingredient_list, allergen_information, lifecycle, discontinued_on, approval_status, supplier_id, facility_id, commodity_id, country_of_origin, intended_use, raw_or_processed, suppliers(company_name), facilities_verify(facility_name), commodities(common_name, scientific_name, plant_part, is_propagative)")
     .eq("id", params.id)
     .maybeSingle();
 
@@ -54,19 +62,16 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         .maybeSingle()
     : { data: null, error: null };
   const hasFdaCodeColumns = !productFdaCodeError;
-  const assignableFacilities = !product.facility_id && product.supplier_id
+  // The exporter's facilities feed both the unassigned-facility panel and the
+  // Basics edit form, which checks the chosen facility belongs to the exporter
+  // and takes its country as the origin.
+  const assignableFacilities = product.supplier_id
     ? await fetchAssignableFacilities(supabase as any, product.supplier_id)
     : [];
-
-  // Only needed for the inline "add a facility" form inside
-  // ProductFacilityAssignmentPanel, so skipped entirely once the product
-  // already has a facility.
-  const { data: countryRows } = !product.facility_id
-    ? await (supabase.from("countries") as any)
-        .select("country_code,country_name")
-        .eq("is_active", true)
-        .order("country_name")
-    : { data: [] };
+  const { data: countryRows } = await (supabase.from("countries") as any)
+    .select("country_code,country_name")
+    .eq("is_active", true)
+    .order("country_name");
 
   const [commoditiesResult, determinationsResult, scoreStatusMap, admissibilityBlocks, requestResult, ruleCountResult] = await Promise.all([
     (supabase.from("commodities") as any)
@@ -161,44 +166,100 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     !isSupplierView && profile?.importer_id && product.supplier_id
       ? await fetchDetermination(supabase, profile.importer_id, product.supplier_id, params.id)
       : null;
+
+  // The product as the edit form expects it, and the options it may choose
+  // from: its own exporter (moving a product between exporters is refused by
+  // /api/products/save) and that exporter's facilities.
+  const productRow = product as ProductRow;
+  const formSuppliers = product.supplier_id
+    ? [{ id: product.supplier_id, company_name: product.suppliers?.company_name ?? "This exporter" }]
+    : [];
+  const formFacilities = assignableFacilities.map((facility) => ({
+    ...facility,
+    supplier_id: product.supplier_id,
+    supplier_ids: [product.supplier_id],
+  }));
+  const countries = (countryRows ?? []) as Array<{ country_code: string; country_name: string }>;
+  const editProps = { product: productRow, suppliers: formSuppliers, facilities: formFacilities, countries };
+
+  const basicsDone = Boolean(product.facility_id && product.country_of_origin);
+  const classificationDone = Boolean(product.commodity_id) && hardBlocks.length === 0;
+  const compositionDone = Boolean(product.intended_use && product.raw_or_processed);
+
   return (
     <AppShell role={role} realRole={realRole} supplierType={await getSupplierType(supabase as any, ownSupplierId)}>
-      <SectionHeader
-        title={product.product_name}
-        description={[product.suppliers?.company_name, product.facilities_verify?.facility_name].filter(Boolean).join(" · ") || "Product detail"}
-      />
+      {/* Where this product sits: exporter › facility › product, as on the
+          exporter and facility pages. */}
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-slate-500">
+        <Link href="/products" className="hover:text-forest hover:underline">Products</Link>
+        {product.supplier_id && product.suppliers?.company_name && (
+          <>
+            <ChevronRight className="h-3.5 w-3.5" />
+            {isSupplierView ? (
+              <span>{product.suppliers.company_name}</span>
+            ) : (
+              <Link href={`/exporters/${product.supplier_id}`} className="hover:text-forest hover:underline">
+                {product.suppliers.company_name}
+              </Link>
+            )}
+          </>
+        )}
+        {product.facility_id && product.facilities_verify?.facility_name && (
+          <>
+            <ChevronRight className="h-3.5 w-3.5" />
+            <Link href={`/facilities/${product.facility_id}`} className="hover:text-forest hover:underline">
+              {product.facilities_verify.facility_name}
+            </Link>
+          </>
+        )}
+      </nav>
 
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+        <SectionHeader title={product.product_name} description="" />
         <StatusBadge tone={approvalTone(gatedStatus)}>
           {/* A document score, so it is labelled as one — "Approved" is the FSVP
               standing the Products list and dashboard show. */}
           Evidence: {evidenceScoreLabel(gatedStatus)}
         </StatusBadge>
-        <Link href="/products" className="text-sm text-forest hover:underline">
-          ← Back to all products
-        </Link>
       </div>
 
-      {!isSupplierView && profile?.importer_id && (
-        <div className="mt-6">
-          <ApplicabilityCard determination={applicabilityDetermination} />
-        </div>
-      )}
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[340px_1fr]">
-        <ProductScoreCard productId={params.id} supabase={supabase} admissibilityBlocks={admissibilityBlocks} />
-
-        <div className="space-y-6">
+      {/* The product's details in pipeline order, each with its own Edit —
+          replacing one long form on the list plus panels scattered below. */}
+      <div className="mt-6 space-y-6">
+        <DetailSection
+          title="Basics"
+          done={basicsDone}
+          hint={!product.facility_id ? "no facility yet" : "origin missing"}
+          action={<ProductSectionEditButton section="basics" {...editProps} />}
+        >
+          <DetailFacts
+            facts={[
+              { label: "Exporter", value: product.suppliers?.company_name ?? "Not set" },
+              { label: "Facility", value: product.facilities_verify?.facility_name ?? "Not yet assigned" },
+              { label: "Country of origin", value: product.country_of_origin ? `${product.country_of_origin} (from the facility)` : "Comes from the facility" },
+            ]}
+          />
           {!product.facility_id && (
-            <ProductFacilityAssignmentPanel
-              productId={params.id}
-              facilities={assignableFacilities}
-              supplierId={product.supplier_id}
-              countries={(countryRows ?? []) as Array<{ country_code: string; country_name: string }>}
-            />
+            <div className="mt-4">
+              <ProductFacilityAssignmentPanel
+                productId={params.id}
+                facilities={assignableFacilities}
+                supplierId={product.supplier_id}
+                countries={countries}
+              />
+            </div>
           )}
+        </DetailSection>
 
-          {!isSupplierView && (
+        <DetailSection
+          title="Classification and admissibility"
+          done={isSupplierView ? null : classificationDone}
+          hint={!product.commodity_id ? "classify it to determine admissibility" : "admissibility blocked"}
+        >
+          {isSupplierView ? (
+            <DetailFacts facts={[{ label: "Commodity", value: commodityName ?? "Not classified" }]} />
+          ) : (
+          <div className="space-y-6">
             <AdmissibilityPanel
               productId={params.id}
               productName={product.product_name}
@@ -214,9 +275,8 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               classificationRequest={classificationRequest}
               hasReferenceRule={hasReferenceRule}
             />
-          )}
 
-          {!isSupplierView && hasFdaCodeColumns && (
+          {hasFdaCodeColumns && (
             <ProductFdaCodeCard
               productId={params.id}
               productName={product.product_name}
@@ -230,24 +290,55 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               }}
             />
           )}
+          </div>
+          )}
+        </DetailSection>
 
-          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <h2 className="text-base font-semibold text-ink">Required Documents</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              These are the specific records this product needs. Create platform-authored records where
-              available, or upload an existing document next to any missing or rejected item.
-            </p>
-            <RequiredEvidenceChecklist
-              linkType="product"
-              entityId={params.id}
-              supplierId={product.supplier_id}
-              supabase={supabase}
-              allowGeneratedActions={!isSupplierView}
-              importerId={profile?.importer_id ?? null}
+        <DetailSection title="Import status">
+          <div className="space-y-4">
+            <ProductImportStatus
+              canEdit={!isSupplierView}
+              product={{
+                id: product.id,
+                product_name: product.product_name,
+                lifecycle: product.lifecycle ?? "active",
+                discontinued_on: product.discontinued_on ?? null,
+              }}
             />
-          </section>
+            {!isSupplierView && profile?.importer_id && (
+              <ApplicabilityCard determination={applicabilityDetermination} />
+            )}
+          </div>
+        </DetailSection>
 
-        </div>
+        <DetailSection
+          title="Composition"
+          done={compositionDone}
+          hint="intended use or processing state not set"
+          action={<ProductSectionEditButton section="composition" {...editProps} />}
+        >
+          <ProductCompositionFacts product={productRow} />
+        </DetailSection>
+
+        <DetailSection id="documents" title="Documents">
+          <p className="-mt-2 mb-4 text-sm text-slate-500">
+            The records this product needs. Create platform-authored records where available, or upload an
+            existing document next to any missing or returned item.
+          </p>
+          <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+            <ProductScoreCard productId={params.id} supabase={supabase} admissibilityBlocks={admissibilityBlocks} />
+            <div>
+              <RequiredEvidenceChecklist
+                linkType="product"
+                entityId={params.id}
+                supplierId={product.supplier_id}
+                supabase={supabase}
+                allowGeneratedActions={!isSupplierView}
+                importerId={profile?.importer_id ?? null}
+              />
+            </div>
+          </div>
+        </DetailSection>
       </div>
     </AppShell>
   );

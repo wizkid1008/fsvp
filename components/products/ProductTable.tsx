@@ -14,14 +14,14 @@ import { EvidenceProgressCell } from "@/components/evidence/EvidenceProgressCell
 import { approvalTone, evidenceScoreLabel } from "@/lib/approval/status";
 import { ProductFsvpStatus, useProductStandings } from "@/components/products/ProductStandings";
 
-type CountryOption = Pick<Country, "country_code" | "country_name">;
+export type CountryOption = Pick<Country, "country_code" | "country_name">;
 
-type SupplierOption = {
+export type SupplierOption = {
   id: string;
   company_name: string;
 };
 
-type FacilityOption = {
+export type FacilityOption = {
   id: string;
   facility_name: string;
   supplier_id?: string | null;
@@ -53,7 +53,7 @@ export type ProductRow = {
   discontinued_on?: string | null;
 };
 
-function lifecycleTone(lifecycle: ProductLifecycle): "success" | "warning" | "neutral" {
+export function lifecycleTone(lifecycle: ProductLifecycle): "success" | "warning" | "neutral" {
   // "Imported" is not a good/bad judgement — it says the obligation is live.
   // Discontinued is neutral rather than a failure: stopping is a legitimate
   // outcome, and the record is being retained correctly.
@@ -70,7 +70,7 @@ function admissibilityTone(status?: ProductRow["admissibility_status"]): "succes
   return "neutral";
 }
 
-const INTENDED_USES = [
+export const INTENDED_USES = [
   { value: "", label: "Select intended use" },
   { value: "ready_to_eat", label: "Ready to eat" },
   { value: "further_processed", label: "Further processed" },
@@ -79,7 +79,7 @@ const INTENDED_USES = [
   { value: "other", label: "Other" }
 ];
 
-const PROCESSING_STATES = [
+export const PROCESSING_STATES = [
   { value: "", label: "Select processing state" },
   { value: "raw", label: "Raw" },
   { value: "processed", label: "Processed" },
@@ -124,14 +124,26 @@ function errorMessage(err: unknown) {
 /** A sentinel option value, not a real id — chosen from a select to reveal the inline create form. */
 const ADD_NEW = "__add_new__";
 
-function AddProductForm({
+/**
+ * Which part of a product the form edits. The product page edits one section
+ * at a time (Basics, Composition), and adding a product asks only for Basics —
+ * the rest is filled in on the product page it opens onto. /api/products/save
+ * writes every field, so the sections not shown still travel in the form as
+ * hidden inputs carrying their current values; editing one section can never
+ * blank another.
+ */
+export type ProductFormSection = "all" | "basics" | "composition";
+
+export function AddProductForm({
   countries,
   product,
   onClose,
   facilities,
   suppliers,
   presetFacility,
-  canManageExporters
+  canManageExporters,
+  show = "all",
+  openAfterCreate = false,
 }: {
   countries: CountryOption[];
   facilities: FacilityOption[];
@@ -144,7 +156,12 @@ function AddProductForm({
    *  /api/exporters/create. An exporter viewing their own product list has
    *  exactly one supplier (themselves) and no reason to add another. */
   canManageExporters: boolean;
+  show?: ProductFormSection;
+  /** After creating, go to the new product's page, where its next step is. */
+  openAfterCreate?: boolean;
 }) {
+  const showBasics = show === "all" || show === "basics";
+  const showComposition = show === "all" || show === "composition";
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   // The exporter must be set before the facility list is enabled, so a preset
@@ -252,6 +269,10 @@ function AddProductForm({
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Could not save product.");
 
+        if (!product && openAfterCreate && json.id) {
+          router.push(`/products/${json.id}`);
+          return;
+        }
         router.refresh();
         onClose();
       } catch (err) {
@@ -273,7 +294,9 @@ function AddProductForm({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg border border-line bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
-          <h2 className="text-lg font-semibold text-ink">{product ? "Edit Product" : "Add Product"}</h2>
+          <h2 className="text-lg font-semibold text-ink">
+            {!product ? "Add product" : show === "basics" ? "Edit basics" : show === "composition" ? "Edit composition" : "Edit product"}
+          </h2>
           <button type="button" onClick={onClose} className="rounded p-1 transition hover:bg-slate-100">
             <X className="h-4 w-4 text-slate-500" />
           </button>
@@ -281,6 +304,29 @@ function AddProductForm({
 
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+          {!product && show === "basics" && (
+            <p className="text-sm text-slate-500">
+              Just the basics. Classification, composition and documents are filled in on the product
+              page, which opens next.
+            </p>
+          )}
+          {/* The sections not being edited, carried unchanged — see ProductFormSection. */}
+          {!showBasics && (
+            <>
+              <input type="hidden" name="product_name" value={product?.product_name ?? ""} />
+              <input type="hidden" name="supplier_id" value={supplierId} />
+              <input type="hidden" name="facility_id" value={facilityId} />
+            </>
+          )}
+          {!showComposition && product && (
+            <>
+              <input type="hidden" name="intended_use" value={product.intended_use ?? ""} />
+              <input type="hidden" name="raw_or_processed" value={product.raw_or_processed ?? ""} />
+              <input type="hidden" name="ingredient_list" value={product.ingredient_list ?? ""} />
+              <input type="hidden" name="product_description" value={product.product_description ?? ""} />
+            </>
+          )}
+          {showBasics && (
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={labelClass}>
               Product Name <span className="text-red-500">*</span>
@@ -380,6 +426,12 @@ function AddProductForm({
               />
               <span className="mt-1 block text-xs text-slate-400">Inherited from the selected facility.</span>
             </label>
+          </div>
+          )}
+
+          {showComposition && (
+          <>
+          <div className="grid gap-4 sm:grid-cols-2">
             <label className={labelClass}>
               Intended Use
               <select name="intended_use" className={inputClass} defaultValue={product?.intended_use ?? ""}>
@@ -446,6 +498,8 @@ function AddProductForm({
             Product Description
             <textarea name="product_description" defaultValue={product?.product_description ?? ""} className={textareaClass} placeholder="Optional product notes" />
           </label>
+          </>
+          )}
           </div>
 
           {/* Outside the scroll region: a save error the user has to scroll to
@@ -457,7 +511,7 @@ function AddProductForm({
                 Cancel
               </button>
               <button disabled={pending} className="h-10 rounded-md bg-forest px-5 text-sm font-semibold text-white transition hover:bg-[#195f4d] disabled:opacity-60">
-                {pending ? "Saving..." : product ? "Save product" : "Add product"}
+                {pending ? "Saving..." : product ? "Save" : openAfterCreate ? "Add and open" : "Add product"}
               </button>
             </div>
           </div>
@@ -546,6 +600,8 @@ export function ProductTable({
           suppliers={suppliers}
           presetFacility={editingProduct ? null : presetFacility}
           canManageExporters={canManageExporters}
+          show={editingProduct ? "all" : "basics"}
+          openAfterCreate={!editingProduct}
         />
       ) : null}
 
