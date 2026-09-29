@@ -33,6 +33,30 @@ export function EvidenceProgressBar({ progress }: { progress: EvidenceProgress }
   );
 }
 
+/**
+ * The four counts in a row, for a total rather than a table cell — the
+ * dashboard card and the top of each checklist. Same labels, order and dimming
+ * as the cell, so a number reads the same at every step of the drill-down.
+ */
+export function EvidenceCounts({ progress }: { progress: EvidenceProgress }) {
+  return (
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+      {EVIDENCE_ROWS.map((status) => {
+        const count = progress[status.key];
+        return (
+          <div key={status.key} className="flex items-center gap-1.5 text-xs">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${count === 0 ? "bg-slate-200" : status.dot}`} />
+            <dt className={count === 0 ? "text-slate-400" : "text-slate-600"}>{status.label}</dt>
+            <dd className={`ml-auto font-semibold tabular-nums sm:ml-1 ${count === 0 ? "text-slate-300" : "text-ink"}`}>
+              {count}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
 export function EvidenceProgressCell({
   href,
   progress,

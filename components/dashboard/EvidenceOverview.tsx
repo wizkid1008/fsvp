@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { EVIDENCE_ROWS, EvidenceProgressBar } from "@/components/evidence/EvidenceProgressCell";
+import { EvidenceCounts, EvidenceProgressBar } from "@/components/evidence/EvidenceProgressCell";
 import type { EvidenceOverviewRow } from "@/lib/dashboard/evidence-overview";
 
 /**
@@ -78,20 +78,9 @@ export function EvidenceOverview() {
                     <div className="mt-2">
                       <EvidenceProgressBar progress={row.progress} />
                     </div>
-                    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-                      {EVIDENCE_ROWS.map((status) => {
-                        const count = row.progress[status.key];
-                        return (
-                          <div key={status.key} className="flex items-center gap-1.5 text-xs">
-                            <span className={`h-2 w-2 shrink-0 rounded-full ${count === 0 ? "bg-slate-200" : status.dot}`} />
-                            <dt className={count === 0 ? "text-slate-400" : "text-slate-600"}>{status.label}</dt>
-                            <dd className={`ml-auto font-semibold tabular-nums sm:ml-1 ${count === 0 ? "text-slate-300" : "text-ink"}`}>
-                              {count}
-                            </dd>
-                          </div>
-                        );
-                      })}
-                    </dl>
+                    <div className="mt-2">
+                      <EvidenceCounts progress={row.progress} />
+                    </div>
                   </>
                 )}
               </Link>

@@ -1,8 +1,10 @@
 import { RequirementItemRow } from "./RequirementItemRow";
 import { fetchDetermination, recordCreationAction } from "@/lib/fsvp/applicability";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
+import { EvidenceCounts, EvidenceProgressBar } from "./EvidenceProgressCell";
 import {
   bestStatus,
+  evidenceProgress,
   generatedItemStatus,
   RELATIONSHIP_SCOPE,
   statusesByItem,
@@ -63,6 +65,12 @@ export async function RequiredEvidenceChecklist({
     );
   }
 
+  // With an importer viewing, documents are "filed for this importer, or for
+  // nobody in particular" — the rule lib/readiness/evidence-progress.ts applies
+  // on the list pages, so the counts at the top here match the row clicked.
+  const scopeDocs = (query: any) =>
+    importerId ? query.or(`importer_id.eq.${importerId},importer_id.is.null`) : query;
+
   const [sectionsRes, itemsRes, docsRes, fsvpRecordRes] = await Promise.all([
     (supabase.from("requirement_sections") as any)
       .select("id, section_key, section_name, sort_order")
@@ -81,23 +89,23 @@ export async function RequiredEvidenceChecklist({
     // because migration 028 makes two of the supplier items answerable only by
     // the importer they were filed for.
     linkType === "supplier"
-      ? (supabase.from("documents") as any)
+      ? scopeDocs((supabase.from("documents") as any)
           .select("requirement_item_id, evidence_status, importer_id")
           .eq("supplier_id", entityId)
           .is("soft_deleted_at", null)
-          .not("requirement_item_id", "is", null)
+          .not("requirement_item_id", "is", null))
     : linkType === "facility"
-      ? (supabase.from("documents") as any)
+      ? scopeDocs((supabase.from("documents") as any)
           .select("requirement_item_id, evidence_status, importer_id")
           .eq("facility_id", entityId)
           .is("soft_deleted_at", null)
-          .not("requirement_item_id", "is", null)
-      : (supabase.from("documents") as any)
+          .not("requirement_item_id", "is", null))
+      : scopeDocs((supabase.from("documents") as any)
           .select("requirement_item_id, evidence_status, importer_id")
           .eq("linked_entity_type", "product")
           .eq("linked_entity_id", entityId)
           .is("soft_deleted_at", null)
-          .not("requirement_item_id", "is", null),
+          .not("requirement_item_id", "is", null)),
 
     linkType === "product"
       ? (supabase.from("fsvp_records") as any)
@@ -271,8 +279,31 @@ export async function RequiredEvidenceChecklist({
     );
   }
 
+  // The four counts the list row and the dashboard show, from the same statuses
+  // the rows below render — the last step of the drill-down cannot disagree
+  // with the step before it, or with itself.
+  const requiredItems = sectionsWithItems.flatMap((sec) => sec.items);
+  const summary = evidenceProgress(
+    requiredItems,
+    new Map(requiredItems.map((item): [string, string[]] => {
+      const generated = generatedStatusFor(item);
+      return [item.id, generated ? [generated] : docByItemId.get(item.id) ?? []];
+    }))
+  );
+
   return (
     <div className="mt-4 space-y-4">
+      <div className="rounded-lg border border-line bg-slate-50 px-4 py-3">
+        <p className="text-xs font-medium text-slate-500">
+          {summary.required} required document{summary.required === 1 ? "" : "s"}
+        </p>
+        <div className="mt-2">
+          <EvidenceProgressBar progress={summary} />
+        </div>
+        <div className="mt-2">
+          <EvidenceCounts progress={summary} />
+        </div>
+      </div>
       {sectionsWithItems.map((sec) => (
         <div key={sec.section_key} className="overflow-hidden rounded-lg border border-line">
           <div className="border-b border-line bg-slate-50 px-4 py-2">
