@@ -1,4 +1,4 @@
-﻿import { AlertTriangle, Building2, PackageCheck, ShipWheel } from "lucide-react";
+import { AlertTriangle, Building2, PackageCheck, ShipWheel } from "lucide-react";
 import type { ProductSummary } from "@/lib/dashboard/product-journey";
 
 /**
