@@ -52,6 +52,26 @@ export function approvalLabel(status: string | null | undefined): string {
   return LABELS[key] ?? key.replace(/_/g, " ");
 }
 
+/**
+ * The same tiers read as a document score, for a PRODUCT seen without its FSVP
+ * record — the exporter's own product list. There, "Approved" would claim an
+ * importer decision nobody has made; the importer's view shows the FSVP
+ * standing instead (components/products/ProductStandings.tsx).
+ */
+const EVIDENCE_SCORE_LABELS: Record<string, string> = {
+  importer_approved: "Complete",
+  conditionally_approved: "Mostly complete",
+  needs_corrective_action: "Gaps",
+  rejected: "Insufficient",
+  not_approved: "Insufficient",
+  not_assessed: "Not assessed",
+};
+
+export function evidenceScoreLabel(status: string | null | undefined): string {
+  const key = status ?? NOT_ASSESSED;
+  return EVIDENCE_SCORE_LABELS[key] ?? key.replace(/_/g, " ");
+}
+
 export function approvalTone(status: string | null | undefined): StatusTone {
   if (isApproved(status)) return "success";
   if (status === "conditionally_approved") return "warning";

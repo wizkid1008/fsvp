@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { ProductTable, type ProductRow } from "@/components/products/ProductTable";
+import { ProductStandingsProvider, ProductStatusCards } from "@/components/products/ProductStandings";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -315,6 +316,34 @@ export default async function ProductsPage({
         ];
   const tableFacilities = productScopeFacility ? [productScopeFacility] : facilityOptions;
 
+  const productTable = (
+    <ProductTable
+      // Only the importing organization can say whether it imports a food.
+      // /api/products/lifecycle enforces the same rule, so hiding the
+      // control is a courtesy rather than the protection.
+      canEditLifecycle={!isSupplier}
+      // /api/exporters/create is hard-restricted to importers/admins — an
+      // exporter viewing their own product list has exactly one supplier
+      // (themselves) and no reason to add another.
+      canManageExporters={!isSupplier}
+      countries={countryOptions}
+      facilities={tableFacilities}
+      products={products}
+      supplierHref={isSupplier ? "/my-suppliers" : "/exporters"}
+      suppliers={tableSuppliers}
+      // ?facility=<id> arrives from "Add product" on a facility's row.
+      // Resolved against the facilities this account can actually see, so a
+      // hand-edited URL cannot preselect another tenant's facility. The
+      // exporter comes from the facility itself rather than the URL, so the
+      // two cannot be made inconsistent.
+      presetFacility={(() => {
+        const match = requestedFacility;
+        const supplierId = match?.supplier_id ?? match?.supplier_ids[0] ?? null;
+        return match && supplierId ? { facilityId: match.id, supplierId } : null;
+      })()}
+    />
+  );
+
   return (
     <AppShell role={role} realRole={realRole} supplierType={isSupplier ? await getSupplierType(supabase as any, ownSupplierId || null) : undefined}>
       <SectionHeader
@@ -383,49 +412,39 @@ export default async function ProductsPage({
         </div>
       )}
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        {[
-          { label: "Products Added", value: productsAdded, tone: "info" as StatusTone },
-          { label: "Products Approved", value: productsApproved, tone: "success" as StatusTone },
-          { label: "Products Needing Updates", value: productsNeedingUpdates, tone: metricTone(productsNeedingUpdates, 0) },
-        ].map((m) => (
-          <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
-            <p className="text-xs font-medium text-slate-500">{m.label}</p>
-            <div className="mt-2 flex items-end justify-between">
-              <p className="text-3xl font-semibold text-ink">{m.value}</p>
-              <StatusBadge tone={m.tone}>{m.value > 0 ? "Active" : "None"}</StatusBadge>
-            </div>
+      {/* The importer's cards and Status column count as the dashboard's
+          Product Status card does, from /api/products/standings. The
+          exporter's own list has no FSVP records to stand on and keeps the
+          document score, labelled as a score. */}
+      {!isSupplier && importerId ? (
+        <ProductStandingsProvider>
+          <ProductStatusCards added={productsAdded} />
+          <div className="mt-6">
+            {productTable}
           </div>
-        ))}
-      </div>
-
-      <div className="mt-6">
-        <ProductTable
-          // Only the importing organization can say whether it imports a food.
-          // /api/products/lifecycle enforces the same rule, so hiding the
-          // control is a courtesy rather than the protection.
-          canEditLifecycle={!isSupplier}
-          // /api/exporters/create is hard-restricted to importers/admins — an
-          // exporter viewing their own product list has exactly one supplier
-          // (themselves) and no reason to add another.
-          canManageExporters={!isSupplier}
-          countries={countryOptions}
-          facilities={tableFacilities}
-          products={products}
-          supplierHref={isSupplier ? "/my-suppliers" : "/exporters"}
-          suppliers={tableSuppliers}
-          // ?facility=<id> arrives from "Add product" on a facility's row.
-          // Resolved against the facilities this account can actually see, so a
-          // hand-edited URL cannot preselect another tenant's facility. The
-          // exporter comes from the facility itself rather than the URL, so the
-          // two cannot be made inconsistent.
-          presetFacility={(() => {
-            const match = requestedFacility;
-            const supplierId = match?.supplier_id ?? match?.supplier_ids[0] ?? null;
-            return match && supplierId ? { facilityId: match.id, supplierId } : null;
-          })()}
-        />
-      </div>
+        </ProductStandingsProvider>
+      ) : (
+        <>
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {[
+              { label: "Products Added", value: productsAdded, tone: "info" as StatusTone },
+              { label: "Evidence Complete", value: productsApproved, tone: "success" as StatusTone },
+              { label: "Evidence With Gaps", value: productsNeedingUpdates, tone: metricTone(productsNeedingUpdates, 0) },
+            ].map((m) => (
+              <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
+                <p className="text-xs font-medium text-slate-500">{m.label}</p>
+                <div className="mt-2 flex items-end justify-between">
+                  <p className="text-3xl font-semibold text-ink">{m.value}</p>
+                  <StatusBadge tone={m.tone}>{m.value > 0 ? "Active" : "None"}</StatusBadge>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6">
+            {productTable}
+          </div>
+        </>
+      )}
     </AppShell>
   );
 }

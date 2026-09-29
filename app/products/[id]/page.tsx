@@ -22,7 +22,7 @@ import { getSupplierType } from "@/lib/supplier-context";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { evaluateAdmissibility, hardAdmissibilityBlocks } from "@/lib/admissibility/gate";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
-import { approvalLabel, approvalTone, NOT_ASSESSED } from "@/lib/approval/status";
+import { approvalTone, evidenceScoreLabel, NOT_ASSESSED } from "@/lib/approval/status";
 import { fetchDetermination } from "@/lib/fsvp/applicability";
 import { ApplicabilityCard } from "@/components/fsvp/ApplicabilityCard";
 
@@ -170,7 +170,9 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
 
       <div className="mt-2 flex items-center gap-2">
         <StatusBadge tone={approvalTone(gatedStatus)}>
-          {approvalLabel(gatedStatus)}
+          {/* A document score, so it is labelled as one — "Approved" is the FSVP
+              standing the Products list and dashboard show. */}
+          Evidence: {evidenceScoreLabel(gatedStatus)}
         </StatusBadge>
         <Link href="/products" className="text-sm text-forest hover:underline">
           ← Back to all products

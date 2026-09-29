@@ -11,7 +11,8 @@ import { LIFECYCLE_LABEL, retentionEndsOn, type ProductLifecycle } from "@/lib/f
 import type { Country } from "@/types/database";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import { EvidenceProgressCell } from "@/components/evidence/EvidenceProgressCell";
-import { approvalLabel, approvalTone } from "@/lib/approval/status";
+import { approvalTone, evidenceScoreLabel } from "@/lib/approval/status";
+import { ProductFsvpStatus, useProductStandings } from "@/components/products/ProductStandings";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -493,6 +494,11 @@ export function ProductTable({
 }) {
   // Open straight into the form when the link that got here already said what
   // was wanted. See NextStepBanner for why these threads exist at all.
+  // Inside ProductStandingsProvider (the importer's view) the Status column is
+  // the product's FSVP standing — the dashboard's "Approved". Outside it (the
+  // exporter's own list) there is no FSVP record to stand on, and the column is
+  // the document score, labelled as such so the two never share the word.
+  const fsvpStandings = useProductStandings() !== null;
   const [showForm, setShowForm] = useState(Boolean(presetFacility));
   const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
   const [lifecycleProduct, setLifecycleProduct] = useState<ProductRow | null>(null);
@@ -616,7 +622,9 @@ export function ProductTable({
               <tr className="border-b border-line bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Product</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Imported</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                  {fsvpStandings ? "FSVP status" : "Evidence score"}
+                </th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Admissibility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Facility</th>
@@ -672,9 +680,13 @@ export function ProductTable({
                     })()}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge tone={approvalTone(product.approval_status)}>
-                      {approvalLabel(product.approval_status)}
-                    </StatusBadge>
+                    {fsvpStandings ? (
+                      <ProductFsvpStatus productId={product.id} />
+                    ) : (
+                      <StatusBadge tone={approvalTone(product.approval_status)}>
+                        {evidenceScoreLabel(product.approval_status)}
+                      </StatusBadge>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <a href={`/products/${product.id}`}>
