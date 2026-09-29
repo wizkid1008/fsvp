@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Edit2, PackageSearch, Search, X } from "lucide-react";
+import { PackageSearch, Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProductLifecycleDialog } from "@/components/products/ProductLifecycleDialog";
 import { InlineAddExporter } from "@/components/products/InlineAddExporter";
@@ -10,7 +10,8 @@ import { InlineAddFacility } from "@/components/products/InlineAddFacility";
 import { LIFECYCLE_LABEL, retentionEndsOn, type ProductLifecycle } from "@/lib/fsvp/product-lifecycle";
 import type { Country } from "@/types/database";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
-import { EvidenceProgressCell } from "@/components/evidence/EvidenceProgressCell";
+import { EvidenceProgressCell, UploadDocumentsLink } from "@/components/evidence/EvidenceProgressCell";
+import { OpenLink } from "@/components/ui/OpenLink";
 import { approvalTone, evidenceScoreLabel } from "@/lib/approval/status";
 import { ProductFsvpStatus, useProductStandings } from "@/components/products/ProductStandings";
 
@@ -554,7 +555,6 @@ export function ProductTable({
   // the document score, labelled as such so the two never share the word.
   const fsvpStandings = useProductStandings() !== null;
   const [showForm, setShowForm] = useState(Boolean(presetFacility));
-  const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
   const [lifecycleProduct, setLifecycleProduct] = useState<ProductRow | null>(null);
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
@@ -580,15 +580,10 @@ export function ProductTable({
   }, [products, search, supplierFilter]);
 
   function openAddForm() {
-    setEditingProduct(null);
     setShowForm(true);
   }
 
-  function openEditForm(product: ProductRow) {
-    setEditingProduct(product);
-    setShowForm(true);
-  }
-
+  // Adding only: a product is edited on its own page, section by section.
   return (
     <>
       {showForm ? (
@@ -596,12 +591,11 @@ export function ProductTable({
           countries={countries}
           facilities={facilities}
           onClose={() => setShowForm(false)}
-          product={editingProduct}
           suppliers={suppliers}
-          presetFacility={editingProduct ? null : presetFacility}
+          presetFacility={presetFacility}
           canManageExporters={canManageExporters}
-          show={editingProduct ? "all" : "basics"}
-          openAfterCreate={!editingProduct}
+          show="basics"
+          openAfterCreate
         />
       ) : null}
 
@@ -688,14 +682,14 @@ export function ProductTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Intended Use</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Allergens</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700"><span className="sr-only">Open</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {filtered.map((product) => (
                 <tr key={product.id} className="transition-colors hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-ink">
-                    <a href={`/products/${product.id}`} className="text-forest hover:underline">
+                    <a href={`/products/${product.id}`} className="font-semibold text-forest underline underline-offset-2 hover:decoration-2">
                       {product.product_name}
                     </a>
                   </td>
@@ -768,23 +762,19 @@ export function ProductTable({
                     {product.evidence_progress && product.evidence_progress.required > 0 ? (
                       <EvidenceProgressCell href={`/products/${product.id}`} progress={product.evidence_progress} noun="product documents" />
                     ) : (
-                      <a
-                        href={`/products/${product.id}`}
-                        className="font-semibold text-forest hover:underline"
-                      >
-                        {product.evidence_count ?? 0} documents
-                      </a>
+                      <div>
+                        <a
+                          href={`/products/${product.id}#documents`}
+                          className="font-semibold text-forest hover:underline"
+                        >
+                          {product.evidence_count ?? 0} documents
+                        </a>
+                        <div><UploadDocumentsLink href={`/products/${product.id}`} /></div>
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => openEditForm(product)}
-                      className="inline-flex h-8 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold text-slate-600 transition hover:border-forest hover:text-forest"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                      Edit
-                    </button>
+                    <OpenLink href={`/products/${product.id}`} label={product.product_name} />
                   </td>
                 </tr>
               ))}

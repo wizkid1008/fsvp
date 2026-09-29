@@ -2,14 +2,15 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Edit2, MapPin, Warehouse, X, Search, PackageSearch } from "lucide-react";
+import { MapPin, Warehouse, X, Search, PackageSearch } from "lucide-react";
 import { registrationState, REGISTRATION_LABEL } from "@/lib/fsvp/facility-registration";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
 import { FacilityMapPicker } from "@/components/facilities/FacilityMapPicker";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { Country, Json } from "@/types/database";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
-import { EvidenceProgressCell } from "@/components/evidence/EvidenceProgressCell";
+import { EvidenceProgressCell, UploadDocumentsLink } from "@/components/evidence/EvidenceProgressCell";
+import { OpenLink } from "@/components/ui/OpenLink";
 import { approvalLabel, approvalTone } from "@/lib/approval/status";
 
 export type CountryOption = Pick<Country, "country_code" | "country_name">;
@@ -403,7 +404,6 @@ export function FacilityTable({
   // on a facility list and hunting for the Add button is a detour when the
   // intent was already stated by the link that got you here.
   const [showForm, setShowForm] = useState(Boolean(presetSupplierId));
-  const [editingFacility, setEditingFacility] = useState<FacilityRow | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const canAddFacility = suppliers.length > 0;
@@ -424,24 +424,18 @@ export function FacilityTable({
   const addButtonClass = "inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500";
 
   function openAddForm() {
-    setEditingFacility(null);
     setShowForm(true);
   }
 
-  function openEditForm(facility: FacilityRow) {
-    setEditingFacility(facility);
-    setShowForm(true);
-  }
-
+  // Adding only: a facility is edited on its own page.
   return (
     <>
       {showForm ? (
         <AddFacilityForm
           countries={countries}
-          facility={editingFacility}
           onClose={() => setShowForm(false)}
           suppliers={suppliers}
-          presetSupplierId={editingFacility ? null : presetSupplierId}
+          presetSupplierId={presetSupplierId}
         />
       ) : null}
 
@@ -523,7 +517,7 @@ export function FacilityTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Certifications</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Products</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700"><span className="sr-only">Open</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -536,7 +530,7 @@ export function FacilityTable({
                 return (
                   <tr key={facility.id} className="transition-colors hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-ink">
-                      <a href={`/facilities/${facility.id}`} className="text-forest hover:underline">
+                      <a href={`/facilities/${facility.id}`} className="font-semibold text-forest underline underline-offset-2 hover:decoration-2">
                         {facility.facility_name}
                       </a>
                     </td>
@@ -615,23 +609,19 @@ export function FacilityTable({
                       {facility.evidence_progress && facility.evidence_progress.required > 0 ? (
                         <EvidenceProgressCell href={`/facilities/${facility.id}`} progress={facility.evidence_progress} noun="facility documents" />
                       ) : (
-                        <a
-                          href={`/facilities/${facility.id}`}
-                          className="font-semibold text-forest hover:underline"
-                        >
-                          {facility.evidence_count ?? 0} documents
-                        </a>
+                        <div>
+                          <a
+                            href={`/facilities/${facility.id}#documents`}
+                            className="font-semibold text-forest hover:underline"
+                          >
+                            {facility.evidence_count ?? 0} documents
+                          </a>
+                          <div><UploadDocumentsLink href={`/facilities/${facility.id}`} /></div>
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => openEditForm(facility)}
-                        className="inline-flex h-8 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold text-slate-600 transition hover:border-forest hover:text-forest"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                        Edit
-                      </button>
+                      <OpenLink href={`/facilities/${facility.id}`} label={facility.facility_name} />
                     </td>
                   </tr>
                 );

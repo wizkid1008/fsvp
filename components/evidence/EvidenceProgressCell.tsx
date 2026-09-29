@@ -1,3 +1,4 @@
+import { Upload } from "lucide-react";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 
 /**
@@ -77,6 +78,23 @@ export function EvidenceBreakdown({ progress }: { progress: EvidenceProgress }) 
   );
 }
 
+/**
+ * The explicit way into an entity's documents from its list row — the same
+ * wording and destination on the exporter, facility and product lists. `href`
+ * is the detail page; this lands on its Documents section.
+ */
+export function UploadDocumentsLink({ href }: { href: string }) {
+  return (
+    <a
+      href={`${href}#documents`}
+      className="mt-2 inline-flex h-7 items-center gap-1 rounded-md border border-line px-2 text-xs font-semibold text-slate-600 transition hover:border-forest hover:text-forest"
+    >
+      <Upload className="h-3 w-3" />
+      Upload documents
+    </a>
+  );
+}
+
 export function EvidenceProgressCell({
   href,
   progress,
@@ -87,9 +105,10 @@ export function EvidenceProgressCell({
   noun?: string;
 }) {
   return (
+    <div className="min-w-[9.5rem]">
     <a
-      href={href}
-      className="group block min-w-[9.5rem]"
+      href={`${href}#documents`}
+      className="group block"
       title={`${progress.required} required ${noun}`}
     >
       <EvidenceProgressBar progress={progress} />
@@ -109,6 +128,8 @@ export function EvidenceProgressCell({
         })}
       </ul>
     </a>
+    <UploadDocumentsLink href={href} />
+    </div>
   );
 }
 

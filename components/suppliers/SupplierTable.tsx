@@ -6,11 +6,12 @@ import { AddSupplierForm } from "@/components/suppliers/AddSupplierForm";
 import { LinkSupplierModal } from "@/components/suppliers/LinkSupplierModal";
 import { CreateExporterForm } from "@/components/suppliers/CreateExporterForm";
 import { SuspensionControl, type SuspensionRow } from "@/components/suppliers/SuspensionControl";
-import { Building2, Pencil, Search, Plus, Link2, MailWarning, Warehouse, FileUp } from "lucide-react";
+import { Building2, ChevronDown, Search, Plus, Link2, MailWarning, Warehouse } from "lucide-react";
 import type { StatusTone } from "@/types/platform";
 import type { Country } from "@/types/database";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
-import { EvidenceProgressCell, isAwaitingReview } from "@/components/evidence/EvidenceProgressCell";
+import { EvidenceProgressCell, isAwaitingReview, UploadDocumentsLink } from "@/components/evidence/EvidenceProgressCell";
+import { OpenLink } from "@/components/ui/OpenLink";
 
 type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -130,10 +131,8 @@ export function SupplierTable({
   suspensions?: SuspensionRow[];
 }) {
   const [showForm, setShowForm] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<SupplierRow | null>(null);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [showCreateExporter, setShowCreateExporter] = useState(false);
-  const [editingExporter, setEditingExporter] = useState<SupplierRow | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
@@ -166,43 +165,21 @@ export function SupplierTable({
 
   function closeForm() {
     setShowForm(false);
-    setEditingSupplier(null);
-  }
-
-  function editSupplier(supplier: SupplierRow) {
-    setEditingSupplier(supplier);
-    setShowForm(true);
   }
 
   const isImporter = Boolean(importerId);
 
-  // An importer may only edit a record their own organization manages, and only
-  // until the exporter claims it. Once self-managed, the exporter owns their
-  // profile and the importer keeps the relationship but loses edit rights.
   function managedByMe(s: SupplierRow) {
     return Boolean(importerId) && s.managed_by_importer_id === importerId;
   }
-  function canEdit(s: SupplierRow) {
-    if (!isImporter) return true;
-    return managedByMe(s) && s.record_mode !== "self_managed";
-  }
 
-  function handleEditClick(s: SupplierRow) {
-    if (isImporter) setEditingExporter(s);
-    else editSupplier(s);
-  }
-
+  // Adding only: an exporter is edited on its own page (app/exporters/[id]),
+  // which applies the same rule — an importer edits only a record it manages
+  // and the exporter has not claimed.
   const exporterModals = (
     <>
       {showCreateExporter && (
         <CreateExporterForm countries={countries} onClose={() => setShowCreateExporter(false)} />
-      )}
-      {editingExporter && (
-        <CreateExporterForm
-          countries={countries}
-          exporter={editingExporter}
-          onClose={() => setEditingExporter(null)}
-        />
       )}
     </>
   );
@@ -260,7 +237,7 @@ export function SupplierTable({
 
   return (
     <>
-      {showForm && !isImporter && <AddSupplierForm countries={countries} supplier={editingSupplier} onClose={closeForm} />}
+      {showForm && !isImporter && <AddSupplierForm countries={countries} onClose={closeForm} />}
       {showLinkModal && <LinkSupplierModal onClose={() => setShowLinkModal(false)} />}
       {exporterModals}
       <div className="mt-6">
@@ -291,23 +268,10 @@ export function SupplierTable({
             <option value="docs_awaiting_review">Company docs awaiting review</option>
           </select>
           {isImporter ? (
-            <>
-              <button
-                onClick={() => setShowLinkModal(true)}
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-forest px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
-              >
-                <Link2 className="h-4 w-4" />
-                Link an exporter
-              </button>
-              <button
-                onClick={() => setShowCreateExporter(true)}
-                title="Create a record for an exporter who will not register themselves"
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
-              >
-                <Plus className="h-4 w-4" />
-                Add an exporter
-              </button>
-            </>
+            <AddExporterMenu
+              onLink={() => setShowLinkModal(true)}
+              onCreate={() => setShowCreateExporter(true)}
+            />
           ) : (
             <button
               onClick={() => setShowForm(true)}
@@ -347,7 +311,7 @@ export function SupplierTable({
                 )}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Last Updated</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Edit</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -367,7 +331,7 @@ export function SupplierTable({
                           text, leaving "Add company docs" as the only way in. */}
                       <a
                         href={`/exporters/${supplier.id}`}
-                        className="block font-semibold text-ink hover:text-forest hover:underline"
+                        className="block font-semibold text-forest underline underline-offset-2 hover:decoration-2"
                       >
                         {supplier.company_name}
                       </a>
@@ -436,19 +400,15 @@ export function SupplierTable({
                       {supplier.evidence_progress && supplier.evidence_progress.required > 0 ? (
                         <EvidenceProgressCell href={`/exporters/${supplier.id}`} progress={supplier.evidence_progress} noun="company documents" />
                       ) : (
-                        <a
-                          href={`/exporters/${supplier.id}`}
-                          className="inline-flex items-center gap-1.5 font-semibold text-forest hover:underline"
-                        >
-                          {(supplier.evidence_count ?? 0) === 0 ? (
-                            <>
-                              <FileUp className="h-3.5 w-3.5" />
-                              Add company docs
-                            </>
-                          ) : (
-                            `${supplier.evidence_count} company docs`
-                          )}
-                        </a>
+                        <div>
+                          <a
+                            href={`/exporters/${supplier.id}#documents`}
+                            className="font-semibold text-forest hover:underline"
+                          >
+                            {supplier.evidence_count ?? 0} company docs
+                          </a>
+                          <div><UploadDocumentsLink href={`/exporters/${supplier.id}`} /></div>
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-500">
@@ -463,20 +423,7 @@ export function SupplierTable({
                           suspension={suspensionBySupplier.get(supplier.id) ?? null}
                         />
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(supplier)}
-                        disabled={!canEdit(supplier)}
-                        title={
-                          canEdit(supplier)
-                            ? `Edit ${supplier.company_name}`
-                            : `${supplier.company_name} maintains their own record`
-                        }
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-slate-600 transition hover:border-forest hover:text-forest disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-line disabled:hover:text-slate-600"
-                        aria-label={`Edit ${supplier.company_name}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
+                      <OpenLink href={`/exporters/${supplier.id}`} label={supplier.company_name} />
                       </div>
                     </td>
                   </tr>
@@ -488,5 +435,54 @@ export function SupplierTable({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * One "Add exporter" button, like "Add facility" and "Add product" on their
+ * lists. The two ways to add one are genuinely different — link to an exporter
+ * that has its own account, or keep a record for one that will not register —
+ * so the menu says which is which rather than hiding one behind the other.
+ */
+function AddExporterMenu({ onLink, onCreate }: { onLink: () => void; onCreate: () => void }) {
+  const [open, setOpen] = useState(false);
+  const choose = (action: () => void) => () => {
+    setOpen(false);
+    action();
+  };
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="inline-flex h-10 items-center gap-2 rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
+      >
+        <Plus className="h-4 w-4" />
+        Add exporter
+        <ChevronDown className="h-4 w-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-lg border border-line bg-white shadow-xl">
+            <button type="button" onClick={choose(onLink)} className="flex w-full gap-3 px-4 py-3 text-left hover:bg-slate-50">
+              <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-forest" />
+              <span>
+                <span className="block text-sm font-semibold text-ink">Link an existing exporter</span>
+                <span className="block text-xs text-slate-500">They already have an account and keep their own record.</span>
+              </span>
+            </button>
+            <button type="button" onClick={choose(onCreate)} className="flex w-full gap-3 border-t border-line px-4 py-3 text-left hover:bg-slate-50">
+              <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-forest" />
+              <span>
+                <span className="block text-sm font-semibold text-ink">Create an exporter record</span>
+                <span className="block text-xs text-slate-500">For one that will not register — you maintain it for them.</span>
+              </span>
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
