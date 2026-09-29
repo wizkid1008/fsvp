@@ -10,6 +10,12 @@
 // `importerId` is given, documents are limited to "filed for this importer, or
 // for nobody in particular" — the rule app/exporters/page.tsx has always
 // applied — so an admin-client caller cannot count another tenant's uploads.
+//
+// Failures throw rather than come back empty. A Cloudflare Worker has a fixed
+// subrequest budget per page load, and a query made after it is spent fails —
+// which this used to read as "no rule version", reporting "no documents
+// required" for exporters that owe eleven. A caller that can do without the
+// counts catches and leaves them absent; nothing should show a failure as zero.
 
 import {
   evidenceProgress,
@@ -28,11 +34,21 @@ export type EvidenceEntityType = "supplier" | "facility" | "product";
 /** Keeps `.in()` filters well inside URL length limits. */
 const CHUNK = 100;
 
-async function inChunks<T>(ids: string[], run: (chunk: string[]) => Promise<{ data: T[] | null }>): Promise<T[]> {
+type QueryResult<T> = { data: T | null; error?: { message: string } | null };
+
+function orThrow<T>({ data, error }: QueryResult<T>, what: string): T | null {
+  if (error) throw new Error(`Evidence progress: ${what} failed — ${error.message}`);
+  return data;
+}
+
+async function inChunks<T>(
+  ids: string[],
+  what: string,
+  run: (chunk: string[]) => Promise<QueryResult<T[]>>
+): Promise<T[]> {
   const out: T[] = [];
   for (let i = 0; i < ids.length; i += CHUNK) {
-    const { data } = await run(ids.slice(i, i + CHUNK));
-    out.push(...(data ?? []));
+    out.push(...(orThrow(await run(ids.slice(i, i + CHUNK)), what) ?? []));
   }
   return out;
 }
@@ -50,18 +66,24 @@ export async function fetchEvidenceProgress(
   const ids = [...new Set(entityIds.filter(Boolean))];
   if (ids.length === 0) return out;
 
-  const { data: pubVersion } = await (client.from("rule_versions") as any)
-    .select("id")
-    .eq("status", "published")
-    .order("version_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const pubVersion = orThrow<{ id: string }>(
+    await (client.from("rule_versions") as any)
+      .select("id")
+      .eq("status", "published")
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    "published rule version"
+  );
   if (!pubVersion?.id) return out;
 
-  const { data: sections } = await (client.from("requirement_sections") as any)
-    .select("requirement_items(id, item_key, is_required, evidence_scope)")
-    .eq("rule_version_id", pubVersion.id)
-    .eq("applies_to", entityType);
+  const sections = orThrow<unknown[]>(
+    await (client.from("requirement_sections") as any)
+      .select("requirement_items(id, item_key, is_required, evidence_scope)")
+      .eq("rule_version_id", pubVersion.id)
+      .eq("applies_to", entityType),
+    "requirement sections"
+  );
 
   const requiredItems: RequiredItem[] = ((sections ?? []) as Array<{
     requirement_items: Array<RequiredItem & { is_required: boolean }>;
@@ -73,7 +95,7 @@ export async function fetchEvidenceProgress(
   const entityColumn =
     entityType === "supplier" ? "supplier_id" : entityType === "facility" ? "facility_id" : "linked_entity_id";
 
-  const docs = await inChunks<Record<string, any>>(ids, (chunk) => {
+  const docs = await inChunks<Record<string, any>>(ids, "documents", (chunk) => {
     let query = (client.from("documents") as any)
       .select(`${entityColumn}, requirement_item_id, evidence_status, importer_id`)
       .in(entityColumn, chunk)
@@ -102,7 +124,7 @@ export async function fetchEvidenceProgress(
   // viewer is the exporter, judged across every importer it serves.
   const importersBySupplier = new Map<string, string[]>();
   if (entityType === "supplier" && !importerId) {
-    const links = await inChunks<{ supplier_id: string; importer_id: string | null }>(ids, (chunk) =>
+    const links = await inChunks<{ supplier_id: string; importer_id: string | null }>(ids, "relationships", (chunk) =>
       (client.from("supplier_relationships") as any)
         .select("supplier_id, importer_id")
         .eq("relationship_type", "importer_supplier")
@@ -150,7 +172,7 @@ async function fetchHazardAnalyses(
   productIds: string[],
   importerId: string | null
 ): Promise<Map<string, GeneratedHazardAnalysis>> {
-  const records = await inChunks<{ id: string; product_id: string; created_at: string }>(productIds, (chunk) => {
+  const records = await inChunks<{ id: string; product_id: string; created_at: string }>(productIds, "FSVP records", (chunk) => {
     let query = (client.from("fsvp_records") as any)
       .select("id, product_id, created_at")
       .in("product_id", chunk);
@@ -170,7 +192,7 @@ async function fetchHazardAnalyses(
     status: string;
     version: number;
     fsvp_plan_hazard_items: Array<{ id: string }> | null;
-  }>(recordIds, (chunk) =>
+  }>(recordIds, "hazard analyses", (chunk) =>
     (client.from("fsvp_plan_hazard_analyses") as any)
       .select("fsvp_record_id, status, version, fsvp_plan_hazard_items(id)")
       .in("fsvp_record_id", chunk)

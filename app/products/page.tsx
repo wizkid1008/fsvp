@@ -14,6 +14,7 @@ import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
 import { isTenantConfined } from "@/lib/auth/tenancy";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
+import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -262,8 +263,10 @@ export default async function ProductsPage({
     productsBeforeStatus.map((p) => p.id)
   );
   // Required product documents by status, counting the generated hazard
-  // analysis the way the product page's checklist does.
-  const progressByProduct = await fetchEvidenceProgress(supabase, "product", productIds, { importerId });
+  // analysis the way the product page's checklist does. On failure the cells
+  // fall back to a plain link rather than claim nothing is owed.
+  const progressByProduct = await fetchEvidenceProgress(supabase, "product", productIds, { importerId })
+    .catch(() => new Map<string, EvidenceProgress>());
   const products = productsBeforeStatus.map((p) => {
     const status = admissibilityStatus(p);
     const scoreStatus = approvalStatusByProduct.get(p.id) ?? p.approval_status;

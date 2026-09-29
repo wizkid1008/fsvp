@@ -9,6 +9,7 @@ import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { isTenantConfined } from "@/lib/auth/tenancy";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
+import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -216,13 +217,14 @@ export default async function ExportersPage() {
   // Company evidence against the required items, so the row can say "all
   // submitted, awaiting review" rather than a raw upload count that cannot tell
   // a finished set from a pile of duplicates. Same judgement as the exporter
-  // page's checklist, and the same document tenancy as the count above.
+  // page's checklist, and the same document tenancy as the count above. On
+  // failure the cells fall back to the raw count rather than claim nothing is owed.
   const progressBySupplier = await fetchEvidenceProgress(
     admin,
     "supplier",
     ((rawSuppliers ?? []) as SupplierRow[]).map((s) => s.id),
     { importerId: scoped ? importerId : null }
-  );
+  ).catch(() => new Map<string, EvidenceProgress>());
 
   const suppliers = ((rawSuppliers ?? []) as SupplierRow[]).map((s) => ({
     ...s,

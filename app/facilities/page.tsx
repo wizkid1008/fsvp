@@ -14,6 +14,7 @@ import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
 import { isTenantConfined } from "@/lib/auth/tenancy";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
+import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import type { Country } from "@/types/database";
 
 export const runtime = "edge";
@@ -204,12 +205,13 @@ export default async function FacilitiesPage({
   );
   // Required facility documents by status — Not submitted / Awaiting review /
   // Approved / Returned — judged as the facility page's checklist judges them.
+  // On failure the cells fall back to a plain link rather than claim nothing is owed.
   const progressByFacility = await fetchEvidenceProgress(
     supabase,
     "facility",
     facilitiesBeforeStatus.map((f) => f.id),
     { importerId }
-  );
+  ).catch(() => new Map<string, EvidenceProgress>());
   const facilities = facilitiesBeforeStatus.map((f) => ({
     ...f,
     approval_status: approvalStatusByFacility.get(f.id) ?? f.approval_status,
