@@ -2,6 +2,9 @@ import { RequirementItemRow } from "./RequirementItemRow";
 import { fetchDetermination, recordCreationAction } from "@/lib/fsvp/applicability";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import { EvidenceBreakdown } from "./EvidenceProgressCell";
+import { OtherDocumentUpload } from "./OtherDocumentUpload";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { documentLabel, documentTone } from "@/lib/evidence/document-status";
 import {
   bestStatus,
   evidenceProgress,
@@ -71,7 +74,19 @@ export async function RequiredEvidenceChecklist({
   const scopeDocs = (query: any) =>
     importerId ? query.or(`importer_id.eq.${importerId},importer_id.is.null`) : query;
 
-  const [sectionsRes, itemsRes, docsRes, fsvpRecordRes] = await Promise.all([
+  // Every document filed against this entity, by the same columns the required
+  // rows read below — used for the "Other documents" list, which holds the
+  // uploads that answer no required item.
+  const entityDocs = (columns: string) => {
+    const base = (supabase.from("documents") as any).select(columns).is("soft_deleted_at", null);
+    return scopeDocs(
+      linkType === "supplier" ? base.eq("supplier_id", entityId)
+      : linkType === "facility" ? base.eq("facility_id", entityId)
+      : base.eq("linked_entity_type", "product").eq("linked_entity_id", entityId)
+    );
+  };
+
+  const [sectionsRes, itemsRes, docsRes, fsvpRecordRes, otherDocsRes] = await Promise.all([
     (supabase.from("requirement_sections") as any)
       .select("id, section_key, section_name, sort_order")
       .eq("rule_version_id", pubVersion.id)
@@ -116,7 +131,47 @@ export async function RequiredEvidenceChecklist({
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+
+    // A supplier's company-level documents hang off supplier_id, but so does
+    // every facility and product document that exporter files — only those
+    // the upload route filed as linked_entity_type "supplier" are the company's own.
+    (linkType === "supplier"
+      ? entityDocs("id, title, evidence_status, uploaded_at").eq("linked_entity_type", "supplier")
+      : entityDocs("id, title, evidence_status, uploaded_at"))
+      .is("requirement_item_id", null)
+      .order("uploaded_at", { ascending: false }),
   ]);
+
+  const otherDocuments = (otherDocsRes.data ?? []) as Array<{
+    id: string; title: string | null; evidence_status: string | null; uploaded_at: string | null;
+  }>;
+  const otherDocumentsBlock = (
+    <div className="space-y-3">
+      {otherDocuments.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-line">
+          <div className="border-b border-line bg-slate-50 px-4 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Other documents</p>
+            <p className="mt-0.5 text-xs normal-case text-slate-400">Not on the required list, so they do not count toward it.</p>
+          </div>
+          {otherDocuments.map((doc) => (
+            <div key={doc.id} className="flex items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0">
+              <a
+                href={`/api/documents/download?id=${doc.id}`}
+                className="min-w-0 flex-1 truncate text-sm font-medium text-forest hover:underline"
+              >
+                {doc.title ?? "Untitled document"}
+              </a>
+              {doc.uploaded_at && (
+                <span className="text-xs text-slate-400">{new Date(doc.uploaded_at).toLocaleDateString()}</span>
+              )}
+              <StatusBadge tone={documentTone(doc.evidence_status)}>{documentLabel(doc.evidence_status)}</StatusBadge>
+            </div>
+          ))}
+        </div>
+      )}
+      <OtherDocumentUpload linkType={linkType} entityId={entityId} supplierId={supplierId} viewerImporterId={importerId} />
+    </div>
+  );
 
   const sections: Array<{ id: string; section_key: string; section_name: string }> = sectionsRes.data ?? [];
 
@@ -273,9 +328,12 @@ export async function RequiredEvidenceChecklist({
 
   if (sectionsWithItems.length === 0) {
     return (
-      <p className="mt-4 rounded-md border border-dashed border-line bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-        No specific documents are required for this {linkType} yet.
-      </p>
+      <div className="mt-4 space-y-4">
+        <p className="rounded-md border border-dashed border-line bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+          No specific documents are required for this {linkType} yet.
+        </p>
+        {otherDocumentsBlock}
+      </div>
     );
   }
 
@@ -330,6 +388,7 @@ export async function RequiredEvidenceChecklist({
           ))}
         </div>
       ))}
+      {otherDocumentsBlock}
     </div>
   );
 }

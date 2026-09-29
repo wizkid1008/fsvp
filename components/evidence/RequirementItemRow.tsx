@@ -7,7 +7,7 @@ import { FormFillPanel } from "@/components/forms/FormFillPanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL } from "@/lib/constants";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import type { StatusTone } from "@/types/platform";
+import { documentLabel, documentTone } from "@/lib/evidence/document-status";
 
 function StatusIcon({ status }: { status: string }) {
   if (status === "accepted") return <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />;
@@ -16,19 +16,8 @@ function StatusIcon({ status }: { status: string }) {
   return <AlertCircle className="h-4 w-4 shrink-0 text-slate-300" />;
 }
 
-function statusTone(status: string): StatusTone {
-  if (status === "accepted") return "success";
-  if (status === "under_review") return "info";
-  if (status === "submitted" || status === "in_progress") return "warning";
-  if (status === "needs_revision" || status === "rejected") return "danger";
-  return "neutral";
-}
-
-function statusLabel(status: string): string {
-  if (status === "not_submitted") return "Missing";
-  if (status === "in_progress") return "In Progress";
-  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
+const statusTone = documentTone;
+const statusLabel = documentLabel;
 
 export function RequirementItemRow({
   itemName,
