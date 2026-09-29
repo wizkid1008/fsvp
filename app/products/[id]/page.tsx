@@ -216,11 +216,24 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
 
       <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
         <SectionHeader title={product.product_name} description="" />
-        <StatusBadge tone={approvalTone(gatedStatus)}>
-          {/* A document score, so it is labelled as one — "Approved" is the FSVP
-              standing the Products list and dashboard show. */}
-          Evidence: {evidenceScoreLabel(gatedStatus)}
-        </StatusBadge>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Whether it is imported at all is a property of the product as a
+              whole, so it sits with the name rather than in a section. */}
+          <ProductImportStatus
+            canEdit={!isSupplierView}
+            product={{
+              id: product.id,
+              product_name: product.product_name,
+              lifecycle: product.lifecycle ?? "active",
+              discontinued_on: product.discontinued_on ?? null,
+            }}
+          />
+          <StatusBadge tone={approvalTone(gatedStatus)}>
+            {/* A document score, so it is labelled as one — "Approved" is the FSVP
+                standing the Products list and dashboard show. */}
+            Evidence: {evidenceScoreLabel(gatedStatus)}
+          </StatusBadge>
+        </div>
       </div>
 
       {/* The product's details in pipeline order, each with its own Edit —
@@ -251,6 +264,17 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           )}
         </DetailSection>
 
+        {/* Before classification: intended use and processing state are what
+            the admissibility question is asked about (defaultUse below). */}
+        <DetailSection
+          title="Composition"
+          done={compositionDone}
+          hint="intended use or processing state not set"
+          action={<ProductSectionEditButton section="composition" {...editProps} />}
+        >
+          <ProductCompositionFacts product={productRow} />
+        </DetailSection>
+
         <DetailSection
           title="Classification and admissibility"
           done={isSupplierView ? null : classificationDone}
@@ -260,6 +284,16 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             <DetailFacts facts={[{ label: "Commodity", value: commodityName ?? "Not classified" }]} />
           ) : (
           <div className="space-y-6">
+            {/* The panels below only offer Classify / Determine to the
+                importer's own users, so without this the heading asks for an
+                action the page never offers. */}
+            {!canManageAdmissibility && (
+              <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                {realRole === "administrator"
+                  ? "You're previewing as an administrator. Classifying the product and recording admissibility are done by the importer's own users."
+                  : "Classifying the product and recording admissibility are done by the importer's users."}
+              </p>
+            )}
             <AdmissibilityPanel
               productId={params.id}
               productName={product.product_name}
@@ -294,31 +328,11 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           )}
         </DetailSection>
 
-        <DetailSection title="Import status">
-          <div className="space-y-4">
-            <ProductImportStatus
-              canEdit={!isSupplierView}
-              product={{
-                id: product.id,
-                product_name: product.product_name,
-                lifecycle: product.lifecycle ?? "active",
-                discontinued_on: product.discontinued_on ?? null,
-              }}
-            />
-            {!isSupplierView && profile?.importer_id && (
-              <ApplicabilityCard determination={applicabilityDetermination} />
-            )}
-          </div>
-        </DetailSection>
-
-        <DetailSection
-          title="Composition"
-          done={compositionDone}
-          hint="intended use or processing state not set"
-          action={<ProductSectionEditButton section="composition" {...editProps} />}
-        >
-          <ProductCompositionFacts product={productRow} />
-        </DetailSection>
+        {!isSupplierView && profile?.importer_id && (
+          <DetailSection title="FSVP applicability">
+            <ApplicabilityCard determination={applicabilityDetermination} />
+          </DetailSection>
+        )}
 
         <DetailSection id="documents" title="Documents">
           <p className="-mt-2 mb-4 text-sm text-slate-500">
