@@ -17,7 +17,6 @@ import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { ImporterActionsSection } from "@/components/dashboard/ImporterActionsSection";
 import { ProgramStatus } from "@/components/dashboard/ProgramStatus";
 import { summariseProducts } from "@/lib/dashboard/product-journey";
-import { WhatNeedsDoing } from "@/components/dashboard/WhatNeedsDoing";
 import { outstandingCount, outstandingWork } from "@/lib/dashboard/outstanding-work";
 import { loadCompleteFsvpSetupPlan } from "@/lib/setup/fsvp-workflow";
 import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
@@ -139,7 +138,10 @@ async function ImporterDashboard({
           subrequest budget is spent on the plan above. */}
       {importerId && <EvidenceOverview />}
 
-      <WhatNeedsDoing gates={gates} />
+      {/* The per-gate worklist lives on /setup/fsvp (the "FSVP pipeline"
+          button above), which names each blocker. Repeating its counts here
+          without the names added a second, vaguer copy of the same list. The
+          gates are still read for the all-clear banner below. */}
 
       {signals?.clear && gatesClear && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4">
