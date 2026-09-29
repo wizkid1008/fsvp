@@ -13,6 +13,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
 import { isTenantConfined } from "@/lib/auth/tenancy";
+import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import type { Country } from "@/types/database";
@@ -116,6 +117,12 @@ export default async function ProductsPage({
   let facilityAccessQuery = (supabase.from("facility_supplier_access") as any)
     .select("facility_id, supplier_id")
     .order("created_at");
+
+  // Another importer's product records are not this importer's business, even
+  // from an exporter both buy from — see lib/products/ownership.ts.
+  if (importerScoped && importerId) {
+    productsQuery = productsQuery.or(ownOrUnclaimedProducts(importerId));
+  }
 
   if (isSupplier) {
     productsQuery  = productsQuery.eq("supplier_id", activeSupplierId);

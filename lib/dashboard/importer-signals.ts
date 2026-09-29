@@ -1,3 +1,5 @@
+import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
+
 type SupabaseLike = { from: (table: string) => any };
 
 /**
@@ -159,7 +161,11 @@ export async function fetchImporterSignals(
       // undetermined ones can be counted by subtraction — same shape as the
       // unsigned-records count above.
       supplierIds.length
-        ? (supabase.from("products_verify") as any).select("id").in("supplier_id", supplierIds).eq("lifecycle", "active")
+        ? (supabase.from("products_verify") as any)
+            .select("id")
+            .in("supplier_id", supplierIds)
+            .or(ownOrUnclaimedProducts(importerId))
+            .eq("lifecycle", "active")
         : Promise.resolve({ data: [] }),
 
       (supabase.from("fsvp_applicability_determinations") as any)
@@ -171,6 +177,7 @@ export async function fetchImporterSignals(
         ? (supabase.from("products_verify") as any)
             .select("id, product_name, country_of_origin, commodity_id, supplier_id, suppliers(company_name)")
             .in("supplier_id", supplierIds)
+            .or(ownOrUnclaimedProducts(importerId))
             .eq("lifecycle", "active")
             .limit(500)
         : Promise.resolve({ data: [] }),

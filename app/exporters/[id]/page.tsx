@@ -9,6 +9,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { isTenantConfined } from "@/lib/auth/tenancy";
+import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 
 export const runtime = "edge";
 
@@ -85,7 +86,7 @@ export default async function ExporterDetailPage({ params }: { params: { id: str
   let productsQuery = (admin.from("products_verify") as any)
     .select("id", { count: "exact", head: true })
     .eq("supplier_id", params.id);
-  if (scoped && importerId) productsQuery = productsQuery.eq("importer_id", importerId);
+  if (scoped && importerId) productsQuery = productsQuery.or(ownOrUnclaimedProducts(importerId));
 
   const [{ count: facilityCount }, { count: productCount }] = await Promise.all([
     (admin.from("facilities_verify") as any)

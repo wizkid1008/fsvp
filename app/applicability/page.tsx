@@ -7,6 +7,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 
 export const runtime = "edge";
@@ -74,6 +75,7 @@ export default async function ApplicabilityPage({
         ? (admin.from("products_verify") as any)
             .select("id, product_name, supplier_id, suppliers(company_name)")
             .in("supplier_id", supplierIds)
+            .or(ownOrUnclaimedProducts(importerId))
             // Applicability is only work for food the importer actually
             // imports. Discontinued and never-imported products stay in the
             // product library for retention/history, but should not generate

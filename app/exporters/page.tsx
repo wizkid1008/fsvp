@@ -8,6 +8,7 @@ import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { isTenantConfined } from "@/lib/auth/tenancy";
+import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import type { Country } from "@/types/database";
@@ -125,7 +126,7 @@ export default async function ExportersPage() {
     .select("linked_entity_type, linked_entity_id");
 
   if (scoped && importerId) {
-    productsQuery = productsQuery.eq("importer_id", importerId);
+    productsQuery = productsQuery.or(ownOrUnclaimedProducts(importerId));
     documentsQuery = documentsQuery.or(`importer_id.eq.${importerId},importer_id.is.null`);
   }
 

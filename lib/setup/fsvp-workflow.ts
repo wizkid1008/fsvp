@@ -4,6 +4,7 @@ import { evaluateGates, type GateBlock } from "@/lib/fsvp/gates";
 import { evaluateAttestations, type AttestationEvaluation, type AttestationInput } from "@/lib/fsvp/qi-attestation";
 import { isActiveOn } from "@/lib/fsvp/qualified-individuals";
 import { fetchApprovalStatusMap } from "@/lib/scoring";
+import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import { FSVP_SETUP_STEP_COPY as STEP_COPY } from "./fsvp-steps";
 import type { FsvpSetupStepId } from "./fsvp-steps";
 
@@ -762,6 +763,10 @@ export async function loadCompleteFsvpSetupPlan(
       ? (supabase.from("products_verify") as any)
           .select("id, product_name, supplier_id, facility_id, commodity_id, country_of_origin")
           .in("supplier_id", supplierIds)
+          // Linked exporters are shared; their products are not. Called with
+          // the admin client, so RLS will not apply this — see
+          // lib/products/ownership.ts.
+          .or(ownOrUnclaimedProducts(importerId))
           // Only food actually imported carries an FSVP obligation — see
           // migration 022. A product never sourced, or no longer sourced, must
           // stop appearing as work without being deleted, because § 1.510 keeps

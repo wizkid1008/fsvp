@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       .eq("id", facility_id)
       .maybeSingle(),
     (admin.from("products_verify") as any)
-      .select("id, supplier_id, facility_id")
+      .select("id, supplier_id, facility_id, importer_id")
       .eq("id", product_id)
       .maybeSingle(),
     (admin.from("facility_supplier_access") as any)
@@ -95,6 +95,16 @@ export async function POST(req: NextRequest) {
   }
 
   if (!product || product.supplier_id !== supplier_id) {
+    return NextResponse.json(
+      { error: "That product does not belong to the selected exporter." },
+      { status: 400 }
+    );
+  }
+
+  // The exporter is shared between importers; another importer's product
+  // record is not — see lib/products/ownership.ts. 404-shaped wording, since
+  // confirming that another tenant holds this product would itself leak.
+  if (product.importer_id && product.importer_id !== profile.importer_id) {
     return NextResponse.json(
       { error: "That product does not belong to the selected exporter." },
       { status: 400 }

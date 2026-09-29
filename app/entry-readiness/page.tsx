@@ -8,6 +8,7 @@ import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
@@ -87,6 +88,7 @@ export default async function ShipmentReadinessPage() {
     ? await (admin.from("products_verify") as any)
         .select("id, product_name, country_of_origin, commodity_id, supplier_id, suppliers(company_name), facilities_verify(facility_name)")
         .in("supplier_id", supplierIds)
+        .or(ownOrUnclaimedProducts(importerId))
         // Entry readiness is a daily operating view for foods currently
         // imported. Products retained only for history should not look like
         // shipments waiting to move.
