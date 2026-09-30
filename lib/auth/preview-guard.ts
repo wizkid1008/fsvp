@@ -28,6 +28,10 @@
  * (app/api/product-hazard-analysis/start). It opens a draft that the
  * hazard-items and hazard-analyses routes already let administrators edit;
  * approval still needs a live determination and a QI's review.
+ *
+ * Exception: § 1.507 written assurances (app/api/assurances). The assurance is
+ * the counterparty's signed statement; an administrator transcribes it, and
+ * the audit row records them as the actor.
  */
 
 import { NextResponse } from "next/server";

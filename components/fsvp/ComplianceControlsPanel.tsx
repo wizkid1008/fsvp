@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ClipboardList, FileSignature, ShieldOff, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -46,6 +46,53 @@ const ACTIVITIES = [
   { key: "other_appropriate_activity", label: "Other appropriate activity" },
 ];
 
+/**
+ * Unsaved form drafts, kept in this browser per record and form.
+ *
+ * Both forms are long, and closing the dialog — or a refusal that sends the
+ * reader off to fix something else first — used to throw away everything
+ * typed. A draft is cleared once the server accepts the form. Storage can be
+ * unavailable (private windows, blocked site data), so every access is
+ * guarded and the forms work the same without it.
+ */
+type Draft = Record<string, unknown>;
+
+function readDraft(key: string): Draft {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDraft(key: string, draft: Draft) {
+  try { window.localStorage.setItem(key, JSON.stringify(draft)); } catch { /* storage unavailable */ }
+}
+
+function clearDraft(key: string) {
+  try { window.localStorage.removeItem(key); } catch { /* storage unavailable */ }
+}
+
+function hasContent(draft: Draft): boolean {
+  return Object.values(draft).some((v) =>
+    Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim() !== "" : v === true
+  );
+}
+
+const text = (draft: Draft, field: string) => (typeof draft[field] === "string" ? (draft[field] as string) : "");
+
+function DraftNotice({ onDiscard }: { onDiscard: () => void }) {
+  return (
+    <p className="mb-4 flex flex-wrap items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+      Restored your unsaved draft.
+      <button type="button" onClick={onDiscard} className="font-medium text-forest hover:underline">
+        Discard it
+      </button>
+    </p>
+  );
+}
+
 function Modal({
   title, icon: Icon, onClose, children,
 }: {
@@ -78,12 +125,40 @@ function Modal({
  */
 function VerificationForm({ recordId, onClose }: { recordId: string; onClose: () => void }) {
   const router = useRouter();
-  const [activities, setActivities] = useState<string[]>([]);
-  const [sahcodha, setSahcodha] = useState(false);
-  const [bySupplier, setBySupplier] = useState(false);
-  const [audited, setAudited] = useState(false);
+  const draftKey = `fsvp-draft:verification:${recordId}`;
+  const [draft, setDraft] = useState<Draft>(() => readDraft(draftKey));
+  const [restored, setRestored] = useState(() => hasContent(draft));
+  const [formKey, setFormKey] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [activities, setActivities] = useState<string[]>(() =>
+    Array.isArray(draft.activities) ? (draft.activities as string[]) : []
+  );
+  const [sahcodha, setSahcodha] = useState(draft.sahcodha === true);
+  const [bySupplier, setBySupplier] = useState(draft.bySupplier === true);
+  const [audited, setAudited] = useState(draft.audited === true);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  function persist() {
+    if (!formRef.current) return;
+    writeDraft(draftKey, {
+      ...Object.fromEntries(new FormData(formRef.current)),
+      activities, sahcodha, bySupplier, audited,
+    });
+  }
+  // The checkboxes are state, so they are saved once their new value lands.
+  useEffect(persist, [activities, sahcodha, bySupplier, audited]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function discard() {
+    clearDraft(draftKey);
+    setDraft({});
+    setActivities([]);
+    setSahcodha(false);
+    setBySupplier(false);
+    setAudited(false);
+    setRestored(false);
+    setFormKey((k) => k + 1);
+  }
 
   // Mirrors the § 1.506(d)(2) rule the server and the database both enforce.
   // Shown here so the requirement is visible while deciding, not after saving.
@@ -122,6 +197,7 @@ function VerificationForm({ recordId, onClose }: { recordId: string; onClose: ()
           setError(json.error ?? "Could not record the determination.");
           return;
         }
+        clearDraft(draftKey);
         onClose();
         router.refresh();
       } catch {
@@ -137,7 +213,9 @@ function VerificationForm({ recordId, onClose }: { recordId: string; onClose: ()
         activities are appropriate, and why, considering the § 1.505 evaluation.
       </p>
 
-      <form onSubmit={submit} className="space-y-4">
+      {restored && <DraftNotice onDiscard={discard} />}
+
+      <form key={formKey} ref={formRef} onSubmit={submit} onChange={persist} className="space-y-4">
         <fieldset>
           <legend className={labelClass}>Activities</legend>
           <div className="mt-2 space-y-1.5">
@@ -157,31 +235,31 @@ function VerificationForm({ recordId, onClose }: { recordId: string; onClose: ()
 
         <div>
           <label className={labelClass} htmlFor="frequency_notes">Frequency</label>
-          <textarea id="frequency_notes" name="frequency_notes" rows={2} required className={areaClass}
+          <textarea id="frequency_notes" name="frequency_notes" defaultValue={text(draft, "frequency_notes")} rows={2} required className={areaClass}
             placeholder="How often each activity will be performed, and why that frequency." />
         </div>
 
         <div>
           <label className={labelClass} htmlFor="hazard_analysis_basis">What the hazard analysis found</label>
-          <textarea id="hazard_analysis_basis" name="hazard_analysis_basis" rows={2} required className={areaClass} />
+          <textarea id="hazard_analysis_basis" name="hazard_analysis_basis" defaultValue={text(draft, "hazard_analysis_basis")} rows={2} required className={areaClass} />
         </div>
 
         <div>
           <label className={labelClass} htmlFor="supplier_performance_basis">Supplier performance history</label>
-          <textarea id="supplier_performance_basis" name="supplier_performance_basis" rows={2} required className={areaClass}
+          <textarea id="supplier_performance_basis" name="supplier_performance_basis" defaultValue={text(draft, "supplier_performance_basis")} rows={2} required className={areaClass}
             placeholder="Compliance history, previous verification results, corrective actions." />
         </div>
 
         <div>
           <label className={labelClass} htmlFor="food_and_supplier_risk_basis">Risk posed by the food and the supplier</label>
-          <textarea id="food_and_supplier_risk_basis" name="food_and_supplier_risk_basis" rows={2} required className={areaClass} />
+          <textarea id="food_and_supplier_risk_basis" name="food_and_supplier_risk_basis" defaultValue={text(draft, "food_and_supplier_risk_basis")} rows={2} required className={areaClass} />
         </div>
 
         <div>
           <label className={labelClass} htmlFor="storage_and_transport_basis">
             Storage and transport <span className="font-normal text-slate-500">(optional)</span>
           </label>
-          <textarea id="storage_and_transport_basis" name="storage_and_transport_basis" rows={2} className={areaClass} />
+          <textarea id="storage_and_transport_basis" name="storage_and_transport_basis" defaultValue={text(draft, "storage_and_transport_basis")} rows={2} className={areaClass} />
         </div>
 
         <div className="rounded-md border border-line bg-slate-50 p-3">
@@ -221,7 +299,7 @@ function VerificationForm({ recordId, onClose }: { recordId: string; onClose: ()
               <label className={labelClass + " mt-2"} htmlFor="alternative_justification">
                 Written determination that other activities are appropriate
               </label>
-              <textarea id="alternative_justification" name="alternative_justification" rows={3} required className={areaClass} />
+              <textarea id="alternative_justification" name="alternative_justification" defaultValue={text(draft, "alternative_justification")} rows={3} required className={areaClass} />
             </div>
           )}
         </div>
@@ -238,9 +316,29 @@ function VerificationForm({ recordId, onClose }: { recordId: string; onClose: ()
 
 function AssuranceForm({ recordId, onClose }: { recordId: string; onClose: () => void }) {
   const router = useRouter();
-  const [category, setCategory] = useState(ASSURANCE_CATEGORIES[0].category);
+  const draftKey = `fsvp-draft:assurance:${recordId}`;
+  const [draft, setDraft] = useState<Draft>(() => readDraft(draftKey));
+  // The basis is preselected, so it alone does not make a draft worth restoring.
+  const [restored, setRestored] = useState(() => hasContent({ ...draft, category: undefined }));
+  const [formKey, setFormKey] = useState(0);
+  const [category, setCategory] = useState(() => {
+    const saved = ASSURANCE_CATEGORIES.find((a) => a.category === draft.category);
+    return (saved ?? ASSURANCE_CATEGORIES[0]).category;
+  });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  function persist(e: React.FormEvent<HTMLFormElement>) {
+    writeDraft(draftKey, Object.fromEntries(new FormData(e.currentTarget)));
+  }
+
+  function discard() {
+    clearDraft(draftKey);
+    setDraft({});
+    setCategory(ASSURANCE_CATEGORIES[0].category);
+    setRestored(false);
+    setFormKey((k) => k + 1);
+  }
 
   const spec = assuranceSpec(category);
   const relies = spec?.needsCounterparty === true;
@@ -273,6 +371,7 @@ function AssuranceForm({ recordId, onClose }: { recordId: string; onClose: () =>
           setError(json.error ?? "Could not record the assurance.");
           return;
         }
+        clearDraft(draftKey);
         onClose();
         router.refresh();
       } catch {
@@ -283,10 +382,12 @@ function AssuranceForm({ recordId, onClose }: { recordId: string; onClose: () =>
 
   return (
     <Modal title="Record a written assurance" icon={FileSignature} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-4">
+      {restored && <DraftNotice onDiscard={discard} />}
+
+      <form key={formKey} onSubmit={submit} onChange={persist} className="space-y-4">
         <div>
           <label className={labelClass} htmlFor="category">Basis</label>
-          <select id="category" value={category} onChange={(e) => setCategory(e.target.value as typeof category)} className={inputClass}>
+          <select id="category" name="category" value={category} onChange={(e) => setCategory(e.target.value as typeof category)} className={inputClass}>
             {ASSURANCE_CATEGORIES.map((a) => (
               <option key={a.category} value={a.category}>{a.label}</option>
             ))}
@@ -308,38 +409,38 @@ function AssuranceForm({ recordId, onClose }: { recordId: string; onClose: () =>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass} htmlFor="counterparty_name">Party giving the assurance</label>
-              <input id="counterparty_name" name="counterparty_name" required className={inputClass} />
+              <input id="counterparty_name" name="counterparty_name" defaultValue={text(draft, "counterparty_name")} required className={inputClass} />
             </div>
             <div>
               <label className={labelClass} htmlFor="counterparty_role">Their role</label>
-              <input id="counterparty_role" name="counterparty_role" className={inputClass} placeholder="Customer, processor…" />
+              <input id="counterparty_role" name="counterparty_role" defaultValue={text(draft, "counterparty_role")} className={inputClass} placeholder="Customer, processor…" />
             </div>
             <div>
               <label className={labelClass} htmlFor="signatory_name">Authorised official</label>
-              <input id="signatory_name" name="signatory_name" required className={inputClass} />
+              <input id="signatory_name" name="signatory_name" defaultValue={text(draft, "signatory_name")} required className={inputClass} />
             </div>
             <div>
               <label className={labelClass} htmlFor="signatory_title">Their title</label>
-              <input id="signatory_title" name="signatory_title" className={inputClass} />
+              <input id="signatory_title" name="signatory_title" defaultValue={text(draft, "signatory_title")} className={inputClass} />
             </div>
           </div>
         )}
 
         <div>
           <label className={labelClass} htmlFor="food_scope">Food covered</label>
-          <input id="food_scope" name="food_scope" required className={inputClass} />
+          <input id="food_scope" name="food_scope" defaultValue={text(draft, "food_scope")} required className={inputClass} />
         </div>
 
         <div>
           <label className={labelClass} htmlFor="hazard_description">
             Hazard being controlled <span className="font-normal text-slate-500">(optional)</span>
           </label>
-          <input id="hazard_description" name="hazard_description" className={inputClass} />
+          <input id="hazard_description" name="hazard_description" defaultValue={text(draft, "hazard_description")} className={inputClass} />
         </div>
 
         <div>
           <label className={labelClass} htmlFor="assurance_text">What the assurance says</label>
-          <textarea id="assurance_text" name="assurance_text" rows={3} required className={areaClass} />
+          <textarea id="assurance_text" name="assurance_text" defaultValue={text(draft, "assurance_text")} rows={3} required className={areaClass} />
         </div>
 
         <div>
@@ -349,7 +450,7 @@ function AssuranceForm({ recordId, onClose }: { recordId: string; onClose: () =>
               (defaults to one year — § 1.507 requires annual renewal)
             </span>
           </label>
-          <input id="expires_at" name="expires_at" type="date" className={inputClass} />
+          <input id="expires_at" name="expires_at" defaultValue={text(draft, "expires_at")} type="date" className={inputClass} />
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

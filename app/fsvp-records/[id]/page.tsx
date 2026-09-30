@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { FsvpNarrativeForm } from "@/components/fsvp/FsvpNarrativeForm";
 import { ApprovalDecisionForm } from "@/components/fsvp/ApprovalDecisionForm";
+import { SubmitForApprovalPanel } from "@/components/fsvp/SubmitForApprovalPanel";
 import { EvidencePackagePanel } from "@/components/fsvp/EvidencePackagePanel";
 import { HazardAnalysisPanel } from "@/components/fsvp/HazardAnalysisPanel";
 import { VerificationRecordsPanel } from "@/components/fsvp/VerificationRecordsPanel";
@@ -426,6 +427,23 @@ export default async function FsvpRecordPage({
     },
   ];
 
+  // What stands between this record and an approval. The same three sources
+  // lib/fsvp/approval-readiness.ts reads for the submit route, and the approve
+  // route refuses on, so the page cannot offer what either API would reject.
+  const blockingReasons = [
+    ...(applicabilityBlock ? [applicabilityBlock] : []),
+    ...attestationEval.reasons,
+    ...gateBlocks.map((b) => b.message),
+  ];
+
+  // Prepared but not yet decided — the statuses app/api/fsvp-records/[id]/submit
+  // accepts, plus the one it sets.
+  const submittable = [
+    "draft", "awaiting_supplier_evidence", "supplier_evidence_submitted",
+    "supplier_evidence_accepted", "needs_corrective_action",
+  ].includes(record.status);
+  const submitted = record.status === "importer_review_pending";
+
   const overdue = record.reassessment_due_at && new Date(record.reassessment_due_at) <= new Date();
   const currentSignatures = attestations.filter((a) => a.current).length;
   const expiredEvidence = attachedDocs.filter(
@@ -791,6 +809,24 @@ export default async function FsvpRecordPage({
           <ReassessmentSection fsvpRecordId={id} schedule={schedule} />
         </div>
 
+        {/* Handing the prepared record to the importer. Reviewers see it too:
+            a tenant reviewer is how a QI holds a login, and they prepare it. */}
+        {(submittable || submitted) && (
+          <section id="submit-for-approval" className={sectionClass}>
+            <div className="mb-5 border-b border-line pb-4">
+              <h2 className="text-base font-semibold text-ink">Submit for Approval</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Mark this record ready for the importer&apos;s approval decision.
+              </p>
+            </div>
+            <SubmitForApprovalPanel
+              recordId={id}
+              submitted={submitted}
+              blockingReasons={blockingReasons}
+            />
+          </section>
+        )}
+
         {/* Approval decision */}
         {isImporter && (
           <section id="approval-decision" className={sectionClass}>
@@ -803,14 +839,7 @@ export default async function FsvpRecordPage({
             <ApprovalDecisionForm
               recordId={id}
               currentDecision={record.approval_decision}
-              blockingReasons={[
-                ...(applicabilityBlock ? [applicabilityBlock] : []),
-                ...attestationEval.reasons,
-                // Suspension, § 1.506(d) and § 1.507 — the same list the approve
-                // route refuses on, so the form cannot offer a decision the API
-                // will reject.
-                ...gateBlocks.map((b) => b.message),
-              ]}
+              blockingReasons={blockingReasons}
             />
           </section>
         )}

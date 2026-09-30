@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { refusePreviewWrite } from "@/lib/auth/preview-guard";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { validateAssurance, defaultExpiry } from "@/lib/fsvp/assurances";
 
 export const runtime = "edge";
@@ -30,14 +30,25 @@ export async function POST(req: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile?.importer_id) {
-    return NextResponse.json({ error: "Your account is not linked to an importer organization." }, { status: 403 });
+  // An administrator may record one for the importer being previewed. The
+  // assurance is the counterparty's signed statement, transcribed — the same
+  // data entry as an administrator-entered upload — and created_by_profile_id
+  // plus the audit row's actor_role record who entered it. The record check
+  // below still confines it to that importer's records.
+  const isAdministrator = profile?.role === "administrator";
+  const importerId: string | null = isAdministrator
+    ? resolvePreviewedAccountId("administrator", null)
+    : profile?.importer_id ?? null;
+  if (!importerId) {
+    return NextResponse.json(
+      {
+        error: isAdministrator
+          ? "Preview the importer this FSVP record belongs to before recording its assurance."
+          : "Your account is not linked to an importer organization.",
+      },
+      { status: 403 }
+    );
   }
-
-  const refusal = refusePreviewWrite(profile.role, "record written assurances");
-  if (refusal) return refusal;
-
-  const importerId: string = profile.importer_id;
   const admin = createAdminSupabaseClient();
 
   const body = await req.json().catch(() => ({})) as {

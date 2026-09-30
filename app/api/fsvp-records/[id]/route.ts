@@ -1,5 +1,5 @@
 // PATCH { hazard_analysis_notes?, supplier_evaluation_notes?,
-//         facility_evaluation_notes?, verification_determination?, status? }
+//         facility_evaluation_notes?, verification_determination? }
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -40,12 +40,14 @@ export async function PATCH(
   }
 
   const body = await req.json();
+  // Not status: it moves only through /submit and /approve, which apply the
+  // readiness and approval gates. Accepting it here let any caller write
+  // importer_approved directly.
   const ALLOWED_FIELDS = [
     "hazard_analysis_notes",
     "supplier_evaluation_notes",
     "facility_evaluation_notes",
     "verification_determination",
-    "status",
   ];
   const updates: Record<string, unknown> = {};
   for (const field of ALLOWED_FIELDS) {
