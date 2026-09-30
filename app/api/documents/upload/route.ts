@@ -3,6 +3,7 @@ import { DOCUMENT_BUCKET, DOCUMENT_UPLOAD_MAX_BYTES, DOCUMENT_UPLOAD_MAX_LABEL }
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvenance } from "@/lib/evidence/provenance";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { ACTIVE_LINK_STATUSES, canWriteSupplierEntity } from "@/lib/auth/entity-access";
 import type { Database } from "@/types/database";
 
@@ -78,7 +79,35 @@ export async function POST(request: Request) {
   // importer for review; see resolveProvenance below.
   const uploaderIsAdministrator = uploaderProfile?.role === "administrator";
 
-  let resolvedImporterId: string | null = importerId || uploaderProfile?.importer_id || null;
+  // Which importer the document is filed for is never taken on trust from the
+  // form when the uploader belongs to one. An importer's own users and tenant
+  // reviewers file only for their own organization — otherwise a form edit
+  // files into another importer's records, or, where two importers share a
+  // supplier, into the other's evidence (the relationship check below cannot
+  // tell those apart). An administrator files an importer's own records only
+  // for the importer they are previewing. Exporters still name the importer,
+  // since one serving several has to say which, and that is checked against
+  // their relationships below.
+  const ownImporterId: string | null = uploaderIsAdministrator ? null : uploaderProfile?.importer_id ?? null;
+  if (ownImporterId && importerId && importerId !== ownImporterId) {
+    return NextResponse.json(
+      { error: "Documents can only be filed for your own importing organization." },
+      { status: 403 }
+    );
+  }
+  const previewedImporterId: string | null =
+    uploaderIsAdministrator && linkTypeRaw === "importer"
+      ? resolvePreviewedAccountId("administrator", null)
+      : null;
+  if (uploaderIsAdministrator && linkTypeRaw === "importer" && importerId && importerId !== previewedImporterId) {
+    return NextResponse.json(
+      { error: "Preview the importer these records belong to before filing them." },
+      { status: 403 }
+    );
+  }
+
+  let resolvedImporterId: string | null =
+    ownImporterId ?? previewedImporterId ?? (importerId || null);
   const resolvedSupplierId = supplierId || uploaderProfile?.supplier_id || "";
 
   // A supplier/exporter profile has no importer_id of its own, so their uploads
