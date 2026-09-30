@@ -118,6 +118,7 @@ export default async function FacilityDetailPage({ params }: { params: { id: str
         </DetailSection>
 
         <DetailSection
+          id="products"
           title={`Products (${products.length})`}
           action={supplierRef && (
             <AddProductButton

@@ -17,6 +17,7 @@ import { isTenantConfined } from "@/lib/auth/tenancy";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import type { Country } from "@/types/database";
+import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 
 export const runtime = "edge";
 
@@ -118,7 +119,12 @@ export default async function FacilitiesPage({
     accessQuery = accessQuery.eq("supplier_id", activeSupplierId);
   }
 
-  const [{ data: rawFacilities }, { data: countries }, { data: suppliers }, { data: accessRows }, { data: documents }] = await Promise.all([
+  // Products per facility, counted as the facility page lists them: an
+  // importer sees its own products and unclaimed ones, not another importer's.
+  let productsQuery = (supabase.from("products_verify") as any).select("facility_id");
+  if (importerId) productsQuery = productsQuery.or(ownOrUnclaimedProducts(importerId));
+
+  const [{ data: rawFacilities }, { data: countries }, { data: suppliers }, { data: accessRows }, { data: documents }, { data: productRows }] = await Promise.all([
     (supabase.from("facilities_verify") as any)
       .select("id, facility_name, facility_type, facility_address_json, fda_registration_number, fda_registration_expires_on, production_capacity, manufacturing_processes, food_safety_certifications, supplier_id, approval_status, suppliers(company_name)")
       .order("created_at", { ascending: false }),
@@ -130,7 +136,14 @@ export default async function FacilitiesPage({
     accessQuery,
     supabase.from("documents")
       .select("linked_entity_type, linked_entity_id"),
+    productsQuery,
   ]);
+
+  const productCountByFacility = new Map<string, number>();
+  for (const product of (productRows ?? []) as Array<{ facility_id: string | null }>) {
+    if (!product.facility_id) continue;
+    productCountByFacility.set(product.facility_id, (productCountByFacility.get(product.facility_id) ?? 0) + 1);
+  }
 
   const evidenceCountByFacility = new Map<string, number>();
   for (const doc of (documents ?? []) as Array<{ linked_entity_type: string | null; linked_entity_id: string | null }>) {
@@ -185,6 +198,7 @@ export default async function FacilitiesPage({
         supplier_ids:   supplierIds,
         supplier_names: supplierIds.map((id) => supplierById.get(id)).filter(Boolean) as string[],
         evidence_count: evidenceCountByFacility.get(facility.id) ?? 0,
+        product_count:  productCountByFacility.get(facility.id) ?? 0,
       };
     })
     .filter((facility) =>

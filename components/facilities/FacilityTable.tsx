@@ -35,6 +35,7 @@ export type FacilityRow = {
   supplier_names?: string[];
   suppliers: { company_name: string } | null;
   evidence_count?: number;
+  product_count?: number;
   /** Required facility items by status; absent when no rule version is published. */
   evidence_progress?: EvidenceProgress;
   approval_status?: string;
@@ -595,14 +596,20 @@ export function FacilityTable({
                     </td>
                     {/* A product is imported from one facility, so it is reached
                         from that facility's row — same reason the facility is
-                        reached from its exporter's row. */}
+                        reached from its exporter's row. With products, the
+                        count links to the facility page's list, which also
+                        adds one — as "N facilities" does on the exporter list. */}
                     <td className="px-4 py-3">
                       <a
-                        href={`/products?facility=${facility.id}`}
+                        href={(facility.product_count ?? 0) === 0
+                          ? `/products?facility=${facility.id}`
+                          : `/facilities/${facility.id}#products`}
                         className="inline-flex items-center gap-1.5 font-semibold text-forest hover:underline"
                       >
                         <PackageSearch className="h-3.5 w-3.5" />
-                        Add product
+                        {(facility.product_count ?? 0) === 0
+                          ? "Add product"
+                          : `${facility.product_count} ${facility.product_count === 1 ? "product" : "products"}`}
                       </a>
                     </td>
                     <td className="px-4 py-3">
