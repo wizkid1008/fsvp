@@ -1,10 +1,9 @@
 /**
  * What stands between an FSVP record and an approval, as sentences.
  *
- * The record page lists these above the approval form, the approve route
- * refuses on them, and the submit route will not put a record in the
- * importer's queue while any remain — so nothing reaches Review Pending that
- * the importer could not then approve. The three are:
+ * The record page lists these above the submit and approval forms, the
+ * approve route refuses on them, and the submit route records whichever are
+ * still open when a record is handed to the importer. The three are:
  *
  *   - a live applicability determination (lib/fsvp/applicability.ts)
  *   - current QI attestations over the narratives it requires (§ 1.503)

@@ -428,8 +428,9 @@ export default async function FsvpRecordPage({
   ];
 
   // What stands between this record and an approval. The same three sources
-  // lib/fsvp/approval-readiness.ts reads for the submit route, and the approve
-  // route refuses on, so the page cannot offer what either API would reject.
+  // lib/fsvp/approval-readiness.ts reads for the submit route and the approve
+  // route refuses on, so the page cannot offer an approval the API rejects.
+  // Submission shows them but is not stopped by them.
   const blockingReasons = [
     ...(applicabilityBlock ? [applicabilityBlock] : []),
     ...attestationEval.reasons,

@@ -6,8 +6,10 @@
 // users, a tenant reviewer (how a QI holds a login), or an administrator —
 // may submit it. The decision itself stays with /approve.
 //
-// Refused while anything in lib/fsvp/approval-readiness.ts remains, so the
-// queue holds only records the importer could actually approve.
+// A record may be submitted with gaps. Whatever lib/fsvp/approval-readiness.ts
+// still lists is returned and written to the audit row, so the importer sees
+// what is open; /approve refuses an approval on the same list, leaving them
+// only reject or request a revision until it clears.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -70,13 +72,7 @@ export async function POST(
     );
   }
 
-  const reasons = await approvalBlockers(admin, record);
-  if (reasons.length > 0) {
-    return NextResponse.json(
-      { error: "This record is not ready to submit for approval.", reasons },
-      { status: 400 }
-    );
-  }
+  const openItems = await approvalBlockers(admin, record);
 
   const { error } = await (admin.from("fsvp_records") as any)
     .update({ status: "importer_review_pending" })
@@ -93,8 +89,8 @@ export async function POST(
     record_type:      "fsvp_records",
     record_id:        id,
     previous_value:   { status: record.status },
-    new_value:        { status: "importer_review_pending" },
+    new_value:        { status: "importer_review_pending", open_items: openItems },
   });
 
-  return NextResponse.json({ ok: true, status: "importer_review_pending" });
+  return NextResponse.json({ ok: true, status: "importer_review_pending", open_items: openItems });
 }

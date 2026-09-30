@@ -10,8 +10,9 @@ import { AlertCircle, Clock, Send } from "lucide-react";
  * once submitted it says so, since the decision itself is the importer's.
  *
  * `blockingReasons` is the same list the approval form shows, from
- * lib/fsvp/approval-readiness.ts — submitting is refused on it too, so the
- * button stays disabled rather than failing after the click.
+ * lib/fsvp/approval-readiness.ts. It does not stop submission — a record may
+ * go to the importer with gaps — but it is shown so the submitter knows the
+ * importer cannot approve until they close.
  */
 export function SubmitForApprovalPanel({
   recordId,
@@ -60,13 +61,17 @@ export function SubmitForApprovalPanel({
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-600" />
-            <p className="text-sm font-semibold text-amber-900">Finish these before submitting</p>
+            <p className="text-sm font-semibold text-amber-900">Still open</p>
           </div>
           <ul className="mt-2 list-disc space-y-1 pl-8 text-sm text-amber-900">
             {blockingReasons.map((reason) => (
               <li key={reason}>{reason}</li>
             ))}
           </ul>
+          <p className="mt-2 pl-8 text-xs text-amber-800">
+            You can still submit. The importer will see these, and can reject or request a revision,
+            but cannot approve until they are done.
+          </p>
         </div>
       ) : (
         <p className="text-sm text-slate-600">
@@ -79,7 +84,7 @@ export function SubmitForApprovalPanel({
 
       <button
         onClick={submit}
-        disabled={pending || blocked}
+        disabled={pending}
         className="inline-flex h-10 items-center gap-2 rounded-md bg-forest px-5 text-sm font-semibold text-white hover:bg-[#195f4d] disabled:opacity-50"
       >
         <Send className="h-4 w-4" />
