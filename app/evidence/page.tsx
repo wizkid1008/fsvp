@@ -176,7 +176,10 @@ export default async function EvidencePage({
         description="Every FSVP evidence document across your exporters. Upload here, track review status, and map each document to the requirement it satisfies. Documents your exporters submit for review arrive in Supplier Submissions."
       />
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_300px]">
+      {/* No requirements sidebar: it listed every section of the rule with a
+          fixed status dot, tied to no exporter, facility or product. Their
+          pages' checklists show the same requirements with real status. */}
+      <div className="mt-6">
         <div className="space-y-6">
           <EvidenceUploadPanel
             documentCategories={documentCategories.length > 0 ? documentCategories : undefined}
@@ -252,29 +255,6 @@ export default async function EvidencePage({
           )}
         </div>
 
-        <aside className="space-y-4">
-          <div className="rounded-lg border border-line bg-white p-4 shadow-soft">
-            <h3 className="text-sm font-semibold text-ink">FSVP Requirements</h3>
-            <p className="mt-1 text-xs text-slate-500">Evidence needed per 21 CFR Part 1, Subpart L</p>
-            <div className="mt-4 space-y-2">
-              {sections.map((section) => (
-                <div key={section.id} className="flex items-center gap-2 rounded-md border border-line px-3 py-2">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
-                  <span className="text-xs font-medium text-slate-700">{section.section_name}</span>
-                  {/* Which entity the section applies to, since the same idea
-                      appears at more than one level — a facility recall
-                      procedure is not the supplier's recall plan. */}
-                  <span className="ml-auto text-[10px] uppercase tracking-wide text-slate-400">{section.applies_to}</span>
-                </div>
-              ))}
-              {sections.length === 0 && (
-                <p className="text-xs text-slate-400">
-                  No rule version is published, so there are no requirements to show.
-                </p>
-              )}
-            </div>
-          </div>
-        </aside>
       </div>
     </AppShell>
   );
