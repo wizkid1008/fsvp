@@ -23,6 +23,7 @@ export function ProcedureEditor({
   adoptedAt,
   adoptedBy,
   startHint,
+  readOnly = false,
 }: {
   kind: string;
   content: string | null;
@@ -34,6 +35,10 @@ export function ProcedureEditor({
    *  in some circumstances needs to say so here, or drafting it reads as an
    *  invitation to hold a record you do not need. */
   startHint?: string;
+  /** An administrator previewing the importer: /api/importer-procedures
+   *  refuses their writes, because adopting is the importer's own § 1.510(a)(2)
+   *  signature. Shown, not offered. */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [text, setText] = useState(content ?? "");
@@ -109,6 +114,27 @@ export function ProcedureEditor({
         setError(err instanceof Error ? err.message : "That did not work.");
       }
     });
+  }
+
+  if (readOnly) {
+    const note =
+      "Drafting and adopting a procedure is the importer's own signed record, so an administrator can read it here but not change it.";
+    if (status === "none" || !content) {
+      return <p className="text-sm text-slate-500">Not drafted yet. {note}</p>;
+    }
+    return (
+      <div>
+        <p className="mb-2 text-xs font-medium text-slate-500">
+          {status === "adopted"
+            ? `Adopted${adoptedAt ? ` ${new Date(adoptedAt).toLocaleDateString()}` : ""}${adoptedBy ? ` by ${adoptedBy}` : ""}${version ? ` · version ${version}` : ""}`
+            : `Draft${version ? ` · version ${version}` : ""} — not yet adopted`}
+        </p>
+        <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-line bg-slate-50 px-3 py-2 font-mono text-[13px] leading-6 text-ink">
+          {content}
+        </pre>
+        <p className="mt-2 text-xs leading-5 text-slate-500">{note}</p>
+      </div>
+    );
   }
 
   if (status === "none" && !text) {

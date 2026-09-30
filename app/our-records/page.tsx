@@ -7,6 +7,7 @@ import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { ImporterRecordUpload } from "@/components/evidence/ImporterRecordUpload";
 import { ProcedureEditor } from "@/components/evidence/ProcedureEditor";
 import { requireProfileRole } from "@/lib/auth/protection";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { outstandingRequired, summariseImporterRecords } from "@/lib/fsvp/importer-records";
 import { PROCEDURE_KINDS } from "@/lib/fsvp/procedure-draft";
@@ -64,7 +65,10 @@ export default async function OurRecordsPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const importerId: string | null = profile?.importer_id ?? null;
+  // The previewed importer for an administrator, as on the other importer
+  // pages — an admin's own profile has no importer_id.
+  const importerId: string | null = resolvePreviewedAccountId(realRole, profile?.importer_id ?? null);
+  const isAdministrator = realRole === "administrator";
 
   if (!importerId) {
     return (
@@ -75,7 +79,9 @@ export default async function OurRecordsPage() {
         />
         <div className="mt-6 rounded-lg border border-line bg-white px-6 py-10 text-center">
           <p className="text-sm text-slate-600">
-            Your account is not linked to an importing organization yet, so it has no records of its own.
+            {isAdministrator
+              ? "Preview an importer to see its records."
+              : "Your account is not linked to an importing organization yet, so it has no records of its own."}
           </p>
         </div>
       </AppShell>
@@ -216,6 +222,7 @@ export default async function OurRecordsPage() {
                           adoptedAt={live?.adopted_at ?? null}
                           adoptedBy={live?.profiles?.full_name ?? live?.profiles?.email ?? null}
                           startHint={START_HINTS[kind.key]}
+                          readOnly={isAdministrator}
                         />
                       )}
 
