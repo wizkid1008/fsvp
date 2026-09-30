@@ -97,7 +97,7 @@ export default async function FsvpRecordsPage() {
           per-record blockers are named on /setup/fsvp; this says which stage
           the account as a whole is at. */}
       {records.length > 0 && approved === 0 && (
-        <NextStepBanner action={{ label: "See what is blocking", href: "/setup/fsvp" }}>
+        <NextStepBanner stage="approval" action={{ label: "See what is blocking", href: "/setup/fsvp#gate-approval" }}>
           no record is approved yet. Open one to document the hazard analysis, supplier evaluation
           and verification determination, then a qualified individual signs each under
           §§ 1.504–1.506. Approval comes after those gates, not before.
@@ -106,14 +106,17 @@ export default async function FsvpRecordsPage() {
 
       {approved > 0 && (
         <NextStepBanner
-          action={{
-            label: approved === 1 ? "Open approved record" : "See package steps",
-            href: approved === 1 ? `/fsvp-records/${approvedRecords[0].id}` : "/setup/fsvp",
-          }}
+          stage="package"
+          action={
+            approved === 1
+              ? { label: "Open approved record", href: `/fsvp-records/${approvedRecords[0].id}` }
+              : undefined
+          }
         >
-          {approved === 1 ? "1 record is approved" : `${approved} records are approved`}. Generate
-          the inspection package for each — that is the printable evidence assembled during an FDA
-          records request; use the approved record detail page.
+          {approved === 1 ? "1 record is approved" : `${approved} records are approved`} and ready
+          if FDA asks to see {approved === 1 ? "it" : "them"}. When that happens, open the record and
+          click <span className="font-semibold text-ink">Inspection Package</span> — it prints the
+          whole record as one document to hand to FDA. Nothing needs doing until then.
         </NextStepBanner>
       )}
 

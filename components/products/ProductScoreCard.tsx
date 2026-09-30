@@ -87,7 +87,6 @@ export async function ProductScoreCard({
 
   let totalScore = 0;
   let completeSections = 0;
-  let totalRequired = 0;
   let totalAccepted = 0;
   let hasAnyCriticalBlocker = false;
 
@@ -105,7 +104,6 @@ export async function ProductScoreCard({
       }
     }
 
-    totalRequired += items.length;
     totalAccepted += accepted;
 
     if (items.length > 0) {
@@ -161,8 +159,10 @@ export async function ProductScoreCard({
     score > 0   ? "bg-red-400"   : "bg-slate-200";
 
   return (
-    <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-      <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+    // Drawn as the left rail of the Documents panel on the product page (which
+    // owns the border), not as a card of its own.
+    <section className="shrink-0 border-b border-line bg-slate-50/70 p-5 lg:w-[280px] lg:border-b-0 lg:border-r">
+      <pclassName="text-xs font-semibold uppercase tracking-widest text-slate-400">
         Product Readiness Score
       </p>
 
@@ -205,9 +205,9 @@ export async function ProductScoreCard({
             <span className="font-semibold text-ink">{completeSections}</span> of{" "}
             <span className="font-semibold text-ink">{sections.length}</span> sections complete
           </p>
-          <p className="text-xs text-slate-400">
-            {totalAccepted} of {totalRequired} documents accepted
-          </p>
+          {/* No "N of M documents accepted" here: the bar beside this rail
+              already counts the same documents, and counts platform-authored
+              records this card does not — two different numbers side by side. */}
         </div>
       </div>
 

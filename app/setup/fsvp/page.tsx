@@ -36,9 +36,10 @@ export const runtime = "edge";
 
 const PAGE_TITLE = "FSVP Pipeline";
 const PAGE_DESCRIPTION =
-  "Every gate a product and its FSVP record must pass, and what is blocking each one right now. " +
-  "This is not a checklist that finishes — determinations expire, signatures void when signed text " +
-  "is edited, and approved records return for reassessment.";
+  "The stages every imported product goes through, from adding its exporter to having an " +
+  "inspection package ready for FDA, and what is holding each one up. Stages can reopen: " +
+  "determinations expire, signatures void when signed text is edited, and approved records " +
+  "come due for reassessment.";
 
 function stepTone(step: SetupStep): StatusTone {
   return step.blockers.length === 0 ? "success" : "warning";
@@ -92,6 +93,8 @@ export default async function CompleteFsvpSetupPage() {
   const plan = await loadCompleteFsvpSetupPlan(adminResult.client as any, importerId);
   const totalBlockers = plan.steps.reduce((sum, step) => sum + step.blockers.length, 0);
   const blockedStages = plan.steps.filter((step) => step.blockers.length > 0).length;
+  const firstBlockedIndex = plan.steps.findIndex((step) => step.blockers.length > 0);
+  const firstBlocked = firstBlockedIndex >= 0 ? plan.steps[firstBlockedIndex] : null;
 
   // Onboarding is the one part that does finish: until the account holds at
   // least one exporter, facility and product, nothing downstream can happen.
@@ -128,32 +131,88 @@ export default async function CompleteFsvpSetupPage() {
         </section>
       )}
 
-      {/* A count of what is open, not a percentage of what is done. The stages
-          below still show their own "4 of 5 done", which is a real ratio in
-          real units — it is the whole-plan figure that implied an ending. */}
-      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-white px-5 py-4 shadow-soft">
-        {totalBlockers === 0 ? (
-          <>
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+      {/* The overview. It used to be one sentence — "12 open blockers across 6
+          of 11 stages" — which is a count, not a picture: it said neither which
+          stages nor where to start. This shows the whole path at a glance, each
+          stage clear or blocked and a link down to it, and names the earliest
+          blocked stage with its first item, since the order is real and a later
+          stage usually cannot clear before an earlier one does. Still no overall
+          percentage — the stages below carry their own "4 of 5 done". */}
+      <section className="mt-6 rounded-lg border border-line bg-white p-5 shadow-soft">
+        {firstBlocked ? (
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 gap-3">
+              <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">
+                  Start at stage {firstBlockedIndex + 1}: {firstBlocked.title}
+                </p>
+                <p className="mt-0.5 text-sm leading-6 text-slate-600">{firstBlocked.blockers[0].message}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {totalBlockers} item{totalBlockers === 1 ? "" : "s"} need attention across{" "}
+                  {blockedStages} stage{blockedStages === 1 ? "" : "s"}.
+                </p>
+              </div>
+            </div>
+            <Link
+              href={firstBlocked.blockers[0].href}
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md bg-forest px-4 text-sm font-semibold text-white transition hover:bg-[#195f4d]"
+            >
+              {firstBlocked.blockers[0].actionLabel}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        ) : (
+          <div className="flex gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
             <p className="text-sm text-slate-600">
               <span className="font-semibold text-ink">Every stage is clear.</span> Nothing is
               blocking an approval today — determinations and signatures still expire, so this stays
               worth checking.
             </p>
-          </>
-        ) : (
-          <>
-            <CircleAlert className="h-5 w-5 shrink-0 text-amber-500" />
-            <p className="text-sm text-slate-600">
-              <span className="font-semibold text-ink">
-                {totalBlockers} open blocker{totalBlockers === 1 ? "" : "s"}
-              </span>{" "}
-              across {blockedStages} of {plan.steps.length} stage{blockedStages === 1 ? "" : "s"}.
-              Each one names the item it is about and links to the screen that clears it.
-            </p>
-          </>
+          </div>
         )}
-      </div>
+
+        <ol className="mt-5 grid grid-cols-11 gap-1">
+          {plan.steps.map((step, index) => {
+            const blocked = step.blockers.length > 0;
+            return (
+              <li key={step.id} className="min-w-0">
+                <a
+                  href={`#gate-${step.id}`}
+                  title={`Stage ${index + 1}: ${step.title} — ${blocked ? stepLabel(step) : "clear"}`}
+                  className="group block"
+                >
+                  <span
+                    className={`block h-2 rounded-full transition group-hover:opacity-80 ${
+                      blocked ? "bg-amber-400" : "bg-emerald-500"
+                    }`}
+                  />
+                  <span className="mt-1.5 flex items-center justify-center gap-1 text-xs font-semibold tabular-nums text-slate-500 lg:justify-start">
+                    {index + 1}
+                    {blocked && (
+                      <span className="rounded-full bg-amber-100 px-1.5 text-[10px] leading-4 text-amber-800">
+                        {step.blockers.length}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 hidden text-[11px] leading-tight text-slate-500 group-hover:text-forest lg:block">
+                    {step.title}
+                  </span>
+                </a>
+              </li>
+            );
+          })}
+        </ol>
+        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" /> Clear
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-amber-400" /> Blocked — number is items waiting
+          </span>
+        </p>
+      </section>
 
       <div className="mt-6 overflow-hidden rounded-lg border border-line bg-white shadow-soft">
         <div className="divide-y divide-line">
@@ -182,7 +241,7 @@ export default async function CompleteFsvpSetupPage() {
                 <section
                   key={step.id}
                   id={`gate-${step.id}`}
-                  className="flex scroll-mt-6 flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3"
+                  className="flex scroll-mt-6 flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3 target:bg-forest/5 target:ring-2 target:ring-inset target:ring-forest/40"
                 >
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
                     <Icon className="h-3.5 w-3.5" />
@@ -212,7 +271,7 @@ export default async function CompleteFsvpSetupPage() {
                 // Anchored so the dashboard's gate rows can land on the stage
                 // whose blockers they are counting.
                 id={`gate-${step.id}`}
-                className="grid scroll-mt-6 gap-4 px-5 py-5 lg:grid-cols-[260px_1fr]"
+                className="grid scroll-mt-6 gap-4 px-5 py-5 target:bg-forest/5 target:ring-2 target:ring-inset target:ring-forest/40 lg:grid-cols-[260px_1fr]"
               >
                 <div className="flex gap-3">
                   <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
