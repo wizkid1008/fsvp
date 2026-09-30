@@ -135,9 +135,10 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       ].filter(Boolean).join(" ")
     : null;
   const canManageAdmissibility = realRole === "us_importer" && Boolean(profile?.importer_id);
-  // An administrator previewing an importer may classify (a factual link,
-  // audited as theirs — see app/api/products/classify) but not record the
-  // importer's admissibility determination.
+  // An administrator previewing an importer may classify and record the FDA
+  // product code (factual edits, audited as theirs — see app/api/products/
+  // classify and fda-code) but not record the importer's admissibility
+  // determination.
   const isAdminPreviewingImporter = realRole === "administrator" && Boolean(resolvePreviewedAccountId(realRole, null));
   const canClassify = canManageAdmissibility || isAdminPreviewingImporter;
 
@@ -297,7 +298,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             {!canManageAdmissibility && (
               <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 {isAdminPreviewingImporter
-                  ? "You're previewing as an administrator. You can classify the product (it's recorded as done by an administrator), but the admissibility determination is the importer's own answer and has to be recorded by their users."
+                  ? "You're previewing as an administrator. You can classify the product and record its FDA product code (both recorded as done by an administrator), but the admissibility determination is the importer's own answer and has to be recorded by their users."
                   : "Classifying the product and recording admissibility are done by the importer's users."}
               </p>
             )}
@@ -323,7 +324,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               productId={params.id}
               productName={product.product_name}
               commodityName={commodity?.common_name ?? null}
-              canManage={canManageAdmissibility}
+              canManage={canClassify}
               current={{
                 code:        productFdaCode?.fda_product_code ?? null,
                 subclass:    productFdaCode?.fda_subclass_code ?? null,

@@ -21,7 +21,13 @@
  * product to the commodity taxonomy is a factual edit administrators already
  * make when resolving classification requests, and its audit row records the
  * administrator as the actor. The admissibility DETERMINATION that follows is
- * the importer's own dated answer, and still refuses here.
+ * the importer's own dated answer, and still refuses here. The FDA product code
+ * (app/api/products/fda-code) follows classification, for the same reason.
+ *
+ * Exception: starting a product hazard analysis
+ * (app/api/product-hazard-analysis/start). It opens a draft that the
+ * hazard-items and hazard-analyses routes already let administrators edit;
+ * approval still needs a live determination and a QI's review.
  */
 
 import { NextResponse } from "next/server";

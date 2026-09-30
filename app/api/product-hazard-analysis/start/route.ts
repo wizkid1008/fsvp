@@ -7,7 +7,7 @@ import {
   recordCreationBlock,
 } from "@/lib/fsvp/applicability";
 import { fetchGoverningRuleVersion } from "@/lib/fsvp/rule-version";
-import { refusePreviewWrite } from "@/lib/auth/preview-guard";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 
 export const runtime = "edge";
 
@@ -25,12 +25,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const previewRefusal = refusePreviewWrite(profile.role, "create a product hazard analysis");
-  if (previewRefusal) return previewRefusal;
-
-  if (!profile.importer_id) {
+  // An administrator may start one for the importer being previewed. It opens
+  // a draft only: the hazard-items and hazard-analyses routes already accept
+  // administrators, approval still needs a live determination and QI review,
+  // and created_by_profile_id plus the audit row's actor_role record who did it.
+  const isAdministrator = profile.role === "administrator";
+  const importerId: string | null = isAdministrator
+    ? resolvePreviewedAccountId("administrator", null)
+    : profile.importer_id ?? null;
+  if (!importerId) {
     return NextResponse.json(
-      { error: "Your account is not linked to an importing organization." },
+      {
+        error: isAdministrator
+          ? "Preview the importer this product belongs to before creating its hazard analysis."
+          : "Your account is not linked to an importing organization.",
+      },
       { status: 400 }
     );
   }
@@ -59,7 +68,7 @@ export async function POST(req: NextRequest) {
   const { data: link } = await (admin.from("supplier_relationships") as any)
     .select("id")
     .eq("relationship_type", "importer_supplier")
-    .eq("importer_id", profile.importer_id)
+    .eq("importer_id", importerId)
     .eq("supplier_id", product.supplier_id)
     .in("status", ["active", "pending_invite"])
     .maybeSingle();
@@ -73,7 +82,7 @@ export async function POST(req: NextRequest) {
 
   let { data: record } = await (admin.from("fsvp_records") as any)
     .select("id")
-    .eq("importer_id", profile.importer_id)
+    .eq("importer_id", importerId)
     .eq("supplier_id", product.supplier_id)
     .eq("facility_id", product.facility_id)
     .eq("product_id", product.id)
@@ -91,7 +100,7 @@ export async function POST(req: NextRequest) {
     // or lapsed pair may be drafted against — the approval route re-reads the
     // determination and refuses without a live one, so nothing can be relied
     // on before a qualified individual has done the work.
-    const determination = await fetchDetermination(admin, profile.importer_id, product.supplier_id, product.id);
+    const determination = await fetchDetermination(admin, importerId, product.supplier_id, product.id);
     const block = recordCreationBlock(determination);
     if (block && isHardRecordCreationBlock(block)) {
       return NextResponse.json(
@@ -107,7 +116,7 @@ export async function POST(req: NextRequest) {
 
     const created = await (admin.from("fsvp_records") as any)
       .insert({
-        importer_id: profile.importer_id,
+        importer_id: importerId,
         supplier_id: product.supplier_id,
         facility_id: product.facility_id,
         product_id: product.id,
@@ -122,7 +131,7 @@ export async function POST(req: NextRequest) {
       if (created.error.code === "23505") {
         const retry = await (admin.from("fsvp_records") as any)
           .select("id")
-          .eq("importer_id", profile.importer_id)
+          .eq("importer_id", importerId)
           .eq("supplier_id", product.supplier_id)
           .eq("facility_id", product.facility_id)
           .eq("product_id", product.id)
@@ -134,7 +143,7 @@ export async function POST(req: NextRequest) {
     } else {
       record = created.data;
       await (admin.from("audit_logs") as any).insert({
-        importer_id: profile.importer_id,
+        importer_id: importerId,
         actor_profile_id: user.id,
         actor_role: profile.role,
         action: "fsvp_record_created",

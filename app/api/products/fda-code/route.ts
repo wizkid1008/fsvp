@@ -31,6 +31,7 @@ import {
   PcbError,
   type ProductCodeParts,
 } from "@/lib/regulatory/product-code-builder";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 
 export const runtime = "edge";
 
@@ -44,9 +45,27 @@ export async function POST(req: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profile?.role !== "us_importer" || !profile.importer_id) {
+  // An administrator may record it too, for the importer being previewed. The
+  // code is a fact about the product as packed, like its classification
+  // (app/api/products/classify), and is still reconciled against the commodity
+  // and checked with FDA below. The audit row records actor_role.
+  const isAdministrator = profile?.role === "administrator";
+  if (profile?.role !== "us_importer" && !isAdministrator) {
     return NextResponse.json(
       { error: "The US importer filing the entry records the product code." },
+      { status: 403 }
+    );
+  }
+  const importerId: string | null = isAdministrator
+    ? resolvePreviewedAccountId("administrator", null)
+    : profile?.importer_id ?? null;
+  if (!importerId) {
+    return NextResponse.json(
+      {
+        error: isAdministrator
+          ? "Preview the importer this product belongs to before recording its code."
+          : "The US importer filing the entry records the product code.",
+      },
       { status: 403 }
     );
   }
@@ -115,7 +134,7 @@ export async function POST(req: NextRequest) {
   const { data: relationship } = await (admin.from("supplier_relationships") as any)
     .select("id")
     .eq("relationship_type", "importer_supplier")
-    .eq("importer_id", profile.importer_id)
+    .eq("importer_id", importerId)
     .eq("supplier_id", product.supplier_id)
     .in("status", ["active", "pending_invite"])
     .maybeSingle();
@@ -204,7 +223,7 @@ export async function POST(req: NextRequest) {
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
 
   await (admin.from("audit_logs") as any).insert({
-    importer_id:      profile.importer_id,
+    importer_id:      importerId,
     actor_profile_id: user.id,
     actor_role:       profile.role,
     action:           "product_fda_code_recorded",
