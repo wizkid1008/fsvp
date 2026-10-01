@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
 import { ChevronDown } from "lucide-react";
+import Link from "next/link";
 import { ReasonList, StageReference, type ReasonItem, type StageSummary } from "@/components/products/ProductReasons";
 
 /**
@@ -23,6 +24,8 @@ export type ProductStandingsResponse = {
   standings: Record<string, { phase: string; label: string; blocked: boolean; reasons: ReasonItem[] }>;
   approved: number;
   blocked: number;
+  /** Products whose admissibility is prohibited — Entry Readiness's "Do Not Ship". */
+  doNotShip: number;
   /** The eleven stages, for the reference list under the table. */
   stages: StageSummary[];
 };
@@ -60,7 +63,7 @@ export function useProductStandings(): State | null {
 
 function toneFor(phase: string): StatusTone {
   if (phase === "approved") return "success";
-  if (phase === "blocked") return "danger";
+  if (phase === "blocked" || phase === "do_not_ship") return "danger";
   if (phase === "approval") return "info";
   return "warning";
 }
@@ -77,6 +80,34 @@ export function ProductFsvpStatus({ productId }: { productId: string }) {
 }
 
 /**
+ * The Products list's "Next step": the first thing holding this product up,
+ * as a link to the screen that clears it, plus how many more are behind it.
+ * The same reasons, in the same order, as "What's left" on the product's own
+ * page — this is that list's first line, not a separate judgement. It replaced
+ * Entry Readiness's "Next Action" column, which made its own and disagreed.
+ */
+export function ProductNextStep({ productId }: { productId: string }) {
+  const state = useProductStandings();
+  if (!state || state.kind === "loading") return <span className="text-xs text-slate-400">…</span>;
+  if (state.kind === "error") return <span className="text-xs text-slate-400">—</span>;
+  const reasons = state.data.standings[productId]?.reasons ?? [];
+  if (reasons.length === 0) return <span className="text-xs text-slate-400">Nothing left</span>;
+  const [first, ...rest] = reasons;
+  return (
+    <div className="min-w-0">
+      <Link href={first.href} title={first.message} className="text-sm font-semibold text-forest hover:underline">
+        {first.actionLabel}
+      </Link>
+      {rest.length > 0 && (
+        <Link href={`/products/${productId}#whats-left`} className="block text-xs text-slate-500 hover:text-forest hover:underline">
+          +{rest.length} more
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/**
  * The top of a product's own page: what is left for this one product.
  *
  * Collapsed to one line until clicked. The reasons were briefly opened under
@@ -90,6 +121,18 @@ export function ProductFsvpStatus({ productId }: { productId: string }) {
  */
 export function ProductWhatsLeft({ productId }: { productId: string }) {
   const state = useProductStandings();
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const ready = state?.kind === "ready";
+
+  // Arriving from the Products list's "+2 more" (#whats-left): the section
+  // renders only after the standings load, too late for the browser's own
+  // jump to the fragment, so open it and scroll to it once it exists.
+  useEffect(() => {
+    if (!ready || window.location.hash !== "#whats-left" || !detailsRef.current) return;
+    detailsRef.current.open = true;
+    detailsRef.current.scrollIntoView({ block: "start" });
+  }, [ready]);
+
   if (state?.kind !== "ready") return null;
   const standing = state.data.standings[productId];
   if (!standing) return null;
@@ -103,7 +146,7 @@ export function ProductWhatsLeft({ productId }: { productId: string }) {
     );
   }
   return (
-    <details className="group mt-6 rounded-lg border border-line bg-white shadow-soft">
+    <details ref={detailsRef} className="group mt-6 scroll-mt-6 rounded-lg border border-line bg-white shadow-soft">
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 px-5 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
         <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>
         <span className="text-sm font-semibold text-ink">
@@ -115,7 +158,10 @@ export function ProductWhatsLeft({ productId }: { productId: string }) {
           <ChevronDown className="h-3.5 w-3.5 transition group-open:rotate-180" />
         </span>
       </summary>
-      <div className="border-t border-line bg-slate-50 p-5">
+      {/* Anchored inside the <details>, so a link to #whats-left (the list's
+          "+2 more") opens it: Chrome expands a closed details when a fragment
+          inside it is navigated to. */}
+      <div id="whats-left" className="scroll-mt-6 border-t border-line bg-slate-50 p-5">
         <ReasonList reasons={reasons} />
         <StageReference stages={state.data.stages} />
       </div>
@@ -133,10 +179,11 @@ export function ProductStatusCards({ added }: { added: number }) {
     { label: "Products Added", value: added, tone: "info" },
     { label: "Products Approved", value: value((d) => d.approved), tone: "success" },
     { label: "Products Blocked", value: value((d) => d.blocked), tone: "danger" },
+    { label: "Do Not Ship", value: value((d) => d.doNotShip), tone: "danger" },
   ];
 
   return (
-    <div className="mt-6 grid gap-4 sm:grid-cols-3">
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {cards.map((m) => (
         <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
           <p className="text-xs font-medium text-slate-500">{m.label}</p>

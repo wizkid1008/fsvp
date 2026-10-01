@@ -153,7 +153,7 @@ export default async function FsvpRecordsPage() {
                 <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Facility</th>
                 <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Product</th>
                 <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Rule</th>
-                <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Score</th>
+                <th className="px-4 py-2.5 text-left font-semibold text-slate-600" title="Weighted share of the record's required evidence that has been accepted">Evidence score</th>
                 <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Status</th>
                 <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Reassessment</th>
                 <th className="px-4 py-2.5" />

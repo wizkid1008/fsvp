@@ -13,7 +13,7 @@ import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import { EvidenceProgressCell, UploadDocumentsLink } from "@/components/evidence/EvidenceProgressCell";
 import { OpenLink } from "@/components/ui/OpenLink";
 import { approvalTone, evidenceScoreLabel } from "@/lib/approval/status";
-import { ProductFsvpStatus, useProductStandings } from "@/components/products/ProductStandings";
+import { ProductFsvpStatus, ProductNextStep, useProductStandings } from "@/components/products/ProductStandings";
 
 export type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -675,6 +675,9 @@ export function ProductTable({
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">
                   {fsvpStandings ? "FSVP status" : "Evidence score"}
                 </th>
+                {fsvpStandings && (
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700">Next step</th>
+                )}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Admissibility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Facility</th>
@@ -738,6 +741,11 @@ export function ProductTable({
                       </StatusBadge>
                     )}
                   </td>
+                  {fsvpStandings && (
+                    <td className="px-4 py-3">
+                      <ProductNextStep productId={product.id} />
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <a href={`/products/${product.id}`}>
                       <StatusBadge tone={admissibilityTone(product.admissibility_status)}>

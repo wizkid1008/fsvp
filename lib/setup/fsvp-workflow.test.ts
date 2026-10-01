@@ -379,3 +379,45 @@ describe("a record for a product no longer imported", () => {
     expect(plan.productReasons).toEqual({});
   });
 });
+
+describe("checks Entry Readiness used to make on its own", () => {
+  it("files an approved record past its reassessment date under its product", () => {
+    const input = cleanInput();
+    input.today = "2026-10-01";
+    input.records[0].reassessment_due_at = "2026-05-04";
+    const plan = buildCompleteFsvpSetupPlan(input);
+
+    const reasons = plan.productReasons["product-1"];
+    expect(reasons.map((r) => r.actionLabel)).toEqual(["Reassess record"]);
+    expect(plan.productStandings[0].gateId).toBe("approval");
+  });
+
+  it("leaves a reassessment that is not yet due alone", () => {
+    const input = cleanInput();
+    input.today = "2026-10-01";
+    input.records[0].reassessment_due_at = "2027-04-09";
+    const plan = buildCompleteFsvpSetupPlan(input);
+    expect(plan.productReasons).toEqual({});
+  });
+
+  it("raises expiring supplier documents on that supplier's products", () => {
+    const input = cleanInput();
+    input.expiringDocsBySupplierId = new Map([["supplier-1", 2]]);
+    const plan = buildCompleteFsvpSetupPlan(input);
+
+    const reasons = plan.productReasons["product-1"];
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0].message).toContain("2 accepted documents from Exporter One");
+    // A warning, not a gate: the product is still through.
+    expect(plan.productStandings[0].gateId).toBeNull();
+  });
+
+  it("marks a prohibited product do-not-ship", () => {
+    const input = cleanInput();
+    input.admissibilityByProductId = new Map([["product-1", [
+      { code: "prohibited", message: "Entry prohibited." },
+    ]]]);
+    const plan = buildCompleteFsvpSetupPlan(input);
+    expect(plan.productStandings[0].doNotShip).toBe(true);
+  });
+});

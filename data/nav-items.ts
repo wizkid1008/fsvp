@@ -65,10 +65,8 @@ export const navItems: NavItem[] = [
   // relied on across every record, rather than worked per shipment.
 
   // ── Importer: monitoring ─────────────────────────────────────
-  { href: "/readiness",    label: "Readiness",      icon: "Gauge",         roles: ["us_importer"], matches: ["/readiness"],    tKey: "nav.readiness",   group: "Monitoring", groupTKey: "nav.groupMonitoring" },
-  { href: "/entry-readiness", label: "Entry Readiness", icon: "PackageSearch", roles: ["us_importer"], matches: ["/entry-readiness", "/shipment-readiness"], group: "Monitoring", groupTKey: "nav.groupMonitoring" },
-  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer"], matches: ["/gaps-actions"], tKey: "nav.gapsActions", group: "Monitoring", groupTKey: "nav.groupMonitoring" },
-  { href: "/reports",      label: "Reports",        icon: "FileCheck2",    roles: ["us_importer"], matches: ["/reports"],      tKey: "nav.reports",     group: "Monitoring", groupTKey: "nav.groupMonitoring" },
+  { href: "/gaps-actions", label: "Gaps & Actions", icon: "AlertTriangle", roles: ["us_importer"], matches: ["/gaps-actions"], tKey: "nav.gapsActions", group: "Compliance", groupTKey: "nav.groupCompliance" },
+  { href: "/reports",      label: "Reports",        icon: "FileCheck2",    roles: ["us_importer"], matches: ["/reports"],      tKey: "nav.reports",     group: "Compliance", groupTKey: "nav.groupCompliance" },
 
   // Notifications is not a workspace — it lives in the header bell now
   // (components/layout/NotificationBell.tsx) rather than competing with real

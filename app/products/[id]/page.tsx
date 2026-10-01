@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
-import { ProductScoreCard } from "@/components/products/ProductScoreCard";
 import { ProductStandingsProvider, ProductWhatsLeft } from "@/components/products/ProductStandings";
 import {
   AdmissibilityPanel,
@@ -357,14 +356,14 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             The records this product needs. Create platform-authored records where available, or upload an
             existing document next to any missing or returned item.
           </p>
-          {/* One panel, not two cards side by side: the score is a summary of
-              the list next to it, and as two separately bordered boxes — the
-              list also starting lower — they read as unrelated things. The
-              score renders as this panel's left rail; when it has nothing to
-              show (no published rule version) the list takes the full width. */}
-          <div className="flex flex-col overflow-hidden rounded-lg border border-line bg-white shadow-soft lg:flex-row">
-            <ProductScoreCard productId={params.id} supabase={supabase} admissibilityBlocks={admissibilityBlocks} />
-            <div className="min-w-0 flex-1 p-4 [&>*:first-child]:mt-0">
+          {/* There was a "Product Readiness Score" ring beside this list. It
+              counted only uploaded documents, not the platform-authored hazard
+              analysis records the list counts, so it read 0% beside a bar
+              saying "2 approved". The bar is the accurate measure and "What's
+              left" at the top of the page says what blocks the product, so the
+              ring was dropped rather than fixed. */}
+          <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+            <div className="min-w-0 p-4 [&>*:first-child]:mt-0">
               <RequiredEvidenceChecklist
                 linkType="product"
                 entityId={params.id}

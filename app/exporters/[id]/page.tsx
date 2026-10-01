@@ -12,6 +12,7 @@ import { isTenantConfined } from "@/lib/auth/tenancy";
 import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import { ChildList, DetailFacts, DetailSection } from "@/components/ui/DetailSection";
 import { AddFacilityButton, AddProductButton, ExporterEditButton } from "@/components/detail/DetailActions";
+import { ExporterAssessment, type AssessmentRow } from "@/components/readiness/ExporterAssessment";
 
 export const runtime = "edge";
 
@@ -91,14 +92,24 @@ export default async function ExporterDetailPage({ params }: { params: { id: str
     .order("product_name");
   if (scoped && importerId) productsQuery = productsQuery.or(ownOrUnclaimedProducts(importerId));
 
-  const [{ data: facilityRows }, { data: productRows }, { data: countryRows }] = await Promise.all([
+  const [{ data: facilityRows }, { data: productRows }, { data: countryRows }, { data: assessmentRows }] = await Promise.all([
     (admin.from("facilities_verify") as any)
       .select("id, facility_name, facility_type, facility_address_json")
       .eq("supplier_id", params.id)
       .order("facility_name"),
     productsQuery,
     (admin.from("countries") as any).select("country_code,country_name").eq("is_active", true).order("country_name"),
+    // This importer's assessments of this exporter, newest first — by hand,
+    // since the admin client bypasses RLS.
+    importerId
+      ? (admin.from("readiness_assessments") as any)
+          .select("id, overall_score, status, gap_summary, recommended_actions, submitted_at, created_at")
+          .eq("supplier_id", params.id)
+          .eq("importer_id", importerId)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
   ]);
+  const assessments = (assessmentRows ?? []) as AssessmentRow[];
   const facilities = (facilityRows ?? []) as Array<{
     id: string; facility_name: string; facility_type: string | null; facility_address_json: { country?: string } | null;
   }>;
@@ -219,6 +230,25 @@ export default async function ExporterDetailPage({ params }: { params: { id: str
           importerId={importerId}
         />
       </section>
+
+      {/* Formerly the Readiness page. Assessments belong to one importer, so
+          this shows only when there is one to scope them to. */}
+      {importerId && (
+        <section id="assessment" className="scroll-mt-24 rounded-lg border border-line bg-white p-5 shadow-soft">
+          <h2 className="text-base font-semibold text-ink">Readiness assessment</h2>
+          <div className="mt-1">
+            <ExporterAssessment
+              supplier={{
+                id: exporter.id as string,
+                company_name: exporter.company_name as string,
+                country: (exporter.country as string | null) ?? "",
+              }}
+              assessments={assessments}
+              canAssess={role === "us_importer" || role === "reviewer" || role === "administrator"}
+            />
+          </div>
+        </section>
+      )}
       </div>
     </AppShell>
   );

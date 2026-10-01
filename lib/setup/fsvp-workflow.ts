@@ -82,6 +82,14 @@ export type ProductStanding = {
   gateId: FsvpSetupStepId | null;
   recordId: string | null;
   recordStatus: string | null;
+  /** The record's reassessment date, when it has one. */
+  reassessmentDueAt?: string | null;
+  /**
+   * Admissibility answered "prohibited" for this commodity from this origin.
+   * Whatever else is done, the food may not be entered — the Products list
+   * shows it as "Do not ship" rather than as one more step.
+   */
+  doNotShip?: boolean;
 };
 
 /** One blocker, told from a single product's side: which stage it holds up. */
@@ -126,6 +134,8 @@ type RecordRow = {
   hazard_analysis_notes: string | null;
   supplier_evaluation_notes: string | null;
   verification_determination: string | null;
+  /** When the approved record falls due for reassessment (§ 1.505(c)). */
+  reassessment_due_at?: string | null;
 };
 
 type PlannerInput = {
@@ -141,7 +151,18 @@ type PlannerInput = {
   admissibilityByProductId: Map<string, AdmissibilityBlock[]>;
   gateBlocksByRecordId: Map<string, GateBlock[]>;
   attestationsByRecordId: Map<string, AttestationEvaluation>;
+  /**
+   * Accepted documents from each supplier that expire within
+   * EXPIRING_WITHIN_DAYS. Optional so callers that do not load documents (and
+   * older tests) still build a plan; absent means none.
+   */
+  expiringDocsBySupplierId?: Map<string, number>;
+  /** Today, as YYYY-MM-DD. Injected so tests are not tied to the clock. */
+  today?: string;
 };
+
+/** How far ahead an accepted document's expiry counts as work now. */
+export const EXPIRING_WITHIN_DAYS = 60;
 
 function blocker(id: string, message: string, href: string, actionLabel: string): SetupBlocker {
   return { id, message, href, actionLabel };
@@ -178,6 +199,7 @@ export function buildCompleteFsvpSetupPlan(rawInput: PlannerInput): CompleteFsvp
   // no longer imported is kept for § 1.510's two years, but it is not work:
   // left in, it raised blockers with no product to file them under, which
   // surfaced as "FSVP record from Pacific Valley Foods…" on the account banner.
+  const today = rawInput.today ?? new Date().toISOString().slice(0, 10);
   const activeProductIds = new Set(rawInput.products.map((p) => p.id));
   const input: PlannerInput = {
     ...rawInput,
@@ -495,6 +517,23 @@ export function buildCompleteFsvpSetupPlan(rawInput: PlannerInput): CompleteFsvp
       ));
     }
   }
+  // Accepted evidence about to lapse. Counted per supplier — a certificate is
+  // about the firm, not one of its foods — and raised on each of that firm's
+  // products, so every product it holds up says so. Entry Readiness used to
+  // check this on its own while this planner did not, so the two pages could
+  // disagree about whether a product was clear.
+  for (const product of input.products) {
+    const expiring = product.supplier_id ? input.expiringDocsBySupplierId?.get(product.supplier_id) ?? 0 : 0;
+    if (expiring === 0 || !product.supplier_id) continue;
+    const supplierName = suppliersById.get(product.supplier_id)?.company_name ?? "this exporter";
+    evidenceBlockers.push(blocker(
+      `expiring-${product.id}`,
+      `${expiring} accepted document${expiring === 1 ? "" : "s"} from ${supplierName} ` +
+        `expire${expiring === 1 ? "s" : ""} within ${EXPIRING_WITHIN_DAYS} days.`,
+      `/evidence?entity=supplier&id=${product.supplier_id}`,
+      "Review expiring documents"
+    ));
+  }
   if (input.records.length === 0) {
     evidenceBlockers.push(blocker(
       "evidence-needs-record",
@@ -565,7 +604,20 @@ export function buildCompleteFsvpSetupPlan(rawInput: PlannerInput): CompleteFsvp
       ((input.evidenceByRecordId.get(record.id) ?? 0) === 0 ? 1 : 0) +
       (!determination || !isDeterminationLive(determination) ? 1 : 0);
 
-    if (approvedRecordStatuses.has(record.status)) continue;
+    if (approvedRecordStatuses.has(record.status)) {
+      // Approved, but past its reassessment date (§ 1.505(c)). The status may
+      // not have been moved to reassessment_due yet; the date is what counts.
+      if (record.reassessment_due_at && record.reassessment_due_at.slice(0, 10) < today) {
+        approvalBlockers.push(blocker(
+          `reassess-${record.id}`,
+          `${recordLabel(record, productsById, suppliersById)} was due for reassessment on ` +
+            `${record.reassessment_due_at.slice(0, 10)}.`,
+          `/fsvp-records/${record.id}`,
+          "Reassess record"
+        ));
+      }
+      continue;
+    }
     approvalBlockers.push(blocker(
       `approval-${record.id}`,
       earlierBlocks > 0
@@ -671,6 +723,9 @@ export function buildCompleteFsvpSetupPlan(rawInput: PlannerInput): CompleteFsvp
       : (input.evidenceByRecordId.get(record.id) ?? 0) === 0 ? "evidence"
       : (input.attestationsByRecordId.get(record.id)?.reasons ?? []).length > 0 ? "qi"
       : !approvedRecordStatuses.has(record.status) ? "approval"
+      // Approved but overdue for reassessment is back at approval: the
+      // approval it holds was given for a period that has run out.
+      : record.reassessment_due_at && record.reassessment_due_at.slice(0, 10) < today ? "approval"
       : !input.packagesByRecordId.has(record.id) ? "package"
       : null;
 
@@ -683,6 +738,8 @@ export function buildCompleteFsvpSetupPlan(rawInput: PlannerInput): CompleteFsvp
       gateId,
       recordId: record?.id ?? null,
       recordStatus: record?.status ?? null,
+      reassessmentDueAt: record?.reassessment_due_at ?? null,
+      doNotShip: (input.admissibilityByProductId.get(product.id) ?? []).some((b) => b.code === "prohibited"),
     };
   });
 
@@ -749,7 +806,7 @@ export function buildCompleteFsvpSetupPlan(rawInput: PlannerInput): CompleteFsvp
   // reasons already listed above it. It earns its place only when it is the
   // last thing left — then it is the approval decision itself.
   for (const [productId, reasons] of Object.entries(productReasons)) {
-    const others = reasons.filter((r) => r.stepId !== "approval" || r.actionLabel === "Record approval decision");
+    const others = reasons.filter((r) => r.actionLabel !== "Resolve record blockers");
     productReasons[productId] = others.length > 0 ? others : reasons;
   }
 
@@ -834,7 +891,7 @@ export async function loadCompleteFsvpSetupPlan(
     (supabase.from("fsvp_records") as any)
       .select(
         "id, status, supplier_id, facility_id, product_id, " +
-        "hazard_analysis_notes, supplier_evaluation_notes, verification_determination"
+        "hazard_analysis_notes, supplier_evaluation_notes, verification_determination, reassessment_due_at"
       )
       .eq("importer_id", importerId)
       .order("created_at", { ascending: false }),
@@ -953,7 +1010,30 @@ export async function loadCompleteFsvpSetupPlan(
     attestationsByRecordId.set(record.id, attestations);
   }));
 
+  // Accepted evidence from this importer's exporters that lapses soon — what
+  // Entry Readiness used to count on its own. Filed for this importer or for
+  // nobody in particular, the documents rule (lib/products/ownership.ts).
+  const today = new Date().toISOString().slice(0, 10);
+  const horizon = new Date(Date.now() + EXPIRING_WITHIN_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const { data: expiringRows } = supplierIds.length
+    ? await (supabase.from("documents") as any)
+        .select("supplier_id")
+        .in("supplier_id", supplierIds)
+        .or(`importer_id.eq.${importerId},importer_id.is.null`)
+        .eq("evidence_status", "accepted")
+        .is("soft_deleted_at", null)
+        .not("expiration_date", "is", null)
+        .lte("expiration_date", horizon)
+    : { data: [] };
+  const expiringDocsBySupplierId = new Map<string, number>();
+  for (const row of (expiringRows ?? []) as Array<{ supplier_id: string | null }>) {
+    if (!row.supplier_id) continue;
+    expiringDocsBySupplierId.set(row.supplier_id, (expiringDocsBySupplierId.get(row.supplier_id) ?? 0) + 1);
+  }
+
   return buildCompleteFsvpSetupPlan({
+    today,
+    expiringDocsBySupplierId,
     suppliers,
     facilities: facilitiesWithApprovalStatus,
     facilityAccess,

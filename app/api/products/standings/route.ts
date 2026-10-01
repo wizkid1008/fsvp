@@ -34,9 +34,12 @@ export async function GET() {
     for (const standing of plan.productStandings) {
       const blocked = isBlockedStanding(standing);
       const phase = phaseFor(standing);
+      // Prohibited outranks every phase: whatever else is done, the food may
+      // not be entered. This was Entry Readiness's "Do Not Ship".
+      const doNotShip = standing.doNotShip === true;
       standings[standing.id] = {
-        phase: blocked ? "blocked" : phase.key,
-        label: blocked ? "Blocked" : phase.label,
+        phase: doNotShip ? "do_not_ship" : blocked ? "blocked" : phase.key,
+        label: doNotShip ? "Do not ship" : blocked ? "Blocked" : phase.label,
         blocked,
         reasons: (plan.productReasons[standing.id] ?? []).map(toReasonItem),
       };
@@ -45,6 +48,7 @@ export async function GET() {
       standings,
       approved: summary.approved,
       blocked: summary.blocked,
+      doNotShip: plan.productStandings.filter((s) => s.doNotShip).length,
       stages: plan.steps.map((step) => ({
         id: step.id,
         title: step.title,

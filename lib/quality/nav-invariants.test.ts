@@ -44,6 +44,17 @@ const NO_NAV_ENTRY = new Set([
   // Superseded by /entry-readiness — the screen evaluates a product, not a
   // shipment. Redirect only, so Phase 3 can have the name.
   "/shipment-readiness",
+  // Folded into /products (status, "Do not ship", next step). Redirect only.
+  "/entry-readiness",
+  // Assessments moved to each exporter's page. Redirect only.
+  "/readiness",
+  // The FSVP Pipeline. Its blockers are on each product's page now. Redirect only.
+  "/setup",
+  // Our FSVP Records — now the Document Library's Company records tab. Redirect only.
+  "/our-records",
+  // Exporter Submissions — now the Document Library's Exporter submissions tab.
+  // Redirect only, kept because notifications already sent link here.
+  "/importer-review",
   // Reached from the /fsvp-records list page, not from the sidebar.
   "/fsvp-records/new",
   // Deliberately moved to the header bell (components/layout/NotificationBell).
