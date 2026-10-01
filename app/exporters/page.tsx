@@ -242,7 +242,7 @@ export default async function ExportersPage() {
       <SectionHeader
         title={scoped ? "My Exporters" : "All Suppliers & Exporters"}
         description={scoped
-          ? "Exporters you import from. Link one who already has an account, or create a record yourself for an exporter who will not register."
+          ? "Exporters you import from. Link one who already has an account, or create a record yourself for an exporter who will not register. Open one to see what it still owes at company level and your readiness assessments of it."
           : "Every registered foreign company across all tenants — exporters, manufacturers, traders and brokers. The badge under each name is its supplier type."}
       />
       {/* Adding an exporter used to end here, with nothing saying what it was

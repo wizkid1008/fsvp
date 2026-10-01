@@ -354,7 +354,9 @@ export default async function ProductsPage({
           : viewingLinkedSupplier
           ? `Products — ${viewingLinkedSupplier.company_name}`
           : "Products"}
-        description="Track every supplier product by facility, ingredients, allergens, intended use, and origin."
+        description={isSupplier
+          ? "The products you supply, with their facility, origin and the evidence on file for each."
+          : "Every food you import and where it stands: its FSVP status, the next thing to do, its FSVP record and its evidence. Open a product to see everything left to do for it."}
       />
 
       {/* Steps 4-6 of the canonical path, and the largest cluster of blockers

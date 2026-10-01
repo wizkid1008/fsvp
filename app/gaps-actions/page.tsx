@@ -27,7 +27,7 @@ export default async function GapsActionsPage() {
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Gaps & Actions"
-        description="Track open corrective actions from verification findings, rejected evidence, recalls, and reassessments."
+        description="Corrective actions from verification findings, rejected evidence, recalls and reassessments. Each names the exporter and product it is about, and an open one also shows in that product's next steps."
       />
       <GapsActionsClient actions={actions} canCreate={canCreate} />
     </AppShell>
