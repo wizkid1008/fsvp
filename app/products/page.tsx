@@ -2,7 +2,6 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ProductTable, type ProductRow } from "@/components/products/ProductTable";
 import {
   ProductsAccountReasons,
-  ProductsStageReference,
   ProductStandingsProvider,
   ProductStatusCards,
 } from "@/components/products/ProductStandings";
@@ -428,7 +427,6 @@ export default async function ProductsPage({
           <div className="mt-6">
             {productTable}
           </div>
-          <ProductsStageReference />
         </ProductStandingsProvider>
       ) : (
         <>

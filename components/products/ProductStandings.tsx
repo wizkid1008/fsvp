@@ -67,26 +67,7 @@ function toneFor(phase: string): StatusTone {
   return "warning";
 }
 
-/** This product's reasons, or [] while loading, on error, or when it has none. */
-export function useProductReasons(productId: string): ReasonItem[] {
-  const state = useProductStandings();
-  return state?.kind === "ready" ? state.data.standings[productId]?.reasons ?? [] : [];
-}
-
-/**
- * The status badge, plus a toggle that opens the product's reasons in a row
- * beneath it (ProductTable renders that row — a table cell is too narrow, and
- * the table clips anything that overflows it).
- */
-export function ProductFsvpStatus({
-  productId,
-  expanded = false,
-  onToggle,
-}: {
-  productId: string;
-  expanded?: boolean;
-  onToggle?: () => void;
-}) {
+export function ProductFsvpStatus({ productId }: { productId: string }) {
   const state = useProductStandings();
   if (!state || state.kind === "loading") return <span className="text-xs text-slate-400">…</span>;
   if (state.kind === "error") return <span className="text-xs text-slate-400" title="Could not load">—</span>;
@@ -94,36 +75,7 @@ export function ProductFsvpStatus({
   // The pipeline covers foods currently imported; a discontinued or
   // never-imported product has no standing, and the Imported column says why.
   if (!standing) return <span className="text-xs text-slate-400" title="Not in the FSVP pipeline">—</span>;
-  const count = standing.reasons.length;
-  return (
-    <div>
-      <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>
-      {count > 0 && onToggle && (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          className="mt-1 flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-forest hover:underline"
-        >
-          {expanded ? "Hide" : `Why? ${count} to do`}
-          <ChevronDown className={`h-3.5 w-3.5 transition ${expanded ? "rotate-180" : ""}`} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-/** The expanded row's content: why this product is not finished. */
-export function ProductReasonsPanel({ productId, productName }: { productId: string; productName: string }) {
-  const reasons = useProductReasons(productId);
-  return (
-    <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Why {productName} isn&apos;t finished
-      </p>
-      <ReasonList reasons={reasons} />
-    </div>
-  );
+  return <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>;
 }
 
 /** Account-wide blockers, above the Products table. */
@@ -132,15 +84,17 @@ export function ProductsAccountReasons() {
   return state?.kind === "ready" ? <AccountReasonsBanner reasons={state.data.accountReasons} /> : null;
 }
 
-/** The stage reference, below the Products table. */
-export function ProductsStageReference() {
-  const state = useProductStandings();
-  return state?.kind === "ready" ? <StageReference stages={state.data.stages} /> : null;
-}
-
 /**
- * The top of a product's own page: what is left for this one product. Says
- * nothing while loading or on error — the rest of the page stands on its own.
+ * The top of a product's own page: what is left for this one product.
+ *
+ * Collapsed to one line until clicked. The reasons were briefly opened under
+ * each row of the Products list and then spelled out on this page in full,
+ * and both were too much at once: the list is for finding a product, and this
+ * page already carries its details and documents. So the list shows only the
+ * status, and here it is one line — "3 things left" — that opens the reasons,
+ * each with its fix button, and the stage reference beneath them.
+ *
+ * Says nothing while loading or on error — the rest of the page stands alone.
  */
 export function ProductWhatsLeft({ productId }: { productId: string }) {
   const state = useProductStandings();
@@ -157,17 +111,23 @@ export function ProductWhatsLeft({ productId }: { productId: string }) {
     );
   }
   return (
-    <section className="mt-6 rounded-lg border border-line bg-slate-50 p-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-semibold text-ink">
-          What&apos;s left for this product
-        </h2>
+    <details className="group mt-6 rounded-lg border border-line bg-white shadow-soft">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 px-5 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
         <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>
-      </div>
-      <div className="mt-3">
+        <span className="text-sm font-semibold text-ink">
+          {reasons.length} thing{reasons.length === 1 ? "" : "s"} left before this product is finished
+        </span>
+        <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-forest">
+          <span className="group-open:hidden">Show</span>
+          <span className="hidden group-open:inline">Hide</span>
+          <ChevronDown className="h-3.5 w-3.5 transition group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="border-t border-line bg-slate-50 p-5">
         <ReasonList reasons={reasons} />
+        <StageReference stages={state.data.stages} />
       </div>
-    </section>
+    </details>
   );
 }
 

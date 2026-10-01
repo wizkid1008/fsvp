@@ -9,8 +9,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
  * briefly "What Needs Doing" — that listed every blocker grouped by stage. The
  * Products page beside it already said where each product stood, with a badge,
  * so there were two places answering "how is Potatoes doing?" and only the one
- * nobody opened said why. The reasons live with the product now: under its
- * row on the Products list, and at the top of its own page.
+ * nobody opened said why. The reasons live with the product now, one click
+ * deep at the top of its own page (see ProductWhatsLeft).
  *
  * No "use client": rendered by the dashboard on the server as well as inside
  * the Products table.

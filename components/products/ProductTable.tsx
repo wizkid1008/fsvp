@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { PackageSearch, Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -13,7 +13,7 @@ import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import { EvidenceProgressCell, UploadDocumentsLink } from "@/components/evidence/EvidenceProgressCell";
 import { OpenLink } from "@/components/ui/OpenLink";
 import { approvalTone, evidenceScoreLabel } from "@/lib/approval/status";
-import { ProductFsvpStatus, ProductReasonsPanel, useProductStandings } from "@/components/products/ProductStandings";
+import { ProductFsvpStatus, useProductStandings } from "@/components/products/ProductStandings";
 
 export type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -556,8 +556,6 @@ export function ProductTable({
   const fsvpStandings = useProductStandings() !== null;
   const [showForm, setShowForm] = useState(Boolean(presetFacility));
   const [lifecycleProduct, setLifecycleProduct] = useState<ProductRow | null>(null);
-  // The product whose reasons are open beneath its row — one at a time.
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   // A facility is no longer required to open this form — AddProductForm can
@@ -689,8 +687,7 @@ export function ProductTable({
             </thead>
             <tbody className="divide-y divide-line">
               {filtered.map((product) => (
-                <Fragment key={product.id}>
-                <tr className="transition-colors hover:bg-slate-50">
+                <tr key={product.id} className="transition-colors hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-ink">
                     <a href={`/products/${product.id}`} className="font-semibold text-forest underline underline-offset-2 hover:decoration-2">
                       {product.product_name}
@@ -734,11 +731,7 @@ export function ProductTable({
                   </td>
                   <td className="px-4 py-3">
                     {fsvpStandings ? (
-                      <ProductFsvpStatus
-                        productId={product.id}
-                        expanded={expandedId === product.id}
-                        onToggle={() => setExpandedId(expandedId === product.id ? null : product.id)}
-                      />
+                      <ProductFsvpStatus productId={product.id} />
                     ) : (
                       <StatusBadge tone={approvalTone(product.approval_status)}>
                         {evidenceScoreLabel(product.approval_status)}
@@ -784,14 +777,6 @@ export function ProductTable({
                     <OpenLink href={`/products/${product.id}`} label={product.product_name} />
                   </td>
                 </tr>
-                {expandedId === product.id && (
-                  <tr className="bg-slate-50">
-                    <td colSpan={11} className="px-4 pb-4 pt-1">
-                      <ProductReasonsPanel productId={product.id} productName={product.product_name} />
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
               ))}
             </tbody>
           </table>
