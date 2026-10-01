@@ -8,6 +8,12 @@ export type FsvpProcessRecord = {
   reassessment_due_at: string | null;
   facility_name: string | null;
   product_name: string | null;
+  /**
+   * Whose record it is. An exporter supplying several importers sees one
+   * record per importer and product; without the name, two "Rejected" cards
+   * for the same product could not be told apart or acted on.
+   */
+  importer_name?: string | null;
 };
 
 /**
@@ -64,7 +70,7 @@ function cardTone(status: FsvpRecordStatus): CardTone {
   return "neutral";
 }
 
-function cardSubtitle(record: FsvpProcessRecord): string {
+function cardSubtitle(record: FsvpProcessRecord): string | null {
   if (record.status === "needs_corrective_action") return "Corrective action needed";
   if (record.status === "rejected") return "Rejected — cannot be imported";
   if (record.status === "reassessment_due" || record.status === "expired") {
@@ -72,7 +78,7 @@ function cardSubtitle(record: FsvpProcessRecord): string {
       ? `Reassessment due ${new Date(record.reassessment_due_at).toLocaleDateString(undefined, { month: "short", year: "numeric" })}`
       : "Reassessment due";
   }
-  return record.product_name ?? "Product";
+  return null;
 }
 
 export function FsvpProcessFlow({ records }: { records: FsvpProcessRecord[] }) {
@@ -126,8 +132,13 @@ export function FsvpProcessFlow({ records }: { records: FsvpProcessRecord[] }) {
                     const tone = cardTone(r.status);
                     return (
                       <div key={r.id} className={`rounded-md px-2.5 py-2 ${cardClasses[tone]}`}>
-                        <p className="truncate text-xs font-semibold">{r.facility_name ?? "Facility"}</p>
-                        <p className={`truncate text-[11px] ${subtitleClasses[tone]}`}>{cardSubtitle(r)}</p>
+                        <p className="truncate text-xs font-semibold">{r.product_name ?? "Product"}</p>
+                        <p className={`truncate text-[11px] ${subtitleClasses[tone]}`}>
+                          {r.importer_name ? `for ${r.importer_name}` : r.facility_name ?? "Facility"}
+                        </p>
+                        {cardSubtitle(r) && (
+                          <p className={`truncate text-[11px] font-semibold ${subtitleClasses[tone]}`}>{cardSubtitle(r)}</p>
+                        )}
                       </div>
                     );
                   })

@@ -12,7 +12,7 @@ import type { Country } from "@/types/database";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import { EvidenceProgressCell, UploadDocumentsLink } from "@/components/evidence/EvidenceProgressCell";
 import { OpenLink } from "@/components/ui/OpenLink";
-import { approvalTone, evidenceScoreLabel } from "@/lib/approval/status";
+import { EVIDENCE_STANDING_LABEL, EVIDENCE_STANDING_TONE, evidenceNextStep, evidenceStanding } from "@/lib/readiness/evidence-standing";
 import { ProductFsvpRecord, ProductFsvpStatus, ProductNextStep, useProductStandings } from "@/components/products/ProductStandings";
 
 export type CountryOption = Pick<Country, "country_code" | "country_name">;
@@ -522,6 +522,28 @@ export function AddProductForm({
   );
 }
 
+/**
+ * The exporter's "Next step" for one product — the counterpart of the
+ * importer's ProductNextStep, from document counts instead of the planner:
+ * "Fix 2 sent back", "Upload 3 missing", or nothing theirs to do.
+ */
+function ExporterNextStep({ productId, progress }: { productId: string; progress: ProductRow["evidence_progress"] }) {
+  const step = evidenceNextStep(progress);
+  if (!step) {
+    const standing = evidenceStanding(progress);
+    return (
+      <span className="text-xs text-slate-400">
+        {standing === "awaiting" ? "Waiting on your importer" : "Nothing left"}
+      </span>
+    );
+  }
+  return (
+    <a href={`/products/${productId}#documents`} className="text-sm font-semibold text-forest hover:underline">
+      {step}
+    </a>
+  );
+}
+
 export function ProductTable({
   countries,
   facilities,
@@ -600,14 +622,19 @@ export function ProductTable({
         !lifecycleFilter || (lifecycleFilter === "imported" ? lifecycle === "active" : lifecycle !== "active");
       const standing = standingsState?.kind === "ready" ? standingsState.data.standings[p.id] : undefined;
       const matchesStatus =
-        !statusFilter || standingsState?.kind !== "ready"
+        !statusFilter
           ? true
-          : statusFilter === "needs_action"
-            ? (standing?.reasons.length ?? 0) > 0
-            : standing?.phase === statusFilter;
+          : !fsvpStandings
+            // The exporter's list: by what they owe on this product.
+            ? evidenceStanding(p.evidence_progress) === statusFilter
+            : standingsState?.kind !== "ready"
+              ? true
+              : statusFilter === "needs_action"
+                ? (standing?.reasons.length ?? 0) > 0
+                : standing?.phase === statusFilter;
       return matchesSearch && matchesSupplier && matchesStatus && matchesLifecycle;
     });
-  }, [products, search, supplierFilter, statusFilter, standingsState, lifecycleFilter]);
+  }, [products, search, supplierFilter, statusFilter, standingsState, lifecycleFilter, fsvpStandings]);
 
   function openAddForm() {
     setShowForm(true);
@@ -652,7 +679,7 @@ export function ProductTable({
             ))}
           </select>
         )}
-        {fsvpStandings && (
+        {fsvpStandings ? (
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -665,17 +692,34 @@ export function ProductTable({
             <option value="blocked">Blocked</option>
             <option value="do_not_ship">Do not ship</option>
           </select>
+        ) : (
+          // The exporter's statuses: what they owe, not the importer's gates.
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filter by document status"
+            className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
+          >
+            <option value="">All statuses</option>
+            <option value="returned">{EVIDENCE_STANDING_LABEL.returned}</option>
+            <option value="missing">{EVIDENCE_STANDING_LABEL.missing}</option>
+            <option value="awaiting">{EVIDENCE_STANDING_LABEL.awaiting}</option>
+            <option value="complete">{EVIDENCE_STANDING_LABEL.complete}</option>
+          </select>
         )}
-        <select
-          value={lifecycleFilter}
-          onChange={(e) => setLifecycleFilter(e.target.value)}
-          aria-label="Filter by whether the product is imported"
-          className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
-        >
-          <option value="">Imported and not</option>
-          <option value="imported">Imported</option>
-          <option value="not_imported">Not imported</option>
-        </select>
+        {/* Whether the importer imports a food is the importer's call. */}
+        {fsvpStandings && (
+          <select
+            value={lifecycleFilter}
+            onChange={(e) => setLifecycleFilter(e.target.value)}
+            aria-label="Filter by whether the product is imported"
+            className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
+          >
+            <option value="">Imported and not</option>
+            <option value="imported">Imported</option>
+            <option value="not_imported">Not imported</option>
+          </select>
+        )}
         <button
           type="button"
           disabled={!canAddProduct}
@@ -731,15 +775,17 @@ export function ProductTable({
                     so under its name, and the filter above finds them. */}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Product</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">
-                  {fsvpStandings ? "FSVP status" : "Evidence score"}
+                  {fsvpStandings ? "FSVP status" : "Status"}
                 </th>
-                {fsvpStandings && (
-                  <th className="px-4 py-3 text-left font-semibold text-slate-700">Next step</th>
-                )}
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Next step</th>
                 {fsvpStandings && (
                   <th className="px-4 py-3 text-left font-semibold text-slate-700">FSVP record</th>
                 )}
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Admissibility</th>
+                {/* The importer's determination; an exporter cannot read it, so their
+                    column only ever said "Importer Review". */}
+                {fsvpStandings && (
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700">Admissibility</th>
+                )}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Facility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Origin</th>
@@ -796,21 +842,27 @@ export function ProductTable({
                     {fsvpStandings ? (
                       <ProductFsvpStatus productId={product.id} />
                     ) : (
-                      <StatusBadge tone={approvalTone(product.approval_status)}>
-                        {evidenceScoreLabel(product.approval_status)}
+                      // The exporter's status: what they owe on this product, from the
+                      // same document counts as the Evidence column. It was the
+                      // "Evidence score" band - one more score with its own name.
+                      <StatusBadge tone={EVIDENCE_STANDING_TONE[evidenceStanding(product.evidence_progress)]}>
+                        {EVIDENCE_STANDING_LABEL[evidenceStanding(product.evidence_progress)]}
                       </StatusBadge>
                     )}
                   </td>
-                  {fsvpStandings && (
-                    <td className="px-4 py-3">
+                  <td className="px-4 py-3">
+                    {fsvpStandings ? (
                       <ProductNextStep productId={product.id} />
-                    </td>
-                  )}
+                    ) : (
+                      <ExporterNextStep productId={product.id} progress={product.evidence_progress} />
+                    )}
+                  </td>
                   {fsvpStandings && (
                     <td className="px-4 py-3">
                       <ProductFsvpRecord productId={product.id} />
                     </td>
                   )}
+                  {fsvpStandings && (
                   <td className="px-4 py-3">
                     <a href={`/products/${product.id}`}>
                       <StatusBadge tone={admissibilityTone(product.admissibility_status)}>
@@ -826,6 +878,7 @@ export function ProductTable({
                       </p>
                     )}
                   </td>
+                  )}
                   <td className="px-4 py-3 text-slate-600">{product.suppliers?.company_name ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{product.facilities_verify?.facility_name ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{product.country_of_origin ?? "-"}</td>

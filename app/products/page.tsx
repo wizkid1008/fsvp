@@ -7,7 +7,6 @@ import {
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
-import type { StatusTone } from "@/types/platform";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
 import { getSupplierType } from "@/lib/supplier-context";
 import { requireProfileRole } from "@/lib/auth/protection";
@@ -15,7 +14,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
 import { resolveApprovalStatuses } from "@/lib/scoring";
-import { isApproved, needsUpdates, NOT_ASSESSED } from "@/lib/approval/status";
+import { NOT_ASSESSED } from "@/lib/approval/status";
+import { countEvidenceStandings } from "@/lib/readiness/evidence-standing";
+import { ExporterCountCards } from "@/components/products/ProductCountCards";
 import { isTenantConfined } from "@/lib/auth/tenancy";
 import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
@@ -301,12 +302,6 @@ export default async function ProductsPage({
       !p.commodity_id || !p.country_of_origin
   ).length;
 
-  const productsAdded = products.length;
-  const productsApproved = products.filter((p) => isApproved(p.approval_status)).length;
-  const productsNeedingUpdates = products.filter((p) => needsUpdates(p.approval_status)).length;
-
-  const metricTone = (v: number, warnAbove = 0): StatusTone =>
-    v === 0 ? "neutral" : v > warnAbove ? "warning" : "success";
   const productScopeSupplierIds = new Set(productScopeFacility?.supplier_ids ?? []);
   const tableSuppliers = productScopeFacility
     ? supplierOptions.filter((supplier) => productScopeSupplierIds.has(supplier.id))
@@ -429,19 +424,11 @@ export default async function ProductsPage({
         </ProductStandingsProvider>
       ) : (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            {[
-              { label: "Products Added", value: productsAdded, tone: "info" as StatusTone },
-              { label: "Evidence Complete", value: productsApproved, tone: "success" as StatusTone },
-              { label: "Evidence With Gaps", value: productsNeedingUpdates, tone: metricTone(productsNeedingUpdates, 0) },
-            ].map((m) => (
-              <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
-                <p className="text-xs font-medium text-slate-500">{m.label}</p>
-                <p className={`mt-2 text-3xl font-semibold ${m.value > 0 && m.tone === "warning" ? "text-amber-700" : "text-ink"}`}>
-                  {m.value}
-                </p>
-              </div>
-            ))}
+          {/* The exporter's counts, in the importer's format: what they owe,
+              each opening their list filtered to those products. Replaces
+              "Evidence Complete / With Gaps", which counted a score band. */}
+          <div className="mt-6">
+            <ExporterCountCards counts={countEvidenceStandings(products.map((p) => p.evidence_progress))} />
           </div>
           <div className="mt-6">
             {productTable}
