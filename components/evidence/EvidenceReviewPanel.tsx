@@ -152,7 +152,7 @@ function ReviewSlideOut({ item, onClose }: { item: ReviewItem; onClose: () => vo
       <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
 
       {/* Panel */}
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-white shadow-2xl">
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-3xl flex-col bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-line px-5 py-4">
           <div className="flex-1 min-w-0 pr-4">
