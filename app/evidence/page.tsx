@@ -9,7 +9,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { FileArchive } from "lucide-react";
 import Link from "next/link";
 import { CompanyRecords, loadCompanyRecords } from "@/components/evidence/CompanyRecords";
-import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { previewedImporterFilter, resolvePreviewedAccountId } from "@/lib/preview-role";
+import { ownOrUnclaimedProducts } from "@/lib/products/ownership";
 import { ExporterSubmissions } from "@/components/evidence/ExporterSubmissions";
 import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
@@ -86,18 +87,54 @@ export default async function EvidencePage({
     .limit(1)
     .maybeSingle();
 
+  // A real importer is confined to its own tenant by RLS. An administrator's
+  // RLS reads every tenant, so previewing one importer showed all of them —
+  // documents, and the exporter, product and facility pickers too. Re-apply
+  // the importer's scope by hand: its linked exporters, and documents "filed
+  // for it, or for nobody in particular" (lib/products/ownership.ts's rule).
+  const previewedImporter = previewedImporterFilter(realRole, role);
+  let previewSupplierIds: string[] | null = null;
+  if (previewedImporter) {
+    const { data: links } = await (supabase.from("supplier_relationships") as any)
+      .select("supplier_id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("importer_id", previewedImporter)
+      .in("status", ["active", "pending_invite"]);
+    previewSupplierIds = ((links ?? []) as Array<{ supplier_id: string | null }>)
+      .map((l) => l.supplier_id)
+      .filter((id): id is string => Boolean(id));
+  }
+  // An empty IN list is invalid in PostgREST; a nil UUID matches nothing.
+  const inScope = previewSupplierIds?.length ? previewSupplierIds : ["00000000-0000-0000-0000-000000000000"];
+  const scoped = (query: any, column: string) => (previewSupplierIds ? query.in(column, inScope) : query);
+
+  let docsQuery = (supabase.from("documents") as any)
+    .select("id, importer_id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes, linked_entity_type, linked_entity_id, requirement_item_id")
+    .is("soft_deleted_at", null)
+    .order("uploaded_at", { ascending: false });
+  if (previewedImporter) {
+    docsQuery = docsQuery.or(
+      `importer_id.eq.${previewedImporter},and(importer_id.is.null,supplier_id.in.(${inScope.join(",")}))`
+    );
+  }
+  let productsQuery = scoped(
+    (supabase.from("products_verify") as any).select("id, product_name, supplier_id, facility_id").order("product_name"),
+    "supplier_id"
+  );
+  if (previewedImporter) productsQuery = productsQuery.or(ownOrUnclaimedProducts(previewedImporter));
+
   const [docsRes, sectionsRes, suppliersRes, productsRes, facilitiesRes, facilityAccessRes, categoriesRes] = await Promise.all([
-    supabase.from("documents").select("id, importer_id, title, document_kind, original_filename, uploaded_at, approval_status, size_bytes, linked_entity_type, linked_entity_id, requirement_item_id").is("soft_deleted_at", null).order("uploaded_at", { ascending: false }),
+    docsQuery,
     publishedVersion?.id
       ? (supabase.from("requirement_sections") as any)
           .select("id, section_name, applies_to, sort_order, requirement_items(id, item_name, sort_order)")
           .eq("rule_version_id", publishedVersion.id)
           .order("sort_order")
       : Promise.resolve({ data: [] }),
-    (supabase.from("suppliers") as any).select("id, company_name").order("company_name"),
-    (supabase.from("products_verify") as any).select("id, product_name, supplier_id, facility_id").order("product_name"),
-    (supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"),
-    (supabase.from("facility_supplier_access") as any).select("facility_id, supplier_id").order("created_at"),
+    scoped((supabase.from("suppliers") as any).select("id, company_name").order("company_name"), "id"),
+    productsQuery,
+    scoped((supabase.from("facilities_verify") as any).select("id, facility_name, supplier_id").order("facility_name"), "supplier_id"),
+    scoped((supabase.from("facility_supplier_access") as any).select("facility_id, supplier_id").order("created_at"), "supplier_id"),
     (supabase.from("document_categories") as any).select("label").eq("active", true).order("sort_order"),
   ]);
 

@@ -34,3 +34,16 @@ export function resolveEffectiveRole(realRole: AppRole, previewRole: AppRole | n
   if (realRole !== "administrator") return realRole;
   return previewRole ?? realRole;
 }
+
+/**
+ * The importer an administrator is previewing, for pages that read through the
+ * user's own session. A platform administrator's RLS lets it read every
+ * tenant, so without a filter a preview of one importer showed all of them
+ * mixed together. Null when not previewing an importer — then nothing extra is
+ * filtered: a real importer is already confined by RLS, and an administrator
+ * on their own view sees the platform.
+ */
+export function previewedImporterFilter(realRole: AppRole, effectiveRole: AppRole): string | null {
+  if (realRole !== "administrator" || effectiveRole !== "us_importer") return null;
+  return getPreviewSupplierId();
+}

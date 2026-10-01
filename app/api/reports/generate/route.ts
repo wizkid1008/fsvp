@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import { ATTESTATION_LABEL, hashAttestationContent } from "@/lib/fsvp/qi-attestation";
 import { basisSpec, OUTCOME_LABEL } from "@/lib/fsvp/applicability";
 
@@ -78,11 +79,18 @@ export async function POST(req: NextRequest) {
   if (!profile || !ALLOWED_ROLES.has(profile.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (!profile.importer_id) {
-    return NextResponse.json(
-      { error: "Your account is not linked to an importer organization." },
-      { status: 400 }
-    );
+
+  // An administrator's own profile has no importer_id. Previewing an importer,
+  // the reports are that importer's — resolved the way every importer page
+  // resolves it. Without this, every report an administrator tried to print in
+  // preview failed with "not linked to an importer organization".
+  let importerId: string | null = profile.importer_id ?? null;
+  if (profile.role === "administrator") {
+    const previewed = resolvePreviewedAccountId(profile.role, null);
+    const { data: importer } = previewed
+      ? await (createAdminSupabaseClient().from("importers") as any).select("id").eq("id", previewed).maybeSingle()
+      : { data: null };
+    importerId = importer?.id ?? null;
   }
 
   const body = await req.json().catch(() => ({})) as {
@@ -100,7 +108,19 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminSupabaseClient();
-  const importerId = profile.importer_id;
+
+  // A record package names its own importer, so an administrator can pull one
+  // without previewing; every other report is one importer's and needs it.
+  if (!importerId && !(report_type === "fsvp_record_package" && profile.role === "administrator")) {
+    return NextResponse.json(
+      {
+        error: profile.role === "administrator"
+          ? "Preview an importer to generate its reports."
+          : "Your account is not linked to an importer organization.",
+      },
+      { status: 400 }
+    );
+  }
 
   // Exporters this importer is linked to. Documents uploaded by a supplier may
   // carry no importer_id of their own, so scope by relationship.
@@ -421,7 +441,9 @@ This platform does not provide legal or regulatory advice.
 </body></html>`;
 
       await (admin.from("generated_reports") as any).insert({
-        importer_id: importerId,
+        // The record's own importer: an administrator may build this without
+        // previewing, when importerId is null.
+        importer_id: record.importer_id,
         fsvp_record_id: recordId,
         supplier_id: record.supplier_id,
         report_type,
