@@ -55,6 +55,8 @@ const NO_NAV_ENTRY = new Set([
   // Exporter Submissions — now the Document Library's Exporter submissions tab.
   // Redirect only, kept because notifications already sent link here.
   "/importer-review",
+  // My Readiness — folded into Company Overview (/corporate#documents). Redirect only.
+  "/my-readiness",
   // Reached from the /fsvp-records list page, not from the sidebar.
   "/fsvp-records/new",
   // Deliberately moved to the header bell (components/layout/NotificationBell).

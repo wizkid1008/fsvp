@@ -100,6 +100,7 @@ const PUBLIC_PAGES = new Set([
   "app/setup/fsvp/page.tsx",          // redirect only, to /products
   "app/our-records/page.tsx",         // redirect only, to /evidence?tab=company
   "app/importer-review/page.tsx",     // redirect only, to /evidence?tab=submissions
+  "app/my-readiness/page.tsx",        // redirect only, to /corporate#documents
 ]);
 
 /**

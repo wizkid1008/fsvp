@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
-import { CorporateScoreCard } from "@/components/corporate/CorporateScoreCard";
-import { CorporateScopeList } from "@/components/corporate/CorporateScopeList";
+import { RequiredEvidenceChecklist } from "@/components/evidence/RequiredEvidenceChecklist";
+import { computeSupplierReadiness } from "@/lib/readiness/supplier-score";
 import { CorporateRelationshipsPanel } from "@/components/corporate/CorporateRelationshipsPanel";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -140,6 +140,9 @@ export default async function CorporatePage() {
   const profileTone: StatusTone = missingFields === 0 ? "success" : missingFields <= 1 ? "warning" : "neutral";
   const profileStatus = missingFields === 0 ? "Profile Complete" : `${missingFields} field${missingFields > 1 ? "s" : ""} missing`;
 
+  // The one company-documents count — the dashboard and this page agree.
+  const readiness = await computeSupplierReadiness(supabase as any, supplierId);
+
   return (
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
@@ -160,8 +163,35 @@ export default async function CorporatePage() {
         {/* ── Left column ─────────────────────────────────────── */}
         <div className="flex flex-col gap-6">
 
-          {/* 1. Readiness Score */}
-          <CorporateScoreCard supplierId={supplierId} supabase={supabase} />
+          {/* Company documents, counted the way the dashboard counts them.
+              This was CorporateScoreCard, its own weighted score that ignored
+              which importer a written assurance was given to — so an exporter
+              serving two importers could see one percentage here and another
+              on the dashboard. One calculation now: computeSupplierReadiness. */}
+          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Company documents</p>
+            {readiness.scored ? (
+              <>
+                <p className="mt-2 text-3xl font-semibold tabular-nums text-ink">
+                  {readiness.acceptedCount}
+                  <span className="text-base font-normal text-slate-500"> of {readiness.requiredCount} accepted</span>
+                </p>
+                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-500"
+                    style={{ width: `${readiness.requiredCount ? (readiness.acceptedCount / readiness.requiredCount) * 100 : 0}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Accepted by your importer. The list beside this says what is still missing or was sent back.
+                </p>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500">
+                No requirements are published yet, so there is nothing to count.
+              </p>
+            )}
+          </section>
 
           {/* 3. Exporter Profile */}
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -221,13 +251,31 @@ export default async function CorporatePage() {
         </div>
 
         {/* ── Right column — Requirements + inline upload ──────── */}
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <h2 className="text-base font-semibold text-ink">Company Overview Readiness Requirements</h2>
+        {/* The company-level requirements, from the same checklist the
+            importer sees on this exporter's page and every facility and
+            product page uses. This was CorporateScopeList, a separate copy
+            that also invented placeholder requirements ("Ownership Structure",
+            "Importer Acknowledgement" ...) whenever no rule version was
+            published. It was also repeated on My Readiness, which now
+            redirects here. */}
+        <section id="documents" className="scroll-mt-24 rounded-lg border border-line bg-white p-5 shadow-soft">
+          <h2 className="text-base font-semibold text-ink">Company documents</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Click any section to upload evidence or view progress.
-            Accepted documents count toward your readiness score.
+            What your importers need from your company, separately from any one facility or product.
+            Upload next to any item that is missing or was sent back.
           </p>
-          <CorporateScopeList supplierId={supplierId} supabase={supabase} />
+          {supplierId ? (
+            <RequiredEvidenceChecklist
+              linkType="supplier"
+              entityId={supplierId}
+              supplierId={supplierId}
+              supabase={supabase as any}
+            />
+          ) : (
+            <p className="mt-4 rounded-md border border-dashed border-line bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+              Your account is not linked to a company record yet.
+            </p>
+          )}
         </section>
       </div>
 

@@ -161,7 +161,7 @@ export async function ExporterDashboard({
 
         {/* Links to /my-readiness, which shows the same number broken down by
             requirement. It used to link to /corporate, which shows neither. */}
-        <Link href="/my-readiness" className="group flex flex-col items-center justify-center rounded-lg border border-line bg-white p-5 shadow-soft hover:border-forest transition">
+        <Link href="/corporate#documents" className="group flex flex-col items-center justify-center rounded-lg border border-line bg-white p-5 shadow-soft hover:border-forest transition">
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 group-hover:text-forest">Readiness</p>
           <p className={`mt-2 text-4xl font-bold tabular-nums ${scoreColor(readinessScore)}`}>{readinessScore}%</p>
           <StatusBadge tone={scoreTone(readinessScore)} className="mt-2">

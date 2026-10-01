@@ -27,8 +27,8 @@ const SUPPLIER_STEPS: OnboardingStep[] = [
   { title: "Complete your profile", description: "Add your company name, contact details, and country so your importer can identify you.", cta: { label: "Go to Account", href: "/account" } },
   { title: "Add your facility", description: "Create the manufacturing or storage facility where your products are made or held.", cta: { label: "Add Facility", href: "/facilities" } },
   { title: "Add your products", description: "Create products under the facility that makes or stores them.", cta: { label: "Add Product", href: "/products" } },
-  { title: "Upload your evidence", description: "Upload the documents your importer has requested, including COAs, certifications, and food safety plans.", cta: { label: "Upload Evidence", href: "/my-evidence" } },
-  { title: "Track your readiness", description: "See which FSVP requirements your submitted evidence covers, and what is still outstanding.", cta: { label: "View My Readiness", href: "/my-readiness" } },
+  { title: "Upload your company documents", description: "Company Overview lists what your importers need from your company, with an upload next to each item. Facilities and products list their own.", cta: { label: "Go to Company Overview", href: "/corporate#documents" } },
+  { title: "Watch what comes back", description: "Your dashboard counts what is missing, sent back or awaiting your importer, and opens exactly those products. Answer any corrective action there too.", cta: { label: "Go to Dashboard", href: "/dashboard" } },
 ];
 
 export function OnboardingModal({ role = "supplier", steps }: { role?: AppRole; steps?: OnboardingStep[] }) {

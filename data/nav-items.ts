@@ -29,10 +29,9 @@ export const navItems: NavItem[] = [
   { href: "/facilities",   label: "Facilities",   icon: "Warehouse",     roles: ["exporter", "supplier"], tKey: "nav.facilities" },
   { href: "/products",     label: "Products",     icon: "PackageSearch", roles: ["exporter", "supplier"], tKey: "nav.products" },
   { href: "/my-evidence",  label: "My Evidence",  icon: "FileArchive",   roles: ["exporter", "supplier"], tKey: "nav.myEvidence" },
-  // /my-readiness existed, was role-gated to exporter/supplier, and was linked
-  // from nowhere — the only readiness signal an exporter had was a dashboard
-  // tile pointing at /corporate.
-  { href: "/my-readiness", label: "My Readiness", icon: "Gauge",         roles: ["exporter", "supplier"], matches: ["/my-readiness"], tKey: "nav.myReadiness" },
+  // /my-readiness (My Readiness) is retired: its count and company requirement
+  // list are on Company Overview, which had its own copies of both. It now
+  // redirects to /corporate#documents.
 
   // ── Importer: supply chain ───────────────────────────────────
   // The importer owns Facilities and Products too — a managed exporter has no
