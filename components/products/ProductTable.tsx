@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PackageSearch, Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProductLifecycleDialog } from "@/components/products/ProductLifecycleDialog";
@@ -553,11 +553,28 @@ export function ProductTable({
   // the product's FSVP standing — the dashboard's "Approved". Outside it (the
   // exporter's own list) there is no FSVP record to stand on, and the column is
   // the document score, labelled as such so the two never share the word.
-  const fsvpStandings = useProductStandings() !== null;
+  const standingsState = useProductStandings();
+  const fsvpStandings = standingsState !== null;
   const [showForm, setShowForm] = useState(Boolean(presetFacility));
   const [lifecycleProduct, setLifecycleProduct] = useState<ProductRow | null>(null);
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
+  // ?status= arrives from the count cards here and on the Dashboard, so
+  // "2 blocked" opens on those two products rather than on everything.
+  // Read from the URL rather than held in state, so a count card on this same
+  // page (a client navigation that keeps this component mounted) still changes
+  // the filter.
+  const searchParams = useSearchParams();
+  const tableRouter = useRouter();
+  const pathname = usePathname();
+  const statusFilter = searchParams?.get("status") ?? "";
+  function setStatusFilter(value: string) {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (value) params.set("status", value);
+    else params.delete("status");
+    const query = params.toString();
+    tableRouter.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
   // A facility is no longer required to open this form — AddProductForm can
   // add one inline, or leave the product unassigned until later. An exporter
   // is still required in the end, but canManageExporters means one can be
@@ -575,9 +592,16 @@ export function ProductTable({
         (p.country_of_origin?.toLowerCase().includes(q) ?? false) ||
         (p.allergen_information?.toLowerCase().includes(q) ?? false);
       const matchesSupplier = !supplierFilter || p.supplier_id === supplierFilter;
-      return matchesSearch && matchesSupplier;
+      const standing = standingsState?.kind === "ready" ? standingsState.data.standings[p.id] : undefined;
+      const matchesStatus =
+        !statusFilter || standingsState?.kind !== "ready"
+          ? true
+          : statusFilter === "needs_action"
+            ? (standing?.reasons.length ?? 0) > 0
+            : standing?.phase === statusFilter;
+      return matchesSearch && matchesSupplier && matchesStatus;
     });
-  }, [products, search, supplierFilter]);
+  }, [products, search, supplierFilter, statusFilter, standingsState]);
 
   function openAddForm() {
     setShowForm(true);
@@ -620,6 +644,20 @@ export function ProductTable({
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>{s.company_name}</option>
             ))}
+          </select>
+        )}
+        {fsvpStandings && (
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filter by FSVP status"
+            className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
+          >
+            <option value="">All statuses</option>
+            <option value="needs_action">Something left to do</option>
+            <option value="approved">Approved</option>
+            <option value="blocked">Blocked</option>
+            <option value="do_not_ship">Do not ship</option>
           </select>
         )}
         <button

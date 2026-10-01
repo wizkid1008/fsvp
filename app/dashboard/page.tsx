@@ -82,6 +82,14 @@ async function ImporterDashboard({
   const gatesClear = outstandingCount(gates) === 0;
 
   const productSummary = summariseProducts(plan?.productStandings ?? []);
+  // The same counts the Products page shows (components/products/ProductCountCards.tsx).
+  const productCounts = {
+    total: plan?.productStandings.length ?? 0,
+    needsAction: plan ? Object.keys(plan.productReasons).length : 0,
+    approved: productSummary.approved,
+    blocked: productSummary.blocked,
+    doNotShip: plan?.productStandings.filter((s) => s.doNotShip).length ?? 0,
+  };
   const setupSummary = plan?.summary ?? {
     exporters: 0,
     approvedExporters: 0,
@@ -134,7 +142,7 @@ async function ImporterDashboard({
       )}
 
       <ProgramStatus
-        summary={productSummary}
+        counts={productCounts}
         supplyChain={{
           exporters:          setupSummary.exporters,
           approvedExporters:  setupSummary.approvedExporters,

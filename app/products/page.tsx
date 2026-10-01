@@ -6,7 +6,6 @@ import {
 } from "@/components/products/ProductStandings";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { NextStepBanner } from "@/components/ui/NextStepBanner";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import type { StatusTone } from "@/types/platform";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
@@ -421,7 +420,7 @@ export default async function ProductsPage({
           document score, labelled as a score. */}
       {!isSupplier && importerId ? (
         <ProductStandingsProvider>
-          <ProductStatusCards added={productsAdded} />
+          <ProductStatusCards />
           <div className="mt-6">
             {productTable}
           </div>
@@ -436,10 +435,9 @@ export default async function ProductsPage({
             ].map((m) => (
               <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
                 <p className="text-xs font-medium text-slate-500">{m.label}</p>
-                <div className="mt-2 flex items-end justify-between">
-                  <p className="text-3xl font-semibold text-ink">{m.value}</p>
-                  <StatusBadge tone={m.tone}>{m.value > 0 ? "Active" : "None"}</StatusBadge>
-                </div>
+                <p className={`mt-2 text-3xl font-semibold ${m.value > 0 && m.tone === "warning" ? "text-amber-700" : "text-ink"}`}>
+                  {m.value}
+                </p>
               </div>
             ))}
           </div>

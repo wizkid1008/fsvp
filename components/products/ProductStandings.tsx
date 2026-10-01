@@ -6,6 +6,7 @@ import type { StatusTone } from "@/types/platform";
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { ReasonList, StageReference, type ReasonItem, type StageSummary } from "@/components/products/ProductReasons";
+import { ProductCountCards, type ProductCounts } from "@/components/products/ProductCountCards";
 
 /**
  * Where each product stands in the FSVP pipeline, for the importer's Products
@@ -170,33 +171,23 @@ export function ProductWhatsLeft({ productId }: { productId: string }) {
 }
 
 /** The Products page's cards, counted as the dashboard counts them. */
-export function ProductStatusCards({ added }: { added: number }) {
+export function ProductStatusCards() {
   const state = useProductStandings();
-  const value = (pick: (d: ProductStandingsResponse) => number) =>
-    state?.kind === "ready" ? pick(state.data) : null;
-
-  const cards: Array<{ label: string; value: number | null; tone: StatusTone }> = [
-    { label: "Products Added", value: added, tone: "info" },
-    { label: "Products Approved", value: value((d) => d.approved), tone: "success" },
-    { label: "Products Blocked", value: value((d) => d.blocked), tone: "danger" },
-    { label: "Do Not Ship", value: value((d) => d.doNotShip), tone: "danger" },
-  ];
+  // Counted exactly as the Dashboard counts them — see ProductCountCards.
+  const counts: ProductCounts | null =
+    state?.kind === "ready"
+      ? {
+          total: Object.keys(state.data.standings).length,
+          needsAction: Object.values(state.data.standings).filter((s) => s.reasons.length > 0).length,
+          approved: state.data.approved,
+          blocked: state.data.blocked,
+          doNotShip: state.data.doNotShip,
+        }
+      : null;
 
   return (
-    <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {cards.map((m) => (
-        <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
-          <p className="text-xs font-medium text-slate-500">{m.label}</p>
-          <div className="mt-2 flex items-end justify-between">
-            <p className="text-3xl font-semibold text-ink">
-              {m.value ?? (state?.kind === "error" ? "—" : "…")}
-            </p>
-            {m.value !== null && (
-              <StatusBadge tone={m.value > 0 ? m.tone : "neutral"}>{m.value > 0 ? "Active" : "None"}</StatusBadge>
-            )}
-          </div>
-        </div>
-      ))}
+    <div className="mt-6">
+      <ProductCountCards counts={counts} placeholder={state?.kind === "error" ? "—" : "…"} />
     </div>
   );
 }
