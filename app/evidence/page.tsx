@@ -7,6 +7,9 @@ import { DocumentActions } from "@/components/evidence/DocumentActions";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { FileArchive } from "lucide-react";
+import Link from "next/link";
+import { CompanyRecords, loadCompanyRecords } from "@/components/evidence/CompanyRecords";
+import { resolvePreviewedAccountId } from "@/lib/preview-role";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
@@ -27,10 +30,20 @@ function approvalLabel(status: string | null) {
 export default async function EvidencePage({
   searchParams
 }: {
-  searchParams?: { entity?: string; id?: string };
+  searchParams?: { entity?: string; id?: string; tab?: string };
 }) {
-  const { role, realRole } = await requireProfileRole("/evidence");
+  const { role, realRole, user } = await requireProfileRole("/evidence");
   const supabase = createServerSupabaseClient();
+
+  // The Company records tab holds the importer's own documents (formerly the
+  // Our FSVP Records page). An administrator sees the previewed importer's.
+  const { data: profile } = await (supabase.from("profiles") as any)
+    .select("importer_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  const importerId: string | null = resolvePreviewedAccountId(realRole, profile?.importer_id ?? null);
+  const companyRecords = importerId ? await loadCompanyRecords(supabase as any, importerId) : null;
+  const tab = searchParams?.tab === "company" && companyRecords ? "company" : "suppliers";
 
   type DocRow = { id: string; importer_id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; size_bytes: number; linked_entity_type: string | null; linked_entity_id: string | null; requirement_item_id: string | null };
   // Sections carry their items. The library files evidence against the same
@@ -73,7 +86,11 @@ export default async function EvidencePage({
     (supabase.from("document_categories") as any).select("label").eq("active", true).order("sort_order"),
   ]);
 
-  const documents = (docsRes.data ?? []) as unknown as DocRow[];
+  // The importer's own documents are listed on the Company records tab, by
+  // obligation, not here — this table is evidence about suppliers.
+  const documents = ((docsRes.data ?? []) as unknown as DocRow[]).filter(
+    (doc) => doc.linked_entity_type !== "importer"
+  );
   const sections = (sectionsRes.data ?? []) as unknown as SectionRow[];
   // Flattened for the two dropdowns: one option per item, labelled by its
   // section so "Recall Procedure" is distinguishable from the supplier-level
@@ -173,13 +190,50 @@ export default async function EvidencePage({
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Document Library"
-        description="Every FSVP evidence document across your exporters. Upload here, track review status, and map each document to the requirement it satisfies. Documents your exporters submit for review arrive in Supplier Submissions."
+        description="Every FSVP document you hold: evidence about your exporters, facilities and products, and your company's own FSVP records. Documents your exporters submit for review arrive in Exporter Submissions."
       />
 
-      {/* No requirements sidebar: it listed every section of the rule with a
-          fixed status dot, tied to no exporter, facility or product. Their
-          pages' checklists show the same requirements with real status. */}
+      {companyRecords && (
+        <nav className="mt-6 flex gap-1 border-b border-line" aria-label="Document Library sections">
+          {[
+            { key: "suppliers", label: "Supplier & product documents", href: "/evidence", badge: null },
+            {
+              key: "company",
+              label: "Company records",
+              href: "/evidence?tab=company",
+              badge: companyRecords.outstanding > 0 ? `${companyRecords.outstanding} needed` : null,
+            },
+          ].map((t) => (
+            <Link
+              key={t.key}
+              href={t.href}
+              aria-current={tab === t.key ? "page" : undefined}
+              className={`-mb-px inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
+                tab === t.key
+                  ? "border-forest text-ink"
+                  : "border-transparent text-slate-500 hover:text-ink"
+              }`}
+            >
+              {t.label}
+              {t.badge && <StatusBadge tone="warning">{t.badge}</StatusBadge>}
+            </Link>
+          ))}
+        </nav>
+      )}
+
+      {tab === "company" && companyRecords && importerId ? (
+        <div className="mt-6">
+          <CompanyRecords
+            data={companyRecords}
+            importerId={importerId}
+            isAdministrator={realRole === "administrator"}
+          />
+        </div>
+      ) : (
       <div className="mt-6">
+        {/* No requirements sidebar: it listed every section of the rule with a
+            fixed status dot, tied to no exporter, facility or product. Their
+            pages' checklists show the same requirements with real status. */}
         <div className="space-y-6">
           <EvidenceUploadPanel
             documentCategories={documentCategories.length > 0 ? documentCategories : undefined}
@@ -256,6 +310,7 @@ export default async function EvidencePage({
         </div>
 
       </div>
+      )}
     </AppShell>
   );
 }

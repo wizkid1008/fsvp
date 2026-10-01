@@ -334,7 +334,7 @@ export function draftHazardAnalysisReliance(facts: ProcedureFacts): ProcedureSec
  * each one is drafted.
  *
  * One map because three places have to agree: the API route that generates,
- * the /our-records page that offers an editor instead of a file picker, and
+ * the Company records tab (Document Library) that offers an editor instead of a file picker, and
  * the kind CHECK on importer_procedures (migration 027). Two of those are code
  * and can import this; the constraint cannot, so it is the one to update by
  * hand when a kind is added here.
