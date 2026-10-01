@@ -67,13 +67,18 @@ export default async function FsvpRecordsPage() {
   const approvedRecords = records.filter((r) => r.status === "importer_approved");
   const approved = approvedRecords.length;
   const conditional = records.filter((r) => r.status === "conditionally_approved").length;
-  const pending = records.filter((r) =>
-    ["draft", "importer_review_pending", "supplier_evidence_accepted"].includes(r.status)
+  // Split by who is holding the record up. "Pending Review" used to count
+  // drafts alongside records awaiting review, so it read 6 when most of the six
+  // were drafts nobody could review yet.
+  const countWhere = (statuses: string[]) => records.filter((r) => statuses.includes(r.status)).length;
+  const drafts = countWhere(["draft"]);
+  const waitingOnExporter = countWhere(["awaiting_supplier_evidence", "supplier_evidence_submitted"]);
+  const awaitingReview = countWhere(["supplier_evidence_accepted", "importer_review_pending"]);
+  const stopped = countWhere(["needs_corrective_action", "rejected", "expired"]);
+  const reassessmentDue = records.filter((r) =>
+    r.status === "reassessment_due" ||
+    (r.reassessment_due_at !== null && new Date(r.reassessment_due_at) <= new Date())
   ).length;
-  const reassessmentDue = records.filter((r) => {
-    if (!r.reassessment_due_at) return false;
-    return new Date(r.reassessment_due_at) <= new Date();
-  }).length;
 
   return (
     <AppShell role={role} realRole={realRole}>
@@ -120,21 +125,26 @@ export default async function FsvpRecordsPage() {
       )}
 
       {/* Summary metrics */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-4">
+      {/* No "Active" badge: it only said the number was above zero. The two
+          counts that mean something is wrong turn red instead. */}
+      <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          { label: "Approved", value: approved, tone: "success" as StatusTone },
-          { label: "Conditional", value: conditional, tone: "warning" as StatusTone },
-          { label: "Pending Review", value: pending, tone: "info" as StatusTone },
-          { label: "Reassessment Due", value: reassessmentDue, tone: reassessmentDue > 0 ? "danger" as StatusTone : "neutral" as StatusTone },
-        ].map((m) => (
-          <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
-            <p className="text-xs font-medium text-slate-500">{m.label}</p>
-            <div className="mt-2 flex items-end justify-between">
-              <p className="text-3xl font-semibold text-ink">{m.value}</p>
-              <StatusBadge tone={m.tone}>{m.value > 0 ? "Active" : "None"}</StatusBadge>
+          { label: "Draft", value: drafts, note: null as string | null, alarm: false },
+          { label: "Waiting on exporter", value: waitingOnExporter, note: null, alarm: false },
+          { label: "Awaiting your review", value: awaitingReview, note: null, alarm: false },
+          { label: "Approved", value: approved + conditional, note: conditional > 0 ? `${conditional} conditional` : null, alarm: false },
+          { label: "Reassessment due", value: reassessmentDue, note: null, alarm: true },
+          { label: "Rejected or stopped", value: stopped, note: null, alarm: true },
+        ].map((m) => {
+          const red = m.alarm && m.value > 0;
+          return (
+            <div key={m.label} className={`rounded-lg border bg-white p-4 shadow-soft ${red ? "border-red-200" : "border-line"}`}>
+              <p className="text-xs font-medium text-slate-500">{m.label}</p>
+              <p className={`mt-2 text-3xl font-semibold ${red ? "text-red-700" : "text-ink"}`}>{m.value}</p>
+              {m.note && <p className="mt-0.5 text-xs text-slate-500">{m.note}</p>}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {records.length === 0 ? (

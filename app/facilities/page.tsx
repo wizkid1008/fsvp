@@ -2,7 +2,6 @@ import { FacilityTable, type FacilityRow } from "@/components/facilities/Facilit
 import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import type { StatusTone } from "@/types/platform";
 import { SupplierContextSwitcher } from "@/components/suppliers/SupplierContextSwitcher";
@@ -294,8 +293,7 @@ export default async function FacilitiesPage({
           <div key={m.label} className="rounded-lg border border-line bg-white p-4 shadow-soft">
             <p className="text-xs font-medium text-slate-500">{m.label}</p>
             <div className="mt-2 flex items-end justify-between">
-              <p className="text-3xl font-semibold text-ink">{m.value}</p>
-              <StatusBadge tone={m.tone}>{m.value > 0 ? "Active" : "None"}</StatusBadge>
+              <p className={`text-3xl font-semibold ${m.value > 0 && m.tone === "danger" ? "text-red-700" : m.value > 0 && m.tone === "warning" ? "text-amber-700" : "text-ink"}`}>{m.value}</p>
             </div>
           </div>
         ))}
