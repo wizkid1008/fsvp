@@ -232,6 +232,27 @@ export async function POST(request: Request) {
     // The importing organization is both the owner and the subject.
     linkedEntityType = "importer";
     linkedEntityId = resolvedImporterId as string;
+
+    // Or one of its qualified individuals: the § 1.503 education, training or
+    // experience behind that person's signature. These used to go in a single
+    // organization-wide slot on Our FSVP Records, which could not say whose
+    // qualifications a file was. The QI must be on this importer's own register.
+    const qualifiedIndividualId = String(formData.get("qualified_individual_id") ?? "");
+    if (qualifiedIndividualId) {
+      const { data: qi } = await (createAdminSupabaseClient().from("qualified_individuals") as any)
+        .select("id")
+        .eq("id", qualifiedIndividualId)
+        .eq("importer_id", resolvedImporterId)
+        .maybeSingle();
+      if (!qi) {
+        return NextResponse.json(
+          { error: "That person is not on this importer's qualified individual register." },
+          { status: 400 }
+        );
+      }
+      linkedEntityType = "qualified_individual";
+      linkedEntityId = qi.id;
+    }
   } else if (linkType === "product") {
     if (!productId) {
       return NextResponse.json({ error: "Product evidence must be linked to a product." }, { status: 400 });

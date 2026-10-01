@@ -19,12 +19,19 @@ export function ImporterRecordUpload({
   label,
   importerId,
   hasDocuments,
+  qualifiedIndividualId,
 }: {
   documentKind: string;
   label: string;
   importerId: string;
   hasDocuments: boolean;
+  /**
+   * Files the document against one qualified individual rather than the
+   * organization: the § 1.503 qualifications behind one person's signature.
+   */
+  qualifiedIndividualId?: string;
 }) {
+  const inputId = `file-${documentKind}${qualifiedIndividualId ? `-${qualifiedIndividualId}` : ""}`;
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +54,7 @@ export function ImporterRecordUpload({
         body.append("document_kind", documentKind);
         body.append("link_type", "importer");
         body.append("importer_id", importerId);
+        if (qualifiedIndividualId) body.append("qualified_individual_id", qualifiedIndividualId);
 
         const res = await fetch("/api/documents/upload", { method: "POST", body });
         const json = (await res.json()) as { error?: string };
@@ -65,12 +73,12 @@ export function ImporterRecordUpload({
       <input
         ref={inputRef}
         type="file"
-        id={`file-${documentKind}`}
+        id={inputId}
         className="sr-only"
         onChange={(event) => choose(event.currentTarget.files?.[0])}
       />
       <label
-        htmlFor={`file-${documentKind}`}
+        htmlFor={inputId}
         className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
       >
         <Paperclip className="h-3.5 w-3.5" />

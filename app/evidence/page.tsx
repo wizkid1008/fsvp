@@ -138,10 +138,11 @@ export default async function EvidencePage({
     (supabase.from("document_categories") as any).select("label").eq("active", true).order("sort_order"),
   ]);
 
-  // The importer's own documents are listed on the Company records tab, by
+  // The importer's own documents (Company records tab) and its QIs' qualification
+  // files (the QI register) are listed where they belong, by
   // obligation, not here — this table is evidence about suppliers.
   const documents = ((docsRes.data ?? []) as unknown as DocRow[]).filter(
-    (doc) => doc.linked_entity_type !== "importer"
+    (doc) => doc.linked_entity_type !== "importer" && doc.linked_entity_type !== "qualified_individual"
   );
   const sections = (sectionsRes.data ?? []) as unknown as SectionRow[];
   // Flattened for the two dropdowns: one option per item, labelled by its

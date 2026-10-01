@@ -96,7 +96,7 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const hazardAnalysisId = typeof body.hazard_analysis_id === "string" ? body.hazard_analysis_id.trim() : "";
-  const action = body.action === "reopen" ? "reopen" : "finalize";
+  const action = body.action === "reopen" ? "reopen" : body.action === "reliance" ? "reliance" : "finalize";
 
   if (!hazardAnalysisId) {
     return NextResponse.json({ error: "hazard_analysis_id required" }, { status: 400 });
@@ -158,6 +158,48 @@ export async function PATCH(req: NextRequest) {
     });
 
     return NextResponse.json({ ok: true, status: "draft" });
+  }
+
+  // § 1.504(a): the analysis was conducted by someone else — a supplier, a
+  // co-packer, a third party — and this importer reviewed it. The columns
+  // existed from the start and the panel displayed them, but nothing ever wrote
+  // them, so reliance could only be recorded as a free-standing procedure on
+  // Company records, detached from the food it was about. Draft only, like the
+  // items: a final analysis is what the QI signs, and changing who performed it
+  // afterwards would change what was signed.
+  if (action === "reliance") {
+    if (analysis.status !== "draft") {
+      return NextResponse.json(
+        { error: "Reopen the hazard analysis to change whether it relies on another party's analysis." },
+        { status: 409 }
+      );
+    }
+    const relied = body.relied_on_other_party === true;
+    const partyName = typeof body.relied_on_party_name === "string" ? body.relied_on_party_name.trim() : "";
+    if (relied && !partyName) {
+      return NextResponse.json({ error: "Name who conducted the hazard analysis you are relying on." }, { status: 400 });
+    }
+
+    const { error } = await (admin.from("fsvp_plan_hazard_analyses") as any)
+      .update({
+        relied_on_other_party: relied,
+        relied_on_party_name:  relied ? partyName : null,
+        updated_at:            new Date().toISOString(),
+      })
+      .eq("id", hazardAnalysisId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    await (admin.from("audit_logs") as any).insert({
+      importer_id:      record.importer_id,
+      actor_profile_id: user.id,
+      actor_role:       profile.role,
+      action:           "hazard_analysis_reliance_set",
+      record_type:      "fsvp_plan_hazard_analyses",
+      record_id:        hazardAnalysisId,
+      new_value:        { relied_on_other_party: relied, relied_on_party_name: relied ? partyName : null },
+    });
+
+    return NextResponse.json({ ok: true });
   }
 
   if (analysis.status === "final") {

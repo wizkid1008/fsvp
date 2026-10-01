@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, Mail, UserPlus, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ImporterRecordUpload } from "@/components/evidence/ImporterRecordUpload";
 import { QUALIFICATION_BASES, QUALIFICATION_BASIS_LABEL, isActiveOn } from "@/lib/fsvp/qualified-individuals";
 import type { QualificationBasis } from "@/types/database";
 
@@ -13,6 +14,14 @@ export type TenantMember = {
   email: string;
   role: string;
   position: string | null;
+};
+
+export type QualificationFile = {
+  id: string;
+  title: string;
+  original_filename: string | null;
+  uploaded_at: string;
+  evidence_status: string | null;
 };
 
 export type QiRow = {
@@ -328,11 +337,16 @@ export function QualifiedIndividualsClient({
   availableMembers,
   canManage,
   hasOrganization,
+  importerId,
+  qualificationFiles,
 }: {
   qis: QiRow[];
   availableMembers: TenantMember[];
   canManage: boolean;
   hasOrganization: boolean;
+  importerId: string | null;
+  /** Per QI id: the files behind their stated basis. */
+  qualificationFiles: Record<string, QualificationFile[]>;
 }) {
   const [showRegister, setShowRegister] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
@@ -383,6 +397,7 @@ export function QualifiedIndividualsClient({
               <tr className="border-b border-line bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="px-4 py-3 font-semibold">Name</th>
                 <th className="px-4 py-3 font-semibold">Basis</th>
+                <th className="px-4 py-3 font-semibold">Qualifications on file</th>
                 <th className="px-4 py-3 font-semibold">Scope</th>
                 <th className="px-4 py-3 font-semibold">Active</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
@@ -403,6 +418,36 @@ export function QualifiedIndividualsClient({
                     </td>
                     <td className="px-4 py-3 text-slate-700">
                       {QUALIFICATION_BASIS_LABEL[qi.qualification_basis]}
+                    </td>
+                    {/* § 1.503: the CV, certificate or course record behind the
+                        basis. Moved here from Company records, where one slot
+                        for the whole organization could not say whose it was. */}
+                    <td className="px-4 py-3">
+                      {(qualificationFiles[qi.id] ?? []).length === 0 ? (
+                        <p className="text-xs text-amber-700">None filed</p>
+                      ) : (
+                        <ul className="space-y-0.5">
+                          {(qualificationFiles[qi.id] ?? []).map((file) => (
+                            <li key={file.id} className="text-xs text-slate-700">
+                              {file.title}
+                              <span className="text-slate-400">
+                                {" "}· {new Date(file.uploaded_at).toLocaleDateString()}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {canManage && importerId && (
+                        <div className="mt-1.5">
+                          <ImporterRecordUpload
+                            documentKind="qi_qualifications"
+                            label={`Qualifications — ${qi.full_name ?? qi.email}`}
+                            importerId={importerId}
+                            qualifiedIndividualId={qi.id}
+                            hasDocuments={(qualificationFiles[qi.id] ?? []).length > 0}
+                          />
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-700">
                       {qi.scope && qi.scope.length > 0 ? qi.scope.join(", ") : "Unrestricted"}

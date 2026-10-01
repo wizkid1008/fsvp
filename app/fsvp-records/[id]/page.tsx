@@ -7,6 +7,7 @@ import { ApprovalDecisionForm } from "@/components/fsvp/ApprovalDecisionForm";
 import { SubmitForApprovalPanel } from "@/components/fsvp/SubmitForApprovalPanel";
 import { EvidencePackagePanel } from "@/components/fsvp/EvidencePackagePanel";
 import { HazardAnalysisPanel } from "@/components/fsvp/HazardAnalysisPanel";
+import { HazardReliancePanel } from "@/components/fsvp/HazardReliancePanel";
 import { VerificationRecordsPanel } from "@/components/fsvp/VerificationRecordsPanel";
 import { PrintButton } from "@/components/fsvp/PrintButton";
 import { InspectionPackageButton } from "@/components/fsvp/InspectionPackageButton";
@@ -237,6 +238,21 @@ export default async function FsvpRecordPage({
   const hazardAnalysis = rawHazardAnalysis
     ? { ...rawHazardAnalysis, items: rawHazardAnalysis.fsvp_plan_hazard_items ?? [] }
     : null;
+
+  // The other party's hazard analysis, when this one relies on it (§ 1.504(a)),
+  // filed against the product. Filed for this importer or for nobody in
+  // particular — the documents rule (lib/products/ownership.ts).
+  const { data: rawRelianceDocs } = await (supabase.from("documents") as any)
+    .select("id, title, uploaded_at, evidence_status")
+    .eq("linked_entity_type", "product")
+    .eq("linked_entity_id", product.id)
+    .eq("document_kind", "hazard_analysis_reliance")
+    .or(`importer_id.eq.${record.importer_id},importer_id.is.null`)
+    .is("soft_deleted_at", null)
+    .order("uploaded_at", { ascending: false });
+  const relianceDocs = (rawRelianceDocs ?? []) as Array<{
+    id: string; title: string; uploaded_at: string; evidence_status: string | null;
+  }>;
 
   // Fetch verification records
   const { data: rawVerificationRecords } = await (supabase.from("fsvp_verification_records") as any)
@@ -649,6 +665,19 @@ export default async function FsvpRecordPage({
             analysis={hazardAnalysis}
             readonly={!isEditable}
           />
+          {hazardAnalysis && (
+            <HazardReliancePanel
+              hazardAnalysisId={hazardAnalysis.id}
+              analysisStatus={hazardAnalysis.status}
+              reliedOnOtherParty={Boolean(hazardAnalysis.relied_on_other_party)}
+              reliedOnPartyName={hazardAnalysis.relied_on_party_name ?? null}
+              documents={relianceDocs}
+              productId={product.id}
+              supplierId={supplier.id}
+              importerId={record.importer_id}
+              readonly={!isEditable}
+            />
+          )}
         </section>
 
         {/* Verification Records */}

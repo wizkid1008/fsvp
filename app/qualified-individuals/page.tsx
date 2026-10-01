@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { QualifiedIndividualsClient, type QiRow, type TenantMember } from "@/components/qi/QualifiedIndividualsClient";
+import { QualifiedIndividualsClient, type QiRow, type QualificationFile, type TenantMember } from "@/components/qi/QualifiedIndividualsClient";
 import { requireProfileRole } from "@/lib/auth/protection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { tryAdminClient } from "@/lib/supabase/admin-guard";
@@ -33,9 +33,9 @@ export default async function QualifiedIndividualsPage() {
 
   const importerId: string | null = resolvePreviewedAccountId(realRole, profile?.importer_id ?? null);
 
-  // profiles RLS exposes only the caller's own row, so both of these read
+  // profiles RLS exposes only the caller's own row, so these read
   // through the admin client with an explicit importer_id filter.
-  const [{ data: rawQis }, { data: rawMembers }] = await Promise.all([
+  const [{ data: rawQis }, { data: rawMembers }, { data: rawQualDocs }] = await Promise.all([
     importerId
       ? (admin.from("qualified_individuals") as any)
           .select("id, profile_id, qualification_basis, education, training, experience, languages, scope, active_from, active_to, created_at")
@@ -49,7 +49,22 @@ export default async function QualifiedIndividualsPage() {
           .in("role", ["us_importer", "reviewer", "administrator"])
           .order("full_name")
       : Promise.resolve({ data: [] }),
+    // Each person's § 1.503 qualification files, filed against them here
+    // rather than in one organization-wide slot on Company records.
+    importerId
+      ? (admin.from("documents") as any)
+          .select("id, title, original_filename, uploaded_at, evidence_status, linked_entity_id")
+          .eq("importer_id", importerId)
+          .eq("linked_entity_type", "qualified_individual")
+          .is("soft_deleted_at", null)
+          .order("uploaded_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
   ]);
+
+  const qualificationFiles: Record<string, QualificationFile[]> = {};
+  for (const doc of (rawQualDocs ?? []) as Array<QualificationFile & { linked_entity_id: string }>) {
+    (qualificationFiles[doc.linked_entity_id] ??= []).push(doc);
+  }
 
   const members = ((rawMembers ?? []) as TenantMember[]);
   const byId = new Map(members.map((m) => [m.id, m]));
@@ -82,6 +97,8 @@ export default async function QualifiedIndividualsPage() {
         availableMembers={available}
         canManage={canManage}
         hasOrganization={Boolean(importerId)}
+        importerId={importerId}
+        qualificationFiles={qualificationFiles}
       />
     </AppShell>
   );

@@ -359,12 +359,6 @@ export function HazardAnalysisPanel({
             </p>
           )}
 
-          {analysis.relied_on_other_party && analysis.relied_on_party_name && (
-            <p className="text-xs text-slate-500 italic">
-              Relying on hazard analysis performed by {analysis.relied_on_party_name}
-            </p>
-          )}
-
           {/* Hazard items by type */}
           {analysis.items.length === 0 ? (
             <p className="text-sm text-slate-400 italic">No hazards identified yet. Add at least one hazard.</p>

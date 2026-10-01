@@ -21,11 +21,15 @@ describe("IMPORTER_RECORD_KINDS", () => {
     }
   });
 
-  it("marks hazard-analysis reliance as conditional, not required", () => {
-    // § 1.504(a) only bites if you rely on someone else's analysis. Listing it
-    // as required would make every importer who does their own look deficient.
-    const reliance = IMPORTER_RECORD_KINDS.find((k) => k.key === "hazard_analysis_reliance");
-    expect(reliance?.required).toBe(false);
+  it("holds only what the organization keeps once, not per person or per food", () => {
+    // QI qualifications are filed per person on the register, the D-U-N-S is on
+    // the account, and hazard-analysis reliance is decided per food on the
+    // record. Listing any of them here again would bring back a slot that
+    // cannot say whose or which it is.
+    const keys = IMPORTER_RECORD_KINDS.map((k) => k.key);
+    for (const moved of ["qi_qualifications", "importer_identification", "hazard_analysis_reliance"]) {
+      expect(keys).not.toContain(moved);
+    }
   });
 
   it("has unique keys, since document_kind matches on them", () => {
@@ -45,12 +49,11 @@ describe("summariseImporterRecords", () => {
     const summary = summariseImporterRecords([
       doc("records_procedures"),
       doc("records_procedures"),
-      doc("qi_qualifications"),
+      doc("approved_supplier_procedures"),
     ]);
 
     expect(summary.find((s) => s.kind.key === "records_procedures")?.documents).toBe(2);
-    expect(summary.find((s) => s.kind.key === "qi_qualifications")?.documents).toBe(1);
-    expect(summary.find((s) => s.kind.key === "importer_identification")?.documents).toBe(0);
+    expect(summary.find((s) => s.kind.key === "approved_supplier_procedures")?.documents).toBe(1);
   });
 
   it("does not treat an uploaded-but-unreviewed document as satisfying anything", () => {
@@ -64,16 +67,16 @@ describe("summariseImporterRecords", () => {
   });
 
   it("ignores a rejected document while still counting it as filed", () => {
-    const summary = summariseImporterRecords([doc("qi_qualifications", "rejected")]);
-    expect(summary.find((s) => s.kind.key === "qi_qualifications")?.satisfied).toBe(false);
+    const summary = summariseImporterRecords([doc("records_procedures", "rejected")]);
+    expect(summary.find((s) => s.kind.key === "records_procedures")?.satisfied).toBe(false);
   });
 
   it("is satisfied when any one document is accepted", () => {
     const summary = summariseImporterRecords([
-      doc("qi_qualifications", "rejected"),
-      doc("qi_qualifications", "accepted"),
+      doc("records_procedures", "rejected"),
+      doc("records_procedures", "accepted"),
     ]);
-    expect(summary.find((s) => s.kind.key === "qi_qualifications")?.satisfied).toBe(true);
+    expect(summary.find((s) => s.kind.key === "records_procedures")?.satisfied).toBe(true);
   });
 
   it("ignores documents filed under an unrecognised kind", () => {
@@ -89,12 +92,10 @@ describe("outstandingRequired", () => {
     expect(outstandingRequired(summary)).toBe(required);
   });
 
-  it("does not count the conditional one even when unfiled", () => {
+  it("reaches zero once each required one has an accepted document", () => {
     const summary = summariseImporterRecords([
       doc("approved_supplier_procedures"),
-      doc("qi_qualifications"),
       doc("records_procedures"),
-      doc("importer_identification"),
     ]);
     expect(outstandingRequired(summary)).toBe(0);
   });

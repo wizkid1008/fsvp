@@ -23,6 +23,21 @@ export type ImporterRecordKind = {
   required: boolean;
 };
 
+/**
+ * Only what is genuinely held once by the organization. Three obligations used
+ * to be listed here too, and each was in the wrong place:
+ *
+ *   § 1.503 QI qualifications — the CV or certificate behind ONE person's
+ *     signature. One organization-wide slot could not say whose a file was;
+ *     they are filed per person on the Qualified Individuals register now
+ *     (documents.linked_entity_type = 'qualified_individual').
+ *   § 1.509 importer identification — the D-U-N-S is held on the importer
+ *     account already and printed on every inspection package. § 1.509 asks
+ *     that it be transmitted at entry, not that a document about it be kept, so
+ *     Company records shows the number on file instead of asking for a file.
+ *   § 1.504(a) reliance on another entity's hazard analysis — decided per food,
+ *     so it is on the FSVP record's hazard analysis, where the QI signs.
+ */
 export const IMPORTER_RECORD_KINDS: ImporterRecordKind[] = [
   {
     key: "approved_supplier_procedures",
@@ -36,16 +51,6 @@ export const IMPORTER_RECORD_KINDS: ImporterRecordKind[] = [
     required: true,
   },
   {
-    key: "qi_qualifications",
-    title: "Qualified individual qualifications",
-    citation: "21 CFR 1.503",
-    why:
-      "Evidence of the education, training or experience that makes each qualified individual " +
-      "qualified. The register records which basis applies; this is the CV, certificate or course " +
-      "record behind it. A signature is only as good as the standing of whoever made it.",
-    required: true,
-  },
-  {
     key: "records_procedures",
     title: "Records maintenance procedures",
     citation: "21 CFR 1.510",
@@ -54,26 +59,6 @@ export const IMPORTER_RECORD_KINDS: ImporterRecordKind[] = [
       "held in English, and produced promptly when FDA asks. Electronic records must also meet " +
       "§ 1.510(b).",
     required: true,
-  },
-  {
-    key: "importer_identification",
-    title: "Importer identification at entry",
-    citation: "21 CFR 1.509",
-    why:
-      "The D-U-N-S number transmitted as the FSVP importer identifier at entry, and evidence it is " +
-      "current. Filed under the wrong identifier, an otherwise complete FSVP does not attach to " +
-      "the shipment it was built for.",
-    required: true,
-  },
-  {
-    key: "hazard_analysis_reliance",
-    title: "Reliance on another entity's hazard analysis",
-    citation: "21 CFR 1.504(a)",
-    why:
-      "Only if you rely on a hazard analysis someone else conducted — a supplier, a co-packer, a " +
-      "third party. You must review and assess it, and document that you did. Not required if you " +
-      "conduct your own.",
-    required: false,
   },
 ];
 

@@ -22,11 +22,16 @@ export function OtherDocumentUpload({
   entityId,
   supplierId,
   viewerImporterId = null,
+  documentKind,
+  buttonLabel = "Upload another document",
 }: {
   linkType: "supplier" | "facility" | "product";
   entityId: string;
   supplierId: string;
   viewerImporterId?: string | null;
+  /** A fixed document_kind, when the caller knows what is being filed. Defaults to the title. */
+  documentKind?: string;
+  buttonLabel?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -68,7 +73,7 @@ export function OtherDocumentUpload({
         const body = new FormData();
         body.append("file", file);
         body.append("title", name);
-        body.append("document_kind", name);
+        body.append("document_kind", documentKind ?? name);
         body.append("supplier_id", supplierId);
         body.append("link_type", linkType);
         if (linkType === "facility") body.append("facility_id", entityId);
@@ -100,7 +105,7 @@ export function OtherDocumentUpload({
         className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-forest hover:text-forest"
       >
         <Plus className="h-3.5 w-3.5" />
-        Upload another document
+        {buttonLabel}
       </button>
     );
   }

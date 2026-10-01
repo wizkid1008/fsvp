@@ -1,4 +1,5 @@
 import { CheckCircle2, CircleAlert, FileText } from "lucide-react";
+import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ImporterRecordUpload } from "@/components/evidence/ImporterRecordUpload";
 import { ProcedureEditor } from "@/components/evidence/ProcedureEditor";
@@ -30,29 +31,6 @@ import type { StatusTone } from "@/types/platform";
  *  has no way to draft. */
 const EDITABLE_PROCEDURES = PROCEDURE_KINDS;
 
-/** What to say before a kind has been drafted, where the default — "builds a
- *  first version from what this platform already enforces" — would overstate
- *  how much of it the platform can actually write. */
-const START_HINTS: Record<string, string> = {
-  importer_identification:
-    "Builds a statement of the identifier you transmit, from the D-U-N-S on file. Who files your entries and how you confirm the number is still active are left for you to answer.",
-  hazard_analysis_reliance:
-    "Only draft this if you rely on a hazard analysis someone else conducted. It builds the structure § 1.504(a) expects — the substance is yours to write, and adopting it states that you rely on such an analysis.",
-};
-
-/**
- * Two of the drafted kinds still take a file as well, because the written
- * record and the evidence behind it are different things: a statement of the
- * D-U-N-S you transmit is not the Dun & Bradstreet record showing it is
- * active, and a review of someone else's hazard analysis is not that analysis.
- */
-const SUPPORTING_EVIDENCE: Record<string, string> = {
-  importer_identification:
-    "File the evidence behind the statement — the Dun & Bradstreet record showing the number is active, or the entry filing that carries it.",
-  hazard_analysis_reliance:
-    "File the hazard analysis you were given. Your review above assesses it; this is the document being assessed.",
-};
-
 type CompanyDocument = {
   id: string;
   title: string;
@@ -78,13 +56,15 @@ export type CompanyRecordsData = {
   summary: ImporterRecordStatus[];
   /** Required records not yet in place — the count on the tab. */
   outstanding: number;
+  /** The organization's D-U-N-S, the § 1.509 importer identifier, if on file. */
+  dunsNumber: string | null;
 };
 
 export async function loadCompanyRecords(
   supabase: { from: (table: string) => any },
   importerId: string
 ): Promise<CompanyRecordsData> {
-  const [docsRes, proceduresRes] = await Promise.all([
+  const [docsRes, proceduresRes, importerRes] = await Promise.all([
     supabase.from("documents")
       .select("id, title, document_kind, original_filename, uploaded_at, evidence_status, expiration_date")
       .eq("linked_entity_type", "importer")
@@ -98,6 +78,7 @@ export async function loadCompanyRecords(
       .select("kind, content, status, version, adopted_at, profiles:adopted_by_profile_id(full_name, email)")
       .eq("importer_id", importerId)
       .in("status", ["draft", "adopted"]),
+    supabase.from("importers").select("duns_number").eq("id", importerId).maybeSingle(),
   ]);
 
   const documents = (docsRes.data ?? []) as CompanyDocument[];
@@ -110,7 +91,13 @@ export async function loadCompanyRecords(
     adoptedKinds.includes(s.kind.key) ? { ...s, satisfied: true } : s
   );
 
-  return { documents, procedures, summary, outstanding: outstandingRequired(summary) };
+  return {
+    documents,
+    procedures,
+    summary,
+    outstanding: outstandingRequired(summary),
+    dunsNumber: (importerRes.data as { duns_number: string | null } | null)?.duns_number ?? null,
+  };
 }
 
 const statusTone = (s: string | null): StatusTone =>
@@ -140,7 +127,6 @@ export function CompanyRecords({
       {summary.map(({ kind, documents: count, satisfied }) => {
         const filed = documents.filter((d) => d.document_kind === kind.key);
         const editable = EDITABLE_PROCEDURES.includes(kind.key);
-        const supporting = SUPPORTING_EVIDENCE[kind.key] ?? null;
 
         // A kind can hold both a draft and an adopted version at once —
         // editing an adopted procedure opens a draft while the adopted text
@@ -198,28 +184,65 @@ export function CompanyRecords({
                   version={live?.version ?? null}
                   adoptedAt={live?.adopted_at ?? null}
                   adoptedBy={live?.profiles?.full_name ?? live?.profiles?.email ?? null}
-                  startHint={START_HINTS[kind.key]}
                   readOnly={isAdministrator}
                 />
               )}
 
-              {(!editable || supporting) && (
-                <div className={editable ? "mt-5 border-t border-line pt-4" : ""}>
-                  {supporting && (
-                    <p className="mb-2 text-xs leading-5 text-slate-500">{supporting}</p>
-                  )}
-                  <ImporterRecordUpload
-                    documentKind={kind.key}
-                    label={kind.title}
-                    importerId={importerId}
-                    hasDocuments={count > 0}
-                  />
-                </div>
+              {/* A kind with no drafter is filed as a document. Both kinds
+                  listed today are drafted, but the list may grow. */}
+              {!editable && (
+                <ImporterRecordUpload
+                  documentKind={kind.key}
+                  label={kind.title}
+                  importerId={importerId}
+                  hasDocuments={count > 0}
+                />
               )}
             </div>
           </section>
         );
       })}
+
+      {/* Where the three that used to be listed here went, so nobody hunts for
+          them — see the note on IMPORTER_RECORD_KINDS. */}
+      <section className="rounded-lg border border-line bg-slate-50 px-5 py-4">
+        <h2 className="text-sm font-semibold text-ink">Kept elsewhere</h2>
+        <dl className="mt-2 space-y-2 text-sm text-slate-600">
+          <div>
+            <dt className="inline font-semibold text-slate-700">Importer identification (21 CFR 1.509): </dt>
+            <dd className="inline">
+              {data.dunsNumber ? (
+                <>D-U-N-S <span className="font-mono text-ink">{data.dunsNumber}</span> is on file and is sent with every inspection package.</>
+              ) : (
+                <span className="font-semibold text-amber-700">
+                  No D-U-N-S number is on file for your organization. It has to be transmitted at entry as your
+                  FSVP importer identifier; ask a platform administrator to add it to your account.
+                </span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="inline font-semibold text-slate-700">Qualified individual qualifications (21 CFR 1.503): </dt>
+            <dd className="inline">
+              filed per person on the{" "}
+              <Link href="/qualified-individuals" className="font-semibold text-forest hover:underline">
+                Qualified Individuals
+              </Link>{" "}
+              register.
+            </dd>
+          </div>
+          <div>
+            <dt className="inline font-semibold text-slate-700">Relying on someone else&apos;s hazard analysis (21 CFR 1.504(a)): </dt>
+            <dd className="inline">
+              recorded on each{" "}
+              <Link href="/fsvp-records" className="font-semibold text-forest hover:underline">
+                FSVP record
+              </Link>
+              &apos;s hazard analysis, where the qualified individual signs.
+            </dd>
+          </div>
+        </dl>
+      </section>
     </div>
   );
 }
