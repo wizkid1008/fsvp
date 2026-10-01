@@ -42,6 +42,9 @@ export async function GET() {
         label: doNotShip ? "Do not ship" : blocked ? "Blocked" : phase.label,
         blocked,
         reasons: (plan.productReasons[standing.id] ?? []).map(toReasonItem),
+        recordId: standing.recordId,
+        recordStatus: standing.recordStatus,
+        reassessmentDueAt: standing.reassessmentDueAt ?? null,
       };
     }
     const body: ProductStandingsResponse = {

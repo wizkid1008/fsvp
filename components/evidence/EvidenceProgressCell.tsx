@@ -99,11 +99,34 @@ export function EvidenceProgressCell({
   href,
   progress,
   noun = "documents",
+  compact = false,
 }: {
   href: string;
   progress: EvidenceProgress;
   noun?: string;
+  /**
+   * The bar and one line — "2 of 12 approved" — with the four counts on hover.
+   * The full four-line list made the Products row the tallest thing on the
+   * page; the product's own Documents section has the breakdown in full.
+   */
+  compact?: boolean;
 }) {
+  if (compact) {
+    const breakdown = EVIDENCE_ROWS.map((row) => `${row.label}: ${progress[row.key]}`).join(" · ");
+    return (
+      <a href={`${href}#documents`} className="group block min-w-[8rem]" title={breakdown}>
+        <EvidenceProgressBar progress={progress} />
+        <p className="mt-1.5 text-xs text-slate-600 group-hover:text-forest">
+          <span className="font-semibold tabular-nums text-ink">{progress.accepted}</span> of{" "}
+          <span className="tabular-nums">{progress.required}</span> approved
+          {progress.needsAttention > 0 && (
+            <span className="text-red-600"> · {progress.needsAttention} returned</span>
+          )}
+        </p>
+      </a>
+    );
+  }
+
   return (
     <div className="min-w-[9.5rem]">
     <a

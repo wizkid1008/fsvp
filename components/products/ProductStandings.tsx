@@ -22,7 +22,16 @@ import { ProductCountCards, type ProductCounts } from "@/components/products/Pro
 
 export type ProductStandingsResponse = {
   /** Per product: where it stands in the FSVP pipeline — the dashboard's phases. */
-  standings: Record<string, { phase: string; label: string; blocked: boolean; reasons: ReasonItem[] }>;
+  standings: Record<string, {
+    phase: string;
+    label: string;
+    blocked: boolean;
+    reasons: ReasonItem[];
+    /** The product's FSVP record — the furthest along, when it has several. */
+    recordId: string | null;
+    recordStatus: string | null;
+    reassessmentDueAt: string | null;
+  }>;
   approved: number;
   blocked: number;
   /** Products whose admissibility is prohibited — Entry Readiness's "Do Not Ship". */
@@ -78,6 +87,48 @@ export function ProductFsvpStatus({ productId }: { productId: string }) {
   // never-imported product has no standing, and the Imported column says why.
   if (!standing) return <span className="text-xs text-slate-400" title="Not in the FSVP pipeline">—</span>;
   return <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>;
+}
+
+const RECORD_STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  awaiting_supplier_evidence: "Waiting on exporter",
+  supplier_evidence_submitted: "Waiting on exporter",
+  supplier_evidence_accepted: "Awaiting your review",
+  importer_review_pending: "Awaiting your review",
+  importer_approved: "Approved",
+  conditionally_approved: "Conditionally approved",
+  needs_corrective_action: "Needs corrective action",
+  rejected: "Rejected",
+  expired: "Expired",
+  reassessment_due: "Reassessment due",
+};
+
+/**
+ * The Products list's "FSVP record": the record's state, and for an approved
+ * one when it falls due for reassessment — "Approved · reassess 4/9/2027".
+ * Until now this was only visible by switching to FSVP Records and finding the
+ * row. Links to the record itself.
+ */
+export function ProductFsvpRecord({ productId }: { productId: string }) {
+  const state = useProductStandings();
+  if (!state || state.kind === "loading") return <span className="text-xs text-slate-400">…</span>;
+  if (state.kind === "error") return <span className="text-xs text-slate-400">—</span>;
+  const standing = state.data.standings[productId];
+  if (!standing?.recordId) return <span className="text-xs text-slate-400">No record</span>;
+  const label = RECORD_STATUS_LABEL[standing.recordStatus ?? ""] ?? "Open";
+  const due = standing.reassessmentDueAt ? standing.reassessmentDueAt.slice(0, 10) : null;
+  const overdue = due !== null && due < new Date().toISOString().slice(0, 10);
+  const approved = standing.recordStatus === "importer_approved" || standing.recordStatus === "conditionally_approved";
+  return (
+    <Link href={`/fsvp-records/${standing.recordId}`} className="group block text-sm">
+      <span className="font-semibold text-ink group-hover:text-forest group-hover:underline">{label}</span>
+      {approved && due && (
+        <span className={`block text-xs ${overdue ? "font-semibold text-red-700" : "text-slate-500"}`}>
+          {overdue ? "reassessment overdue since" : "reassess"} {new Date(`${due}T00:00:00`).toLocaleDateString()}
+        </span>
+      )}
+    </Link>
+  );
 }
 
 /**

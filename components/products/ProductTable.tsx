@@ -13,7 +13,7 @@ import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import { EvidenceProgressCell, UploadDocumentsLink } from "@/components/evidence/EvidenceProgressCell";
 import { OpenLink } from "@/components/ui/OpenLink";
 import { approvalTone, evidenceScoreLabel } from "@/lib/approval/status";
-import { ProductFsvpStatus, ProductNextStep, useProductStandings } from "@/components/products/ProductStandings";
+import { ProductFsvpRecord, ProductFsvpStatus, ProductNextStep, useProductStandings } from "@/components/products/ProductStandings";
 
 export type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -559,6 +559,9 @@ export function ProductTable({
   const [lifecycleProduct, setLifecycleProduct] = useState<ProductRow | null>(null);
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
+  // Imported or not. The Imported column is gone (a non-imported product says
+  // so under its name), so this is how to list just those.
+  const [lifecycleFilter, setLifecycleFilter] = useState("");
   // ?status= arrives from the count cards here and on the Dashboard, so
   // "2 blocked" opens on those two products rather than on everything.
   // Read from the URL rather than held in state, so a count card on this same
@@ -592,6 +595,9 @@ export function ProductTable({
         (p.country_of_origin?.toLowerCase().includes(q) ?? false) ||
         (p.allergen_information?.toLowerCase().includes(q) ?? false);
       const matchesSupplier = !supplierFilter || p.supplier_id === supplierFilter;
+      const lifecycle = p.lifecycle ?? "active";
+      const matchesLifecycle =
+        !lifecycleFilter || (lifecycleFilter === "imported" ? lifecycle === "active" : lifecycle !== "active");
       const standing = standingsState?.kind === "ready" ? standingsState.data.standings[p.id] : undefined;
       const matchesStatus =
         !statusFilter || standingsState?.kind !== "ready"
@@ -599,9 +605,9 @@ export function ProductTable({
           : statusFilter === "needs_action"
             ? (standing?.reasons.length ?? 0) > 0
             : standing?.phase === statusFilter;
-      return matchesSearch && matchesSupplier && matchesStatus;
+      return matchesSearch && matchesSupplier && matchesStatus && matchesLifecycle;
     });
-  }, [products, search, supplierFilter, statusFilter, standingsState]);
+  }, [products, search, supplierFilter, statusFilter, standingsState, lifecycleFilter]);
 
   function openAddForm() {
     setShowForm(true);
@@ -660,6 +666,16 @@ export function ProductTable({
             <option value="do_not_ship">Do not ship</option>
           </select>
         )}
+        <select
+          value={lifecycleFilter}
+          onChange={(e) => setLifecycleFilter(e.target.value)}
+          aria-label="Filter by whether the product is imported"
+          className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
+        >
+          <option value="">Imported and not</option>
+          <option value="imported">Imported</option>
+          <option value="not_imported">Not imported</option>
+        </select>
         <button
           type="button"
           disabled={!canAddProduct}
@@ -708,20 +724,25 @@ export function ProductTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-slate-50">
+                {/* Imported, Intended Use and Allergens left this table: almost
+                    every row said "Imported", and intended use and allergens
+                    describe the food rather than where it stands — they are on
+                    the product's own page. A product that is NOT imported says
+                    so under its name, and the filter above finds them. */}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Product</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Imported</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">
                   {fsvpStandings ? "FSVP status" : "Evidence score"}
                 </th>
                 {fsvpStandings && (
                   <th className="px-4 py-3 text-left font-semibold text-slate-700">Next step</th>
                 )}
+                {fsvpStandings && (
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700">FSVP record</th>
+                )}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Admissibility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Facility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Origin</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Intended Use</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Allergens</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Evidence</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700"><span className="sr-only">Open</span></th>
               </tr>
@@ -733,10 +754,11 @@ export function ProductTable({
                     <a href={`/products/${product.id}`} className="font-semibold text-forest underline underline-offset-2 hover:decoration-2">
                       {product.product_name}
                     </a>
-                  </td>
-                  <td className="px-4 py-3">
                     {(() => {
                       const lifecycle = product.lifecycle ?? "active";
+                      // Only the exception is shown. An imported product is the
+                      // normal case; its import status is changed on its page.
+                      if (lifecycle === "active") return null;
                       const badge = (
                         <StatusBadge tone={lifecycleTone(lifecycle)}>
                           {LIFECYCLE_LABEL[lifecycle]}
@@ -747,7 +769,7 @@ export function ProductTable({
                         discontinuedOn: product.discontinued_on ?? null,
                       });
                       return (
-                        <>
+                        <div className="mt-1">
                           {canEditLifecycle ? (
                             <button
                               type="button"
@@ -764,9 +786,9 @@ export function ProductTable({
                             // The date the records may be disposed of, which is
                             // the thing anyone looking at a discontinued
                             // product actually needs to know.
-                            <p className="mt-1 text-xs text-slate-500">Retained to {retentionEnd}</p>
+                            <p className="mt-1 text-xs font-normal text-slate-500">Retained to {retentionEnd}</p>
                           )}
-                        </>
+                        </div>
                       );
                     })()}
                   </td>
@@ -782,6 +804,11 @@ export function ProductTable({
                   {fsvpStandings && (
                     <td className="px-4 py-3">
                       <ProductNextStep productId={product.id} />
+                    </td>
+                  )}
+                  {fsvpStandings && (
+                    <td className="px-4 py-3">
+                      <ProductFsvpRecord productId={product.id} />
                     </td>
                   )}
                   <td className="px-4 py-3">
@@ -802,11 +829,9 @@ export function ProductTable({
                   <td className="px-4 py-3 text-slate-600">{product.suppliers?.company_name ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{product.facilities_verify?.facility_name ?? "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{product.country_of_origin ?? "-"}</td>
-                  <td className="px-4 py-3 text-slate-600 capitalize">{labelize(product.intended_use)}</td>
-                  <td className="px-4 py-3 text-slate-600">{product.allergen_information ?? "None declared"}</td>
                   <td className="px-4 py-3">
                     {product.evidence_progress && product.evidence_progress.required > 0 ? (
-                      <EvidenceProgressCell href={`/products/${product.id}`} progress={product.evidence_progress} noun="product documents" />
+                      <EvidenceProgressCell href={`/products/${product.id}`} progress={product.evidence_progress} noun="product documents" compact />
                     ) : (
                       <div>
                         <a
