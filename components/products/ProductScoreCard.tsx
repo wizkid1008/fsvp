@@ -158,11 +158,11 @@ export async function ProductScoreCard({
     score >= 60 ? "bg-amber-500" :
     score > 0   ? "bg-red-400"   : "bg-slate-200";
 
+  // Drawn as the left rail of the Documents panel on the product page (which
+  // owns the border), not as a card of its own.
   return (
-    // Drawn as the left rail of the Documents panel on the product page (which
-    // owns the border), not as a card of its own.
     <section className="shrink-0 border-b border-line bg-slate-50/70 p-5 lg:w-[280px] lg:border-b-0 lg:border-r">
-      <pclassName="text-xs font-semibold uppercase tracking-widest text-slate-400">
+      <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
         Product Readiness Score
       </p>
 
