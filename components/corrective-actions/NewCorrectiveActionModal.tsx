@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 
-interface Supplier { id: string; supplier_name: string }
+interface Supplier { id: string; supplier_name: string; products?: Array<{ id: string; product_name: string }> }
 
 interface Props {
   onClose: () => void;
@@ -14,6 +14,7 @@ export function NewCorrectiveActionModal({ onClose }: Props) {
   const router = useRouter();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierId, setSupplierId] = useState("");
+  const [productId, setProductId] = useState("");
   const [issueDescription, setIssueDescription] = useState("");
   const [triggeredBy, setTriggeredBy] = useState("other");
   const [saving, setSaving] = useState(false);
@@ -39,7 +40,7 @@ export function NewCorrectiveActionModal({ onClose }: Props) {
       const res = await fetch("/api/corrective-actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ supplier_id: supplierId, issue_description: issueDescription, triggered_by: triggeredBy }),
+        body: JSON.stringify({ supplier_id: supplierId, product_id: productId || null, issue_description: issueDescription, triggered_by: triggeredBy }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -64,16 +65,35 @@ export function NewCorrectiveActionModal({ onClose }: Props) {
 
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Supplier <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Exporter <span className="text-red-500">*</span></label>
             <select
               value={supplierId}
-              onChange={(e) => setSupplierId(e.target.value)}
+              onChange={(e) => {
+                setSupplierId(e.target.value);
+                setProductId("");
+              }}
               required
               className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink focus:border-forest focus:outline-none"
             >
               {suppliers.length === 0 && <option value="">Loading…</option>}
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>{s.supplier_name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Which product it is about decides where it shows up: on that
+              product's "What's left", or on every product from the exporter. */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Product</label>
+            <select
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+              className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink focus:border-forest focus:outline-none"
+            >
+              <option value="">Whole exporter — all its products</option>
+              {(suppliers.find((s) => s.id === supplierId)?.products ?? []).map((p) => (
+                <option key={p.id} value={p.id}>{p.product_name}</option>
               ))}
             </select>
           </div>

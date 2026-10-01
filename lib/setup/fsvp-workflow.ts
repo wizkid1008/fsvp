@@ -159,6 +159,19 @@ type PlannerInput = {
   expiringDocsBySupplierId?: Map<string, number>;
   /** Today, as YYYY-MM-DD. Injected so tests are not tied to the clock. */
   today?: string;
+  /**
+   * Corrective actions not yet closed (§ 1.508). Optional, like the documents
+   * above; absent means none.
+   */
+  openCorrectiveActions?: OpenCorrectiveAction[];
+};
+
+type OpenCorrectiveAction = {
+  id: string;
+  supplier_id: string;
+  product_id: string | null;
+  fsvp_record_id: string | null;
+  issue_description: string;
 };
 
 /** How far ahead an accepted document's expiry counts as work now. */
@@ -632,6 +645,30 @@ export function buildCompleteFsvpSetupPlan(rawInput: PlannerInput): CompleteFsvp
       earlierBlocks > 0 ? "Resolve record blockers" : "Record approval decision"
     ));
   }
+  // Open corrective actions (§ 1.508). An action names the product or record it
+  // is about when it has one; one raised against the exporter alone — a recall,
+  // a finding at the firm — is about every product from that exporter. Each id
+  // carries the product's, so the per-product regrouping below files it there.
+  //
+  // Without this, Gaps & Actions could hold an open action against a product
+  // whose own page said "Nothing is left to do".
+  for (const action of input.openCorrectiveActions ?? []) {
+    const viaRecord = action.fsvp_record_id
+      ? input.records.find((r) => r.id === action.fsvp_record_id)?.product_id ?? null
+      : null;
+    const productId = action.product_id ?? viaRecord;
+    const affected = productId
+      ? input.products.filter((p) => p.id === productId)
+      : input.products.filter((p) => p.supplier_id === action.supplier_id);
+    for (const product of affected) {
+      approvalBlockers.push(blocker(
+        `ca-${action.id}-${product.id}`,
+        `Open corrective action: ${action.issue_description}`,
+        `/gaps-actions#ca-${action.id}`,
+        "Resolve corrective action"
+      ));
+    }
+  }
   if (input.records.length === 0) {
     approvalBlockers.push(blocker(
       "approval-needs-record",
@@ -1031,9 +1068,17 @@ export async function loadCompleteFsvpSetupPlan(
     expiringDocsBySupplierId.set(row.supplier_id, (expiringDocsBySupplierId.get(row.supplier_id) ?? 0) + 1);
   }
 
+  // This importer's corrective actions still open — scoped by hand, since this
+  // runs on the admin client.
+  const { data: actionRows } = await (supabase.from("corrective_actions") as any)
+    .select("id, supplier_id, product_id, fsvp_record_id, issue_description")
+    .eq("importer_id", importerId)
+    .neq("status", "closed");
+
   return buildCompleteFsvpSetupPlan({
     today,
     expiringDocsBySupplierId,
+    openCorrectiveActions: (actionRows ?? []) as OpenCorrectiveAction[],
     suppliers,
     facilities: facilitiesWithApprovalStatus,
     facilityAccess,

@@ -421,3 +421,39 @@ describe("checks Entry Readiness used to make on its own", () => {
     expect(plan.productStandings[0].doNotShip).toBe(true);
   });
 });
+
+describe("open corrective actions", () => {
+  const action = {
+    id: "ca-1",
+    supplier_id: "supplier-1",
+    product_id: null as string | null,
+    fsvp_record_id: null as string | null,
+    issue_description: "Salmonella found in lot 42",
+  };
+
+  it("files an action naming a product under that product", () => {
+    const input = cleanInput();
+    input.openCorrectiveActions = [{ ...action, product_id: "product-1" }];
+    const plan = buildCompleteFsvpSetupPlan(input);
+    expect(plan.productReasons["product-1"].map((r) => r.message)).toEqual([
+      "Open corrective action: Salmonella found in lot 42",
+    ]);
+  });
+
+  it("finds the product through the record when only the record is named", () => {
+    const input = cleanInput();
+    input.openCorrectiveActions = [{ ...action, fsvp_record_id: "record-1" }];
+    const plan = buildCompleteFsvpSetupPlan(input);
+    expect(plan.productReasons["product-1"]).toHaveLength(1);
+  });
+
+  it("raises an exporter-wide action on every product from that exporter", () => {
+    const input = cleanInput();
+    input.products = [...input.products, { ...input.products[0], id: "product-2", product_name: "Papaya" }];
+    input.openCorrectiveActions = [action];
+    const plan = buildCompleteFsvpSetupPlan(input);
+    expect(plan.productReasons["product-1"]).toHaveLength(1);
+    expect(plan.productReasons["product-2"].some((r) => r.actionLabel === "Resolve corrective action")).toBe(true);
+    expect(plan.accountReasons).toEqual([]);
+  });
+});

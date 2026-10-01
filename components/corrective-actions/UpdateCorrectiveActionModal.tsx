@@ -12,7 +12,11 @@ export interface ActionRow {
   triggered_at: string;
   closed_at: string | null;
   supplier_id: string;
-  food_id: string | null;
+  product_id: string | null;
+  fsvp_record_id?: string | null;
+  /** Embedded by the Gaps & Actions page, to say what the action is about. */
+  suppliers?: { company_name: string } | null;
+  products_verify?: { product_name: string } | null;
   investigation_summary: string | null;
   action_taken: string | null;
   decision: string | null;

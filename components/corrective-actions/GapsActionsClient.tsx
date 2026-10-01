@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, Plus } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -54,7 +55,9 @@ export function GapsActionsClient({ actions, canCreate }: Props) {
           {actions.map((action) => (
             <div
               key={action.id}
-              className={`relative overflow-hidden rounded-lg border border-line bg-white p-5 shadow-soft pl-6 before:absolute before:inset-y-0 before:left-0 before:w-1 ${
+              // A product's "Resolve corrective action" links here.
+              id={`ca-${action.id}`}
+              className={`relative scroll-mt-6 overflow-hidden rounded-lg border border-line bg-white p-5 shadow-soft pl-6 target:ring-2 target:ring-forest/40 before:absolute before:inset-y-0 before:left-0 before:w-1 ${
                 action.status === "closed"
                   ? "before:bg-emerald-500"
                   : action.status === "in_progress"
@@ -65,6 +68,29 @@ export function GapsActionsClient({ actions, canCreate }: Props) {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-ink leading-snug">{action.issue_description}</p>
+                  {/* What it is about. The page loaded both ids and showed
+                      neither, so an action could not be traced to anything. */}
+                  <p className="mt-1 text-sm text-slate-600">
+                    <Link href={`/exporters/${action.supplier_id}`} className="font-medium text-forest hover:underline">
+                      {action.suppliers?.company_name ?? "Exporter"}
+                    </Link>
+                    {" · "}
+                    {action.product_id ? (
+                      <Link href={`/products/${action.product_id}`} className="font-medium text-forest hover:underline">
+                        {action.products_verify?.product_name ?? "Product"}
+                      </Link>
+                    ) : (
+                      <span className="text-slate-500">all products from this exporter</span>
+                    )}
+                    {action.fsvp_record_id && (
+                      <>
+                        {" · "}
+                        <Link href={`/fsvp-records/${action.fsvp_record_id}`} className="font-medium text-forest hover:underline">
+                          FSVP record
+                        </Link>
+                      </>
+                    )}
+                  </p>
                   <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                     <span>Triggered: <span className="font-medium text-slate-700">{new Date(action.triggered_at).toLocaleDateString()}</span></span>
                     <span className="capitalize">Source: <span className="font-medium text-slate-700">{action.triggered_by.replace(/_/g, " ")}</span></span>

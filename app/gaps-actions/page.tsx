@@ -13,7 +13,7 @@ export default async function GapsActionsPage() {
 
   let actionsQuery = (supabase.from("corrective_actions") as any)
     // food_id was dropped with the legacy `foods` table; product_id replaces it.
-    .select("id, issue_description, triggered_by, status, triggered_at, closed_at, supplier_id, product_id, investigation_summary, action_taken, decision")
+    .select("id, issue_description, triggered_by, status, triggered_at, closed_at, supplier_id, product_id, fsvp_record_id, investigation_summary, action_taken, decision, suppliers(company_name), products_verify(product_name)")
     .order("triggered_at", { ascending: false });
   // An administrator previewing an importer sees that importer's, not all.
   const previewedImporter = previewedImporterFilter(realRole, role);
