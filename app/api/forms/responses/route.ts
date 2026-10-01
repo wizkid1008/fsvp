@@ -317,7 +317,7 @@ export async function POST(req: NextRequest) {
       body:      callerIsAdministrator
         ? `An administrator completed the ${definition.title} for ${supplier?.company_name ?? "a supplier"}. It is waiting in your review queue.`
         : `${supplier?.company_name ?? "A supplier"} completed the ${definition.title}. It is waiting in your review queue.`,
-      targetUrl: "/importer-review",
+      targetUrl: "/evidence?tab=submissions",
       severity:  "info",
     });
   }

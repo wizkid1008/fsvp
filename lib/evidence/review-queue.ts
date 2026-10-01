@@ -211,3 +211,36 @@ export function reviewQueueTotals(items: ReviewQueueItem[]) {
   const acceptedTotal = items.filter((d) => d.evidence_status === "accepted").length;
   return { pendingTotal, criticalTotal, acceptedTotal };
 }
+
+/**
+ * How many exporter submissions are waiting on this importer — the badge on the
+ * Document Library's Exporter submissions tab. Two queries rather than the full
+ * queue's lookups, so the other tabs can show it without paying for the list.
+ * Counts exactly what reviewQueueTotals calls pendingTotal.
+ */
+export async function countPendingReview(admin: AdminClient, importerId?: string | null): Promise<number> {
+  let scopedSupplierIds: string[] | null = null;
+  if (importerId) {
+    const { data: links } = await (admin.from("supplier_relationships") as any)
+      .select("supplier_id")
+      .eq("relationship_type", "importer_supplier")
+      .eq("importer_id", importerId)
+      .in("status", ["active", "pending_invite"]);
+    scopedSupplierIds = ((links ?? []) as Array<{ supplier_id: string }>)
+      .map((l) => l.supplier_id)
+      .filter(Boolean);
+    if (scopedSupplierIds.length === 0) return 0;
+  }
+
+  let query = (admin.from("documents") as any)
+    .select("id", { count: "exact", head: true })
+    .is("soft_deleted_at", null)
+    .in("evidence_status", ["submitted", "under_review"])
+    // A null source reads as supplier_attested in fetchReviewQueue, and a bare
+    // neq would drop nulls in SQL — so both are named.
+    .or("evidence_source.is.null,evidence_source.neq.importer_uploaded");
+  if (scopedSupplierIds) query = query.in("supplier_id", scopedSupplierIds);
+
+  const { count } = await query;
+  return count ?? 0;
+}

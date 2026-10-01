@@ -70,7 +70,7 @@ export function ImporterActionsSection({ signals }: { signals: ImporterSignals }
             tone="text-amber-500"
             title={`${pendingReview} document${pendingReview === 1 ? "" : "s"} awaiting your review`}
             detail="Submitted by your exporters and not yet accepted or rejected"
-            href="/importer-review"
+            href="/evidence?tab=submissions"
             cta="Review"
           />
         )}
@@ -98,7 +98,7 @@ export function ImporterActionsSection({ signals }: { signals: ImporterSignals }
               detail={days < 0
                 ? `Expired ${new Date(d.expiration_date).toLocaleDateString()}`
                 : `${days} day${days === 1 ? "" : "s"} left · request a current version`}
-              href="/importer-review"
+              href="/evidence?tab=submissions"
               cta="Open"
             />
           );

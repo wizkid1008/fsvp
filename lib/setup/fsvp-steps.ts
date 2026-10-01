@@ -66,7 +66,7 @@ export const FSVP_SETUP_STEPS = [
     id: "evidence",
     title: "Review evidence",
     description: "Attach accepted exporter documents to the record so the basis for approval is inspectable.",
-    href: "/importer-review",
+    href: "/evidence?tab=submissions",
     actionLabel: "Review submissions",
   },
   {

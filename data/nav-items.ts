@@ -59,7 +59,6 @@ export const navItems: NavItem[] = [
   // history is qualified-individual work under § 1.505(b).
   { href: "/compliance-history",     label: "Compliance History",     icon: "ShieldAlert",    roles: ["us_importer", "reviewer"], matches: ["/compliance-history"], tKey: "nav.complianceHistory", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/qualified-individuals", label: "Qualified Individuals",  icon: "BadgeCheck",     roles: ["us_importer", "reviewer"], matches: ["/qualified-individuals"], tKey: "nav.qualifiedIndividuals", group: "Compliance", groupTKey: "nav.groupCompliance" },
-  { href: "/importer-review",       label: "Exporter Submissions",   icon: "ClipboardCheck", roles: ["us_importer"], tKey: "nav.importerReview", group: "Compliance", groupTKey: "nav.groupCompliance" },
   { href: "/evidence",              label: "Document Library",       icon: "FileArchive",    roles: ["us_importer"], tKey: "nav.evidence",       group: "Compliance", groupTKey: "nav.groupCompliance" },
   // The importer's own FSVP documents, as distinct from evidence about a
   // foreign supplier. Sits last in Compliance because it is filed once and

@@ -70,7 +70,7 @@ export function EvidencePackagePanel({
     ? null
     : pendingCount > 0
       ? `This supplier has ${pendingCount} document${pendingCount === 1 ? "" : "s"} on file, but none are ` +
-        "accepted yet. Review them under Exporter Submissions before they can be attached here."
+        "accepted yet. Review them in Document Library → Exporter submissions before they can be attached here."
       : "This supplier has not submitted any evidence documents yet — nothing exists to attach.";
 
   function handleAttach() {
@@ -113,8 +113,8 @@ export function EvidencePackagePanel({
             {pendingCount > 0 && (
               <>
                 {" "}
-                <Link href="/importer-review" className="font-medium text-forest hover:underline">
-                  Go to Exporter Submissions →
+                <Link href="/evidence?tab=submissions" className="font-medium text-forest hover:underline">
+                  Review exporter submissions →
                 </Link>
               </>
             )}

@@ -10,6 +10,10 @@ import { FileArchive } from "lucide-react";
 import Link from "next/link";
 import { CompanyRecords, loadCompanyRecords } from "@/components/evidence/CompanyRecords";
 import { resolvePreviewedAccountId } from "@/lib/preview-role";
+import { ExporterSubmissions } from "@/components/evidence/ExporterSubmissions";
+import { ConfigurationNotice } from "@/components/ui/ConfigurationNotice";
+import { tryAdminClient } from "@/lib/supabase/admin-guard";
+import { countPendingReview } from "@/lib/evidence/review-queue";
 import type { StatusTone } from "@/types/platform";
 
 export const runtime = "edge";
@@ -43,7 +47,18 @@ export default async function EvidencePage({
     .maybeSingle();
   const importerId: string | null = resolvePreviewedAccountId(realRole, profile?.importer_id ?? null);
   const companyRecords = importerId ? await loadCompanyRecords(supabase as any, importerId) : null;
-  const tab = searchParams?.tab === "company" && companyRecords ? "company" : "suppliers";
+
+  // Exporter submissions (formerly /importer-review) read through the admin
+  // client, scoped by hand to the importer's exporters — see
+  // lib/evidence/review-queue.ts. An administrator not previewing sees all.
+  const adminResult = tryAdminClient();
+  const reviewScope = role === "us_importer" ? importerId : null;
+  const pendingReview = adminResult.ok ? await countPendingReview(adminResult.client, reviewScope) : 0;
+
+  const tab =
+    searchParams?.tab === "company" && companyRecords ? "company"
+    : searchParams?.tab === "submissions" ? "submissions"
+    : "suppliers";
 
   type DocRow = { id: string; importer_id: string; title: string; document_kind: string; original_filename: string | null; uploaded_at: string; approval_status: string | null; size_bytes: number; linked_entity_type: string | null; linked_entity_id: string | null; requirement_item_id: string | null };
   // Sections carry their items. The library files evidence against the same
@@ -190,19 +205,26 @@ export default async function EvidencePage({
     <AppShell role={role} realRole={realRole}>
       <SectionHeader
         title="Document Library"
-        description="Every FSVP document you hold: evidence about your exporters, facilities and products, and your company's own FSVP records. Documents your exporters submit for review arrive in Exporter Submissions."
+        description="Every FSVP document you hold: evidence about your exporters, facilities and products, what your exporters have submitted for your review, and your company's own FSVP records."
       />
 
-      {companyRecords && (
-        <nav className="mt-6 flex gap-1 border-b border-line" aria-label="Document Library sections">
+      <nav className="mt-6 flex flex-wrap gap-1 border-b border-line" aria-label="Document Library sections">
           {[
-            { key: "suppliers", label: "Supplier & product documents", href: "/evidence", badge: null },
+            { key: "suppliers", label: "Supplier & product documents", href: "/evidence", badge: null as string | null },
             {
-              key: "company",
-              label: "Company records",
-              href: "/evidence?tab=company",
-              badge: companyRecords.outstanding > 0 ? `${companyRecords.outstanding} needed` : null,
+              key: "submissions",
+              label: "Exporter submissions",
+              href: "/evidence?tab=submissions",
+              badge: pendingReview > 0 ? `${pendingReview} to review` : null,
             },
+            ...(companyRecords
+              ? [{
+                  key: "company",
+                  label: "Company records",
+                  href: "/evidence?tab=company",
+                  badge: companyRecords.outstanding > 0 ? `${companyRecords.outstanding} needed` : null,
+                }]
+              : []),
           ].map((t) => (
             <Link
               key={t.key}
@@ -218,10 +240,17 @@ export default async function EvidencePage({
               {t.badge && <StatusBadge tone="warning">{t.badge}</StatusBadge>}
             </Link>
           ))}
-        </nav>
-      )}
+      </nav>
 
-      {tab === "company" && companyRecords && importerId ? (
+      {tab === "submissions" ? (
+        <div className="mt-6">
+          {adminResult.ok ? (
+            <ExporterSubmissions admin={adminResult.client} importerId={reviewScope} />
+          ) : (
+            <ConfigurationNotice message={adminResult.message} />
+          )}
+        </div>
+      ) : tab === "company" && companyRecords && importerId ? (
         <div className="mt-6">
           <CompanyRecords
             data={companyRecords}
