@@ -48,15 +48,24 @@ export function ProductCountCards({
  * instead of the importer's FSVP gates (see lib/readiness/evidence-standing.ts).
  * Each opens their Products list filtered to exactly those products.
  */
-export function ExporterCountCards({ counts }: { counts: EvidenceCounts }) {
+export function ExporterCountCards({
+  counts,
+  basePath = "/products",
+  noun = "Products",
+}: {
+  counts: EvidenceCounts;
+  /** The list each count opens, filtered: /products, or /facilities for a supplier's sites. */
+  basePath?: string;
+  noun?: string;
+}) {
   return (
     <CountCards
       cards={[
-        { label: "Products", value: counts.total, href: "/products" },
-        { label: "Sent back to you", value: counts.returned, href: "/products?status=returned", alarm: true },
-        { label: "Documents missing", value: counts.missing, href: "/products?status=missing" },
-        { label: "Awaiting importer review", value: counts.awaiting, href: "/products?status=awaiting" },
-        { label: "All accepted", value: counts.complete, href: "/products?status=complete" },
+        { label: noun, value: counts.total, href: basePath },
+        { label: "Sent back to you", value: counts.returned, href: `${basePath}?status=returned`, alarm: true },
+        { label: "Documents missing", value: counts.missing, href: `${basePath}?status=missing` },
+        { label: "Awaiting importer review", value: counts.awaiting, href: `${basePath}?status=awaiting` },
+        { label: "All accepted", value: counts.complete, href: `${basePath}?status=complete` },
       ]}
     />
   );

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Trash2, ChevronUp, ChevronDown, ChevronsUpDown,
   Search, Building2, Package, Warehouse, X
 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
+import { documentBucket } from "@/lib/readiness/evidence-standing";
 
 export type EvidenceRow = {
   id: string;
@@ -15,6 +16,7 @@ export type EvidenceRow = {
   original_filename: string | null;
   document_kind: string;
   linked_entity_type: string | null;
+  linked_entity_id?: string | null;
   uploaded_at: string;
   evidence_status: string | null;
   review_notes: string | null;
@@ -56,6 +58,13 @@ function ElementIcon({ type }: { type: string }) {
   return <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />;
 }
 
+/** Where a document is replaced: the page holding the checklist it answers. */
+function fixHref(row: EvidenceRow): string {
+  if (row.linked_entity_type === "product" && row.linked_entity_id) return `/products/${row.linked_entity_id}#documents`;
+  if (row.linked_entity_type === "facility" && row.linked_entity_id) return `/facilities/${row.linked_entity_id}#documents`;
+  return "/corporate#documents";
+}
+
 function SortIcon({ col, current, dir }: { col: SortKey; current: SortKey; dir: SortDir }) {
   if (col !== current) return <ChevronsUpDown className="ml-1 inline h-3 w-3 text-slate-400" />;
   return dir === "asc"
@@ -80,9 +89,14 @@ export function MyEvidenceTable({ rows }: { rows: EvidenceRow[] }) {
     }
   }
 
+  // ?status= from the count cards above the table (app/my-evidence/page.tsx).
+  const searchParams = useSearchParams();
+  const bucketFilter = searchParams?.get("status") ?? "";
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     return rows
+      .filter((row) => !bucketFilter || documentBucket(row) === bucketFilter)
       .filter((row) => {
         if (!q) return true;
         return (
@@ -101,7 +115,7 @@ export function MyEvidenceTable({ rows }: { rows: EvidenceRow[] }) {
         if (sortKey === "evidence_status"){ va = a.evidence_status ?? "";      vb = b.evidence_status ?? ""; }
         return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
       });
-  }, [rows, query, sortKey, sortDir]);
+  }, [rows, query, sortKey, sortDir, bucketFilter]);
 
   async function remove(id: string) {
     if (!confirm("Remove this document? It will be hidden from dashboards but kept for audit history.")) return;
@@ -120,37 +134,21 @@ export function MyEvidenceTable({ rows }: { rows: EvidenceRow[] }) {
   const thClass = "px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 cursor-pointer select-none hover:text-forest transition whitespace-nowrap";
   const tdClass = "px-4 py-3 text-sm";
 
-  const pendingCount = rows.filter((r) => r.evidence_status === "submitted" || r.evidence_status === "under_review").length;
-  const revisionCount = rows.filter((r) => r.evidence_status === "needs_revision").length;
-
+  // No banner of sent-back documents here: the page used to show two (this and
+  // its own "Evidence requests" box), neither linking anywhere. The count
+  // cards above filter this table, and a sent-back row links to where it is
+  // replaced.
   return (
     <div className="space-y-4">
-      {/* Alerts */}
-      {revisionCount > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4">
-          <p className="text-sm font-semibold text-amber-900">
-            {revisionCount} document{revisionCount !== 1 ? "s" : ""} need{revisionCount === 1 ? "s" : ""} revision
-          </p>
-          <ul className="mt-2 space-y-1">
-            {rows.filter((r) => r.evidence_status === "needs_revision").map((r) => (
-              <li key={r.id} className="text-sm text-amber-800">
-                <span className="font-medium">{r.title}</span>
-                {r.review_notes && <span className="text-amber-700"> — {r.review_notes}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-slate-50 px-4 py-3">
           <div className="flex items-center gap-3">
             <h3 className="text-sm font-semibold text-slate-700">Stored Documents</h3>
-            {pendingCount > 0 && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                {pendingCount} awaiting review
-              </span>
+            {bucketFilter && (
+              <a href="/my-evidence" className="text-xs font-semibold text-forest hover:underline">
+                Show all
+              </a>
             )}
           </div>
           {/* Search */}
@@ -230,6 +228,13 @@ export function MyEvidenceTable({ rows }: { rows: EvidenceRow[] }) {
                       </td>
                       <td className={tdClass + " max-w-xs text-slate-500"}>
                         {row.review_notes ?? "—"}
+                        {/* Sent back, or about to lapse: replaced where it is
+                            required, not here. */}
+                        {(documentBucket(row) === "returned" || documentBucket(row) === "expiring") && (
+                          <a href={fixHref(row)} className="mt-1 block text-xs font-semibold text-forest hover:underline">
+                            Upload a replacement →
+                          </a>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <button

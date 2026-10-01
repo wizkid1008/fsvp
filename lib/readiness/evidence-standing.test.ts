@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countEvidenceStandings, evidenceNextStep, evidenceStanding } from "./evidence-standing";
+import { countEvidenceStandings, documentBucket, evidenceNextStep, evidenceStanding } from "./evidence-standing";
 
 const progress = (p: Partial<{ required: number; accepted: number; awaitingReview: number; needsAttention: number; missing: number }>) => ({
   required: 0, accepted: 0, awaitingReview: 0, needsAttention: 0, missing: 0, ...p,
@@ -46,5 +46,21 @@ describe("countEvidenceStandings", () => {
       undefined,
     ]);
     expect(counts).toEqual({ total: 4, returned: 1, missing: 1, awaiting: 0, complete: 1 });
+  });
+});
+
+describe("documentBucket", () => {
+  const today = "2026-10-01";
+  it("files sent-back and in-review documents first", () => {
+    expect(documentBucket({ evidence_status: "needs_revision", expiration_date: null }, today)).toBe("returned");
+    expect(documentBucket({ evidence_status: "rejected", expiration_date: null }, today)).toBe("returned");
+    expect(documentBucket({ evidence_status: "under_review", expiration_date: "2026-10-02" }, today)).toBe("awaiting");
+  });
+
+  it("flags an accepted document lapsing within 60 days, or already lapsed", () => {
+    expect(documentBucket({ evidence_status: "accepted", expiration_date: "2026-11-15" }, today)).toBe("expiring");
+    expect(documentBucket({ evidence_status: "accepted", expiration_date: "2026-09-01" }, today)).toBe("expiring");
+    expect(documentBucket({ evidence_status: "accepted", expiration_date: "2027-06-01" }, today)).toBe("accepted");
+    expect(documentBucket({ evidence_status: "accepted", expiration_date: null }, today)).toBe("accepted");
   });
 });

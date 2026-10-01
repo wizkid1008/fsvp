@@ -549,6 +549,7 @@ export function ProductTable({
   facilities,
   products,
   supplierHref = "/exporters",
+  supplierActionLabel = "Add a supplier first",
   suppliers,
   presetFacility,
   canEditLifecycle = false,
@@ -558,6 +559,8 @@ export function ProductTable({
   facilities: FacilityOption[];
   products: ProductRow[];
   supplierHref?: string;
+  /** The empty-state button's label: a supplier with no company record "sets up" rather than "adds a supplier". */
+  supplierActionLabel?: string;
   suppliers: SupplierOption[];
   /** Set by /products?facility=<id>, arriving from that facility's row. */
   presetFacility?: { facilityId: string; supplierId: string } | null;
@@ -739,7 +742,9 @@ export function ProductTable({
           <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
             {canAddProduct
               ? "Add a product under an exporter — its facility can be assigned now or later — then map FSVP requirements and verification evidence."
-              : "Your account is not yet linked to an exporter, so there is nothing to add a product under."}
+              : supplierActionLabel === "Set up your company"
+                ? "Your company record is not set up yet. Open Company Overview to create it, then add your products."
+                : "Your account is not yet linked to an exporter, so there is nothing to add a product under."}
           </p>
           {canAddProduct ? (
             <button
@@ -754,7 +759,7 @@ export function ProductTable({
               href={supplierHref}
               className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
             >
-              Add a supplier first
+              {supplierActionLabel}
             </a>
           )}
         </div>

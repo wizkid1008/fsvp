@@ -12,6 +12,8 @@ import { getSupplierType } from "@/lib/supplier-context";
 import { resolveEffectiveAccountContext } from "@/lib/preview-account-context";
 import { resolveApprovalStatuses } from "@/lib/scoring";
 import { isApproved, needsUpdates, NOT_ASSESSED } from "@/lib/approval/status";
+import { countEvidenceStandings } from "@/lib/readiness/evidence-standing";
+import { ExporterCountCards } from "@/components/products/ProductCountCards";
 import { isTenantConfined } from "@/lib/auth/tenancy";
 import { fetchEvidenceProgress } from "@/lib/readiness/evidence-progress";
 import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
@@ -284,6 +286,18 @@ export default async function FacilitiesPage({
         />
       )}
 
+      {/* A supplier or exporter sees what they owe on each site, in the same
+          count cards as their Products and dashboard. The importer keeps the
+          approval counts. */}
+      {isSupplier ? (
+        <div className="mt-6">
+          <ExporterCountCards
+            counts={countEvidenceStandings(facilities.map((f) => f.evidence_progress))}
+            basePath="/facilities"
+            noun="Facilities"
+          />
+        </div>
+      ) : (
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {[
           { label: "Facilities Added", value: facilitiesAdded, tone: "info" as StatusTone },
@@ -298,6 +312,7 @@ export default async function FacilitiesPage({
           </div>
         ))}
       </div>
+      )}
 
       {!isSupplier && facilities.length > 0 && (
         <NextStepBanner>
@@ -315,7 +330,12 @@ export default async function FacilitiesPage({
         <FacilityTable
           countries={countryOptions}
           facilities={facilities}
-          supplierHref={isSupplier ? "/my-suppliers" : "/exporters"}
+          // A supplier or exporter with no company record yet sets it up on
+          // Company Overview. This sent them to /my-suppliers, which a supplier
+          // account cannot open.
+          supplierHref={isSupplier ? "/corporate" : "/exporters"}
+          supplierActionLabel={isSupplier ? "Set up your company" : "Add a supplier first"}
+          ownerView={isSupplier}
           suppliers={formSupplierOptions}
           presetSupplierId={
             requestedSupplierId &&

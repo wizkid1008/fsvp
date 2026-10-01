@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MapPin, Warehouse, X, Search, PackageSearch } from "lucide-react";
 import { registrationState, REGISTRATION_LABEL } from "@/lib/fsvp/facility-registration";
 import { CountryCombobox } from "@/components/profile/CountryCombobox";
@@ -12,6 +12,7 @@ import type { EvidenceProgress } from "@/lib/readiness/evidence-scope";
 import { EvidenceProgressCell, UploadDocumentsLink } from "@/components/evidence/EvidenceProgressCell";
 import { OpenLink } from "@/components/ui/OpenLink";
 import { approvalLabel, approvalTone } from "@/lib/approval/status";
+import { EVIDENCE_STANDING_LABEL, EVIDENCE_STANDING_TONE, evidenceNextStep, evidenceStanding } from "@/lib/readiness/evidence-standing";
 
 export type CountryOption = Pick<Country, "country_code" | "country_name">;
 
@@ -391,9 +392,18 @@ export function FacilityTable({
   countries,
   facilities,
   supplierHref = "/exporters",
+  supplierActionLabel = "Add a supplier first",
   suppliers,
-  presetSupplierId
+  presetSupplierId,
+  ownerView = false,
 }: {
+  /**
+   * The supplier's or exporter's own list. Status and next step then say what
+   * they owe on each facility (lib/readiness/evidence-standing.ts), as their
+   * Products list does, instead of the importer's approval band.
+   */
+  ownerView?: boolean;
+  supplierActionLabel?: string;
   /** Set by /facilities?supplier=<id>, arriving from that exporter's row. */
   presetSupplierId?: string | null;
   countries: CountryOption[];
@@ -407,6 +417,19 @@ export function FacilityTable({
   const [showForm, setShowForm] = useState(Boolean(presetSupplierId));
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  // ?status= from the owner's count cards, read from the URL so a card on this
+  // same page still changes it (see ProductTable).
+  const searchParams = useSearchParams();
+  const tableRouter = useRouter();
+  const pathname = usePathname();
+  const statusFilter = ownerView ? searchParams?.get("status") ?? "" : "";
+  function setStatusFilter(value: string) {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (value) params.set("status", value);
+    else params.delete("status");
+    const query = params.toString();
+    tableRouter.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
   const canAddFacility = suppliers.length > 0;
 
   const filtered = useMemo(() => {
@@ -419,9 +442,10 @@ export function FacilityTable({
         (f.fda_registration_number?.toLowerCase().includes(q) ?? false) ||
         (f.food_safety_certifications?.some((c) => c.toLowerCase().includes(q)) ?? false);
       const matchesType = !typeFilter || f.facility_type === typeFilter;
-      return matchesSearch && matchesType;
+      const matchesStatus = !statusFilter || evidenceStanding(f.evidence_progress) === statusFilter;
+      return matchesSearch && matchesType && matchesStatus;
     });
-  }, [facilities, search, typeFilter]);
+  }, [facilities, search, typeFilter, statusFilter]);
   const addButtonClass = "inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500";
 
   function openAddForm() {
@@ -461,6 +485,20 @@ export function FacilityTable({
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
+        {ownerView && (
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filter by document status"
+            className="h-10 rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-forest"
+          >
+            <option value="">All statuses</option>
+            <option value="returned">{EVIDENCE_STANDING_LABEL.returned}</option>
+            <option value="missing">{EVIDENCE_STANDING_LABEL.missing}</option>
+            <option value="awaiting">{EVIDENCE_STANDING_LABEL.awaiting}</option>
+            <option value="complete">{EVIDENCE_STANDING_LABEL.complete}</option>
+          </select>
+        )}
         <button
           type="button"
           disabled={!canAddFacility}
@@ -480,7 +518,9 @@ export function FacilityTable({
           <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
             {canAddFacility
               ? "Add manufacturing and storage facilities to link them to suppliers and map their food safety certifications."
-              : "Add a supplier first, then create manufacturing or storage facilities from that supplier list."}
+              : ownerView
+                ? "Your company record is not set up yet. Open Company Overview to create it, then add your facilities."
+                : "Add a supplier first, then create manufacturing or storage facilities from that supplier list."}
           </p>
           {canAddFacility ? (
             <button
@@ -495,7 +535,7 @@ export function FacilityTable({
               href={supplierHref}
               className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-forest px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
             >
-              Add a supplier first
+              {supplierActionLabel}
             </a>
           )}
         </div>
@@ -511,6 +551,7 @@ export function FacilityTable({
               <tr className="border-b border-line bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Facility</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
+                {ownerView && <th className="px-4 py-3 text-left font-semibold text-slate-700">Next step</th>}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Supplier</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Type</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">FDA Registration</th>
@@ -536,10 +577,31 @@ export function FacilityTable({
                       </a>
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge tone={approvalTone(facility.approval_status)}>
-                        {approvalLabel(facility.approval_status)}
-                      </StatusBadge>
+                      {ownerView ? (
+                        // What the owner owes on this facility — the same
+                        // statuses as their Products list.
+                        <StatusBadge tone={EVIDENCE_STANDING_TONE[evidenceStanding(facility.evidence_progress)]}>
+                          {EVIDENCE_STANDING_LABEL[evidenceStanding(facility.evidence_progress)]}
+                        </StatusBadge>
+                      ) : (
+                        <StatusBadge tone={approvalTone(facility.approval_status)}>
+                          {approvalLabel(facility.approval_status)}
+                        </StatusBadge>
+                      )}
                     </td>
+                    {ownerView && (
+                      <td className="px-4 py-3">
+                        {evidenceNextStep(facility.evidence_progress) ? (
+                          <a href={`/facilities/${facility.id}#documents`} className="text-sm font-semibold text-forest hover:underline">
+                            {evidenceNextStep(facility.evidence_progress)}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-400">
+                            {evidenceStanding(facility.evidence_progress) === "awaiting" ? "Waiting on your importer" : "Nothing left"}
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-slate-600">
                       {facility.supplier_names && facility.supplier_names.length > 0
                         ? facility.supplier_names.join(", ")
@@ -614,7 +676,7 @@ export function FacilityTable({
                     </td>
                     <td className="px-4 py-3">
                       {facility.evidence_progress && facility.evidence_progress.required > 0 ? (
-                        <EvidenceProgressCell href={`/facilities/${facility.id}`} progress={facility.evidence_progress} noun="facility documents" />
+                        <EvidenceProgressCell href={`/facilities/${facility.id}`} progress={facility.evidence_progress} noun="facility documents" compact={ownerView} />
                       ) : (
                         <div>
                           <a

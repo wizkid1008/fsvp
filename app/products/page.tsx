@@ -326,7 +326,10 @@ export default async function ProductsPage({
       countries={countryOptions}
       facilities={tableFacilities}
       products={products}
-      supplierHref={isSupplier ? "/my-suppliers" : "/exporters"}
+      // /my-suppliers is exporter-only; a supplier with no company record sets
+      // it up on Company Overview.
+      supplierHref={isSupplier ? "/corporate" : "/exporters"}
+      supplierActionLabel={isSupplier ? "Set up your company" : "Add a supplier first"}
       suppliers={tableSuppliers}
       // ?facility=<id> arrives from "Add product" on a facility's row.
       // Resolved against the facilities this account can actually see, so a

@@ -74,3 +74,32 @@ export const EVIDENCE_STANDING_TONE: Record<EvidenceStanding, "danger" | "warnin
   complete: "success",
   none: "neutral",
 };
+
+/**
+ * One document's bucket on My Evidence — the per-document counterpart of
+ * evidenceStanding, for the same count cards. "expiring" is an accepted
+ * document that lapses within the window (or already has): accepted, but
+ * about to stop counting.
+ */
+export type DocumentBucket = "returned" | "awaiting" | "expiring" | "accepted" | "other";
+
+export const DOCUMENT_EXPIRY_WINDOW_DAYS = 60;
+
+export function documentBucket(
+  doc: { evidence_status: string | null; expiration_date: string | null },
+  today: string = new Date().toISOString().slice(0, 10)
+): DocumentBucket {
+  const status = doc.evidence_status;
+  if (status === "needs_revision" || status === "rejected") return "returned";
+  if (status === "submitted" || status === "under_review") return "awaiting";
+  if (status === "accepted") {
+    if (doc.expiration_date) {
+      const horizon = new Date(new Date(`${today}T00:00:00Z`).getTime() + DOCUMENT_EXPIRY_WINDOW_DAYS * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      if (doc.expiration_date.slice(0, 10) <= horizon) return "expiring";
+    }
+    return "accepted";
+  }
+  return "other";
+}
