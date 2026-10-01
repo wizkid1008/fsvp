@@ -38,25 +38,48 @@ export function EvidenceOverview() {
   }, []);
 
   return (
+    <EvidenceOverviewCard
+      description="Documents each exporter, facility and product owes under your published rules."
+      rows={state.kind === "ready" ? state.rows : null}
+      fallback={
+        state.kind === "loading" ? (
+          <p className="px-5 py-4 text-xs text-slate-400">Counting required documents…</p>
+        ) : state.kind === "error" ? (
+          <p className="px-5 py-4 text-xs text-red-700">
+            Could not load the evidence counts. Refresh to try again, or open{" "}
+            <Link href="/exporters" className="font-semibold underline">Exporters</Link> for each one&rsquo;s documents.
+          </p>
+        ) : null
+      }
+    />
+  );
+}
+
+/**
+ * The card itself, shared with the exporter's and supplier's dashboard
+ * (ExporterDashboard), which computes its rows on the server — it has no
+ * setup plan eating its request budget. Same bars, same counts, same links,
+ * one row per level.
+ */
+export function EvidenceOverviewCard({
+  description,
+  rows,
+  fallback = null,
+}: {
+  description: string;
+  rows: EvidenceOverviewRow[] | null;
+  /** Shown instead of the rows while they load or if they failed. */
+  fallback?: React.ReactNode;
+}) {
+  return (
     <section className="rounded-lg border border-line bg-white shadow-soft">
       <div className="border-b border-line px-5 py-3">
         <h2 className="text-sm font-semibold text-ink">Required evidence</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
-          Documents each exporter, facility and product owes under your published rules.
-        </p>
+        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
       </div>
-      {state.kind === "loading" && (
-        <p className="px-5 py-4 text-xs text-slate-400">Counting required documents…</p>
-      )}
-      {state.kind === "error" && (
-        <p className="px-5 py-4 text-xs text-red-700">
-          Could not load the evidence counts. Refresh to try again, or open{" "}
-          <Link href="/exporters" className="font-semibold underline">Exporters</Link> for each one&rsquo;s documents.
-        </p>
-      )}
-      {state.kind === "ready" && (
+      {rows === null ? fallback : (
         <ul className="divide-y divide-line">
-          {state.rows.map((row) => (
+          {rows.map((row) => (
             <li key={row.label}>
               <Link href={row.href} className="group block px-5 py-3 transition hover:bg-slate-50">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">

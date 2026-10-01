@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { AlertCircle, ArrowRight, Clock, ClipboardCheck, FileWarning } from "lucide-react";
+import { DeadlineRow, DeadlinesSection } from "./DeadlinesSection";
+import { AlertCircle, Clock, ClipboardCheck, FileWarning } from "lucide-react";
 import type { ImporterSignals } from "@/lib/dashboard/importer-signals";
 
 /**
@@ -22,36 +22,11 @@ export function ImporterActionsSection({ signals }: { signals: ImporterSignals }
 
   if (nothingToDo) return null;
 
-  const Row = ({
-    icon, tone, title, detail, href, cta,
-  }: {
-    icon: React.ReactNode; tone: string; title: string; detail: string; href: string; cta: string;
-  }) => (
-    <div className="flex items-center gap-3 px-5 py-3">
-      <span className={`shrink-0 ${tone}`}>{icon}</span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink">{title}</p>
-        <p className="truncate text-xs text-slate-500">{detail}</p>
-      </div>
-      <Link
-        href={href}
-        className="shrink-0 inline-flex h-7 items-center gap-1 rounded-md border border-forest px-2.5 text-xs font-semibold text-forest transition hover:bg-emerald-50"
-      >
-        {cta} <ArrowRight className="h-3 w-3" />
-      </Link>
-    </div>
-  );
+  // Shared with the exporter and supplier dashboard (DeadlinesSection.tsx).
+  const Row = DeadlineRow;
 
   return (
-    <section className="rounded-lg border border-line bg-white shadow-soft">
-      <div className="border-b border-line px-5 py-4">
-        <h2 className="text-sm font-semibold text-ink">Deadlines and reviews</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
-          Decisions and deadlines that are yours to action, soonest first.
-        </p>
-      </div>
-
-      <div className="divide-y divide-line">
+    <DeadlinesSection>
         {overdue.map((r) => (
           <Row
             key={`od-${r.id}`}
@@ -115,7 +90,6 @@ export function ImporterActionsSection({ signals }: { signals: ImporterSignals }
             cta="Open"
           />
         ))}
-      </div>
-    </section>
+    </DeadlinesSection>
   );
 }
