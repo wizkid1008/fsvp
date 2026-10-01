@@ -22,6 +22,7 @@ import { loadCompleteFsvpSetupPlan } from "@/lib/setup/fsvp-workflow";
 import { fetchImporterSignals } from "@/lib/dashboard/importer-signals";
 import { ArrowRight, ClipboardList, ShieldCheck } from "lucide-react";
 import { EvidenceOverview } from "@/components/dashboard/EvidenceOverview";
+import { AccountReasonsBanner } from "@/components/products/ProductReasons";
 
 async function ImporterDashboard({
   importerId,
@@ -113,16 +114,24 @@ async function ImporterDashboard({
               </StatusBadge>
             )}
             <Link
-              href="/setup/fsvp"
+              href="/products"
               className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-forest hover:text-forest"
             >
               <ClipboardList className="h-4 w-4" />
-              FSVP pipeline
+              Product status
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
       </section>
+
+      {/* Blockers about the account itself — no QI on the register, an
+          exporter with no facility. Per-product reasons live on Products. */}
+      {plan && plan.accountReasons.length > 0 && (
+        <div className="-mt-6">
+          <AccountReasonsBanner reasons={plan.accountReasons} />
+        </div>
+      )}
 
       <ProgramStatus
         summary={productSummary}
@@ -138,10 +147,9 @@ async function ImporterDashboard({
           subrequest budget is spent on the plan above. */}
       {importerId && <EvidenceOverview />}
 
-      {/* The per-gate worklist lives on /setup/fsvp (the "FSVP pipeline"
-          button above), which names each blocker. Repeating its counts here
-          without the names added a second, vaguer copy of the same list. The
-          gates are still read for the all-clear banner below. */}
+      {/* Why each product is unfinished is on Products (the "Product status"
+          button above), beside the product it is about. The gates are still
+          read here for the all-clear banner below. */}
 
       {signals?.clear && gatesClear && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4">

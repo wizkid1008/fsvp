@@ -319,3 +319,45 @@ describe("screening progress note", () => {
     expect(noted).toEqual(["screening"]);
   });
 });
+
+describe("reasons grouped by product", () => {
+  it("is empty for a product with nothing open", () => {
+    const plan = buildCompleteFsvpSetupPlan(cleanInput());
+    expect(plan.productReasons).toEqual({});
+    expect(plan.accountReasons).toEqual([]);
+  });
+
+  it("files each blocker under its product, and account-wide ones apart", () => {
+    const input = cleanInput();
+    input.activeQiCount = 0;
+    input.determinationsByProductId = new Map([["product-1", null]]);
+    input.records[0].status = "draft";
+    const plan = buildCompleteFsvpSetupPlan(input);
+
+    expect(plan.accountReasons.map((r) => r.id)).toEqual(["qi-none"]);
+    const reasons = plan.productReasons["product-1"];
+    expect(reasons.map((r) => r.stepId)).toContain("record");
+    expect(reasons.every((r, i) => i === 0 || r.stepNumber >= reasons[i - 1].stepNumber)).toBe(true);
+    // "Cannot be approved until its setup blockers are resolved" only restates
+    // the reasons listed above it.
+    expect(reasons.some((r) => r.actionLabel === "Resolve record blockers")).toBe(false);
+  });
+
+  it("drops the product-name prefix the stage list needs", () => {
+    const input = cleanInput();
+    input.admissibilityByProductId = new Map([["product-1", [
+      { code: "awaiting_reference_rule", message: "no rule on file", severity: "soft" } as any,
+    ]]]);
+    const plan = buildCompleteFsvpSetupPlan(input);
+    expect(plan.productReasons["product-1"][0].message).toBe("No rule on file");
+  });
+});
+
+describe("an approved product without a package", () => {
+  it("has no reasons — the package is built when FDA asks", () => {
+    const input = cleanInput();
+    input.packagesByRecordId = new Set();
+    const plan = buildCompleteFsvpSetupPlan(input);
+    expect(plan.productReasons).toEqual({});
+  });
+});

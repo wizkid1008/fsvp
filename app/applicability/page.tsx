@@ -201,7 +201,7 @@ export default async function ApplicabilityPage({
           of the remaining path applies at all — which is why it sits before
           FSVP Records rather than after. */}
       {undetermined > 0 && (
-        <NextStepBanner stage="record">
+        <NextStepBanner>
           {undetermined === 1
             ? "1 product has no applicability determination yet"
             : `${undetermined} products have no applicability determination yet`}
@@ -211,7 +211,7 @@ export default async function ApplicabilityPage({
       )}
 
       {undetermined === 0 && needsRecord > 0 && (
-        <NextStepBanner stage="record" action={{ label: "Open FSVP record", href: "/fsvp-records/new" }}>
+        <NextStepBanner action={{ label: "Open FSVP record", href: "/fsvp-records/new" }}>
           {needsRecord === 1
             ? "1 product is subject to FSVP and has no record yet"
             : `${needsRecord} products are subject to FSVP and have no record yet`}

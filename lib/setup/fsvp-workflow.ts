@@ -84,10 +84,23 @@ export type ProductStanding = {
   recordStatus: string | null;
 };
 
+/** One blocker, told from a single product's side: which stage it holds up. */
+export type ProductReason = SetupBlocker & {
+  stepId: FsvpSetupStepId;
+  stepNumber: number;
+};
+
 export type CompleteFsvpSetupPlan = {
   steps: SetupStep[];
   /** One entry per active product, in the order the products were loaded. */
   productStandings: ProductStanding[];
+  /**
+   * The same blockers as `steps`, regrouped by the product each is about, in
+   * stage order. Keyed by product id; a product with nothing open is absent.
+   */
+  productReasons: Record<string, ProductReason[]>;
+  /** Blockers about the account rather than any one product — no QI on the register, an exporter with no facility. */
+  accountReasons: ProductReason[];
   summary: SetupSummary;
   /** Whole-plan completion, 0–100, weighted by each step's own unit count. */
   progressPercent: number;
@@ -680,9 +693,54 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
   // facilities" beside a Facilities page saying 0. See lib/approval/status.ts.
   const approvedFacilities = input.facilities.filter((facility) => isApproved(facility.approval_status)).length;
 
+  // Regroup the stage blockers by product, for the "why isn't X finished?"
+  // view. Every per-product or per-record blocker carries that product's or
+  // record's id inside its own id (see each push above), and ids are UUIDs, so
+  // a substring match is unambiguous. Blockers that match neither are either
+  // about the account (no QI, an exporter without a facility) or are the
+  // "do the earlier thing first" placeholders an empty account gets, which
+  // say nothing a product-level answer needs.
+  const productReasons: Record<string, ProductReason[]> = {};
+  const accountReasons: ProductReason[] = [];
+  const placeholder = /-needs-(product|record|approval|exporter)$/;
+  steps.forEach((step, index) => {
+    // An approved product with no inspection package is finished: the package
+    // is built when FDA asks for it (see lib/dashboard/product-journey.ts,
+    // which counts it Approved). Listing it as a reason would contradict that.
+    if (step.id === "package") return;
+    for (const item of step.blockers) {
+      const reason: ProductReason = { ...item, stepId: step.id as FsvpSetupStepId, stepNumber: index + 1 };
+      const record = input.records.find((r) => item.id.includes(r.id));
+      const product = record
+        ? productsById.get(record.product_id)
+        : input.products.find((p) => item.id.includes(p.id));
+      if (!product) {
+        if (!placeholder.test(item.id)) accountReasons.push(reason);
+        continue;
+      }
+      // The messages are written for a list of every product, so most open
+      // with the product's name. Under a question that already names it the
+      // prefix is noise; drop it where it is a plain "Name: " lead-in.
+      const prefix = `${record ? recordLabel(record, productsById, suppliersById) : productLabel(product)}: `;
+      const message = item.message.startsWith(prefix)
+        ? item.message.slice(prefix.length).replace(/^./, (c) => c.toUpperCase())
+        : item.message;
+      (productReasons[product.id] ??= []).push({ ...reason, message });
+    }
+  });
+  // "Cannot be approved until its setup blockers are resolved" restates the
+  // reasons already listed above it. It earns its place only when it is the
+  // last thing left — then it is the approval decision itself.
+  for (const [productId, reasons] of Object.entries(productReasons)) {
+    const others = reasons.filter((r) => r.stepId !== "approval" || r.actionLabel === "Record approval decision");
+    productReasons[productId] = others.length > 0 ? others : reasons;
+  }
+
   return {
     steps,
     productStandings,
+    productReasons,
+    accountReasons,
     progressPercent: unitsTotal === 0 ? 0 : Math.round((unitsDone / unitsTotal) * 100),
     summary: {
       exporters: input.suppliers.length,

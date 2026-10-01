@@ -1,6 +1,11 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { ProductTable, type ProductRow } from "@/components/products/ProductTable";
-import { ProductStandingsProvider, ProductStatusCards } from "@/components/products/ProductStandings";
+import {
+  ProductsAccountReasons,
+  ProductsStageReference,
+  ProductStandingsProvider,
+  ProductStatusCards,
+} from "@/components/products/ProductStandings";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { NextStepBanner } from "@/components/ui/NextStepBanner";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -360,7 +365,7 @@ export default async function ProductsPage({
           classified and has an origin. The Admissibility column already says
           which ones — this says what to do about it. */}
       {!isSupplier && unclassifiedCount > 0 && (
-        <NextStepBanner stage="classification">
+        <NextStepBanner>
           {unclassifiedCount === 1
             ? "1 product still needs a commodity classification or a country of origin"
             : `${unclassifiedCount} products still need a commodity classification or a country of origin`}
@@ -370,7 +375,7 @@ export default async function ProductsPage({
       )}
 
       {!isSupplier && products.length > 0 && unclassifiedCount === 0 && (
-        <NextStepBanner stage="record" action={{ label: "Determine applicability", href: "/applicability" }}>
+        <NextStepBanner action={{ label: "Determine applicability", href: "/applicability" }}>
           every product is classified. Next, determine whether FSVP applies to each one — an exempt
           food never needs a record, so this decides how much work the rest of the path is.
         </NextStepBanner>
@@ -418,10 +423,12 @@ export default async function ProductsPage({
           document score, labelled as a score. */}
       {!isSupplier && importerId ? (
         <ProductStandingsProvider>
+          <ProductsAccountReasons />
           <ProductStatusCards added={productsAdded} />
           <div className="mt-6">
             {productTable}
           </div>
+          <ProductsStageReference />
         </ProductStandingsProvider>
       ) : (
         <>

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProductScoreCard } from "@/components/products/ProductScoreCard";
+import { ProductStandingsProvider, ProductWhatsLeft } from "@/components/products/ProductStandings";
 import {
   AdmissibilityPanel,
   type AdmissibilityDeterminationRow,
@@ -243,6 +244,14 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           </StatusBadge>
         </div>
       </div>
+
+      {/* What is left for this product, from the same planner the Products
+          list's "Why?" rows read — so the answer here and there is the same. */}
+      {!isSupplierView && profile?.importer_id && (
+        <ProductStandingsProvider>
+          <ProductWhatsLeft productId={product.id} />
+        </ProductStandingsProvider>
+      )}
 
       {/* The product's details in pipeline order, each with its own Edit —
           replacing one long form on the list plus panels scattered below. */}

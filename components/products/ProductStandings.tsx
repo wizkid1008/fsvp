@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
+import { ChevronDown } from "lucide-react";
+import { AccountReasonsBanner, ReasonList, StageReference, type ReasonItem, type StageSummary } from "@/components/products/ProductReasons";
 
 /**
  * Where each product stands in the FSVP pipeline, for the importer's Products
@@ -18,9 +20,13 @@ import type { StatusTone } from "@/types/platform";
 
 export type ProductStandingsResponse = {
   /** Per product: where it stands in the FSVP pipeline — the dashboard's phases. */
-  standings: Record<string, { phase: string; label: string; blocked: boolean }>;
+  standings: Record<string, { phase: string; label: string; blocked: boolean; reasons: ReasonItem[] }>;
   approved: number;
   blocked: number;
+  /** Blockers about the account itself, which hold up every product. */
+  accountReasons: ReasonItem[];
+  /** The eleven stages, for the reference list under the table. */
+  stages: StageSummary[];
 };
 
 type State = { kind: "loading" } | { kind: "error" } | { kind: "ready"; data: ProductStandingsResponse };
@@ -61,7 +67,26 @@ function toneFor(phase: string): StatusTone {
   return "warning";
 }
 
-export function ProductFsvpStatus({ productId }: { productId: string }) {
+/** This product's reasons, or [] while loading, on error, or when it has none. */
+export function useProductReasons(productId: string): ReasonItem[] {
+  const state = useProductStandings();
+  return state?.kind === "ready" ? state.data.standings[productId]?.reasons ?? [] : [];
+}
+
+/**
+ * The status badge, plus a toggle that opens the product's reasons in a row
+ * beneath it (ProductTable renders that row — a table cell is too narrow, and
+ * the table clips anything that overflows it).
+ */
+export function ProductFsvpStatus({
+  productId,
+  expanded = false,
+  onToggle,
+}: {
+  productId: string;
+  expanded?: boolean;
+  onToggle?: () => void;
+}) {
   const state = useProductStandings();
   if (!state || state.kind === "loading") return <span className="text-xs text-slate-400">…</span>;
   if (state.kind === "error") return <span className="text-xs text-slate-400" title="Could not load">—</span>;
@@ -69,7 +94,81 @@ export function ProductFsvpStatus({ productId }: { productId: string }) {
   // The pipeline covers foods currently imported; a discontinued or
   // never-imported product has no standing, and the Imported column says why.
   if (!standing) return <span className="text-xs text-slate-400" title="Not in the FSVP pipeline">—</span>;
-  return <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>;
+  const count = standing.reasons.length;
+  return (
+    <div>
+      <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>
+      {count > 0 && onToggle && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          className="mt-1 flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-forest hover:underline"
+        >
+          {expanded ? "Hide" : `Why? ${count} to do`}
+          <ChevronDown className={`h-3.5 w-3.5 transition ${expanded ? "rotate-180" : ""}`} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** The expanded row's content: why this product is not finished. */
+export function ProductReasonsPanel({ productId, productName }: { productId: string; productName: string }) {
+  const reasons = useProductReasons(productId);
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Why {productName} isn&apos;t finished
+      </p>
+      <ReasonList reasons={reasons} />
+    </div>
+  );
+}
+
+/** Account-wide blockers, above the Products table. */
+export function ProductsAccountReasons() {
+  const state = useProductStandings();
+  return state?.kind === "ready" ? <AccountReasonsBanner reasons={state.data.accountReasons} /> : null;
+}
+
+/** The stage reference, below the Products table. */
+export function ProductsStageReference() {
+  const state = useProductStandings();
+  return state?.kind === "ready" ? <StageReference stages={state.data.stages} /> : null;
+}
+
+/**
+ * The top of a product's own page: what is left for this one product. Says
+ * nothing while loading or on error — the rest of the page stands on its own.
+ */
+export function ProductWhatsLeft({ productId }: { productId: string }) {
+  const state = useProductStandings();
+  if (state?.kind !== "ready") return null;
+  const standing = state.data.standings[productId];
+  if (!standing) return null;
+  const reasons = standing.reasons;
+  if (reasons.length === 0) {
+    return (
+      <div className="mt-6 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3">
+        <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>
+        <p className="text-sm text-emerald-900">Nothing is left to do for this product.</p>
+      </div>
+    );
+  }
+  return (
+    <section className="mt-6 rounded-lg border border-line bg-slate-50 p-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-ink">
+          What&apos;s left for this product
+        </h2>
+        <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>
+      </div>
+      <div className="mt-3">
+        <ReasonList reasons={reasons} />
+      </div>
+    </section>
+  );
 }
 
 /** The Products page's cards, counted as the dashboard counts them. */

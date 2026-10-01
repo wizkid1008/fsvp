@@ -94,10 +94,10 @@ export default async function FsvpRecordsPage() {
       {/* Steps 7-11. A record is not finished when it exists — it needs
           compliance screening, accepted evidence, three QI signatures and an
           approval decision before the inspection package can be generated. The
-          per-record blockers are named on /setup/fsvp; this says which stage
+          per-product reasons are named on /products; this says which stage
           the account as a whole is at. */}
       {records.length > 0 && approved === 0 && (
-        <NextStepBanner stage="approval" action={{ label: "See what is blocking", href: "/setup/fsvp#gate-approval" }}>
+        <NextStepBanner action={{ label: "See what is blocking", href: "/products" }}>
           no record is approved yet. Open one to document the hazard analysis, supplier evaluation
           and verification determination, then a qualified individual signs each under
           §§ 1.504–1.506. Approval comes after those gates, not before.
@@ -106,7 +106,6 @@ export default async function FsvpRecordsPage() {
 
       {approved > 0 && (
         <NextStepBanner
-          stage="package"
           action={
             approved === 1
               ? { label: "Open approved record", href: `/fsvp-records/${approvedRecords[0].id}` }

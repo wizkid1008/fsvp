@@ -302,7 +302,7 @@ export default async function FacilitiesPage({
       </div>
 
       {!isSupplier && facilities.length > 0 && (
-        <NextStepBanner stage="product">
+        <NextStepBanner>
           a product is imported from one facility, so add it from that facility&apos;s row — use{" "}
           <span className="font-semibold text-ink">Add product</span> in the Products column. Each
           product then needs a commodity classification and an origin before FSVP applicability can

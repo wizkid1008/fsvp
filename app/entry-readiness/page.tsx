@@ -225,11 +225,11 @@ export default async function ShipmentReadinessPage() {
         description="Daily operating view for whether supplier/product combinations are ready to move through the FSVP journey."
         actionSlot={
           <Link
-            href="/setup/fsvp"
+            href="/products"
             className="inline-flex h-10 items-center gap-2 rounded-md bg-forest px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#195f4d]"
           >
             <PackageCheck className="h-4 w-4" />
-            Guided setup
+            Product status
           </Link>
         }
       />

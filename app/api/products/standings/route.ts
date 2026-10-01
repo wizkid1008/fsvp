@@ -4,6 +4,11 @@ import { resolveRequestImporter } from "@/lib/auth/request-importer";
 import { loadCompleteFsvpSetupPlan } from "@/lib/setup/fsvp-workflow";
 import { isBlockedStanding, phaseFor, summariseProducts } from "@/lib/dashboard/product-journey";
 import type { ProductStandingsResponse } from "@/components/products/ProductStandings";
+import type { ReasonItem } from "@/components/products/ProductReasons";
+import type { ProductReason } from "@/lib/setup/fsvp-workflow";
+
+const toReasonItem = ({ id, message, href, actionLabel, stepNumber }: ProductReason): ReasonItem =>
+  ({ id, message, href, actionLabel, stepNumber });
 
 export const runtime = "edge";
 
@@ -33,9 +38,23 @@ export async function GET() {
         phase: blocked ? "blocked" : phase.key,
         label: blocked ? "Blocked" : phase.label,
         blocked,
+        reasons: (plan.productReasons[standing.id] ?? []).map(toReasonItem),
       };
     }
-    const body: ProductStandingsResponse = { standings, approved: summary.approved, blocked: summary.blocked };
+    const body: ProductStandingsResponse = {
+      standings,
+      approved: summary.approved,
+      blocked: summary.blocked,
+      accountReasons: plan.accountReasons.map(toReasonItem),
+      stages: plan.steps.map((step) => ({
+        id: step.id,
+        title: step.title,
+        description: step.description,
+        href: step.href,
+        actionLabel: step.actionLabel,
+        open: step.blockers.length,
+      })),
+    };
     return NextResponse.json(body);
   } catch (err) {
     return NextResponse.json(

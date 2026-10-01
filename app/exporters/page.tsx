@@ -249,7 +249,7 @@ export default async function ExportersPage() {
           for. The row's own actions are Suspend and Edit — both about the
           exporter, neither about the journey it belongs to. */}
       {scoped && suppliers.length > 0 && (
-        <NextStepBanner stage="facility">
+        <NextStepBanner>
           a facility belongs to one exporter, so add it from that exporter&apos;s row — use{" "}
           <span className="font-semibold text-ink">Add facility</span> in the Facilities column.
           Every exporter needs at least one before you can add the products you import from it.

@@ -124,8 +124,8 @@ export function outstandingWork(steps: SetupStep[]): WorkGate[] {
       id: step.id as FsvpSetupStepId,
       title: step.title,
       href: onlyDestination ?? step.href,
-      // Matches the `id={`gate-${step.id}`}` anchors on /setup/fsvp.
-      detailHref: onlyDestination ?? `/setup/fsvp#gate-${step.id}`,
+      // Matches the `id={`gate-${step.id}`}` anchors in the stage reference on /products.
+      detailHref: onlyDestination ?? `/products#gate-${step.id}`,
       // The blocker's own label is the more specific one ("Classify product"
       // over "Review classifications"), but only when the blockers agree.
       actionLabel: onlyDestination && labels.size === 1 ? [...labels][0] : step.actionLabel,

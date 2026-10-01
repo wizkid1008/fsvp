@@ -186,7 +186,7 @@ describe("outstandingCount", () => {
 describe("detailHref", () => {
   it("points a clear gate at its own anchor on the pipeline page", () => {
     for (const gate of outstandingWork(steps())) {
-      expect(gate.detailHref).toBe(`/setup/fsvp#gate-${gate.id}`);
+      expect(gate.detailHref).toBe(`/products#gate-${gate.id}`);
     }
   });
 
@@ -235,7 +235,7 @@ describe("detailHref", () => {
     }));
     const classify = gates.find((g) => g.id === "classification");
 
-    expect(classify?.detailHref).toBe("/setup/fsvp#gate-classification");
+    expect(classify?.detailHref).toBe("/products#gate-classification");
     expect(classify?.href).toBe("/products");
   });
 
@@ -264,9 +264,9 @@ describe("detailHref", () => {
   });
 
   it("matches the anchor ids the pipeline page renders", () => {
-    // app/setup/fsvp/page.tsx renders id={`gate-${step.id}`} for each stage,
+    // components/products/ProductReasons.tsx (StageReference) renders id={`gate-${step.id}`} for each stage,
     // and step.id comes from the same FSVP_SETUP_STEPS list.
-    const ids = FSVP_SETUP_STEPS.map((s) => `/setup/fsvp#gate-${s.id}`);
+    const ids = FSVP_SETUP_STEPS.map((s) => `/products#gate-${s.id}`);
     expect(outstandingWork(steps()).map((g) => g.detailHref)).toEqual(ids);
   });
 });
