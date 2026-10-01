@@ -101,6 +101,17 @@ export function GapsActionsClient({ actions, canCreate }: Props) {
                   {action.investigation_summary && (
                     <p className="mt-2 text-xs text-slate-500 line-clamp-2">{action.investigation_summary}</p>
                   )}
+                  {/* Written by the exporter on their dashboard. */}
+                  {action.supplier_response ? (
+                    <div className="mt-2 rounded-md border border-line bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        Response from {action.suppliers?.company_name ?? "the exporter"}
+                      </p>
+                      <p className="mt-0.5 whitespace-pre-line">{action.supplier_response}</p>
+                    </div>
+                  ) : action.status !== "closed" ? (
+                    <p className="mt-2 text-xs text-slate-400">No response from the exporter yet.</p>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <StatusBadge tone={statusTone(action.status)}>{statusLabel(action.status)}</StatusBadge>

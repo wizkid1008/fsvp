@@ -1,8 +1,24 @@
-import { Bell, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { tryAdminClient } from "@/lib/supabase/admin-guard";
+import { SupplierResponseForm } from "@/components/corrective-actions/SupplierResponseForm";
 import type { StatusTone } from "@/types/platform";
 
-type SupabaseLike = { from: (table: string) => any };
+/**
+ * Corrective actions an importer has raised against this exporter, on the
+ * exporter's dashboard — with which importer and product each is about, and a
+ * box to answer it.
+ *
+ * WHY THIS USED TO BE ALWAYS EMPTY
+ *
+ * It read corrective_actions through the exporter's own session, and that
+ * table's RLS (004_reviewer_tenancy.sql) admits only the importer's tenant and
+ * platform staff. An exporter could never see an action raised against them,
+ * so supplier_response — a column made for their side of § 1.508 — had no way
+ * to be filled. Read through the admin client now, scoped by hand to actions
+ * naming this exporter's company; the response goes through
+ * /api/corrective-actions/[id], which checks the same thing.
+ */
 
 const TRIGGERED_BY_LABELS: Record<string, string> = {
   verification_finding: "Verification finding",
@@ -26,22 +42,27 @@ type ActionRow = {
   status: string;
   triggered_at: string;
   investigation_summary: string | null;
+  supplier_response: string | null;
+  importers: { display_name: string | null } | null;
+  products_verify: { product_name: string } | null;
 };
 
 export async function ActionItemsSection({
   supplierId,
-  supabase,
 }: {
   supplierId: string | null;
-  supabase: SupabaseLike;
+  /** Unused since the read moved to the admin client; kept so callers need not change. */
+  supabase?: unknown;
 }) {
-  const query = (supabase.from("corrective_actions") as any)
-    .select("id, issue_description, triggered_by, status, triggered_at, investigation_summary")
-    .order("triggered_at", { ascending: false });
+  // No company, nothing to scope to — and never "everything".
+  if (!supplierId) return null;
+  const adminResult = tryAdminClient();
+  if (!adminResult.ok) return null;
 
-  const { data: rawActions } = supplierId
-    ? await query.eq("supplier_id", supplierId)
-    : await query;
+  const { data: rawActions } = await (adminResult.client.from("corrective_actions") as any)
+    .select("id, issue_description, triggered_by, status, triggered_at, investigation_summary, supplier_response, importers(display_name), products_verify(product_name)")
+    .eq("supplier_id", supplierId)
+    .order("triggered_at", { ascending: false });
 
   const actions = (rawActions ?? []) as ActionRow[];
   const open = actions.filter((a) => a.status !== "closed");
@@ -52,11 +73,10 @@ export async function ActionItemsSection({
   return (
     <section className="rounded-lg border border-line bg-white shadow-soft">
       <div className="flex items-center justify-between border-b border-line px-5 py-4">
-        <h2 className="text-sm font-semibold text-ink">Action Items</h2>
+        <h2 className="text-sm font-semibold text-ink">Corrective actions</h2>
         {open.length > 0 && (
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-red-600">
-            <Bell className="h-3.5 w-3.5" />
-            {open.length} need{open.length === 1 ? "s" : ""} attention
+          <span className="text-xs font-semibold text-red-600">
+            {open.length} need{open.length === 1 ? "s" : ""} your response
           </span>
         )}
       </div>
@@ -65,31 +85,31 @@ export async function ActionItemsSection({
         {open.map((action) => (
           <div key={action.id} className="relative overflow-hidden px-5 py-4 pl-6 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-red-500">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-ink leading-snug">{action.issue_description}</p>
-                <p className="mt-1.5 text-xs text-slate-500">
-                  Reason: <span className="font-medium text-slate-700">{TRIGGERED_BY_LABELS[action.triggered_by] ?? action.triggered_by}</span>
-                  <span className="mx-2">·</span>
-                  Opened: <span className="font-medium text-slate-700">{new Date(action.triggered_at).toLocaleDateString()}</span>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold leading-snug text-ink">{action.issue_description}</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Raised by <span className="font-medium text-slate-800">{action.importers?.display_name ?? "your importer"}</span>
+                  {" · "}
+                  {action.products_verify?.product_name ?? "all your products for them"}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {TRIGGERED_BY_LABELS[action.triggered_by] ?? action.triggered_by}
+                  {" · opened "}
+                  {new Date(action.triggered_at).toLocaleDateString()}
                 </p>
                 {action.investigation_summary && (
-                  <div className="mt-3 rounded-md bg-slate-50 border border-line p-3 text-sm text-slate-700">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">What's needed</p>
+                  <div className="mt-3 rounded-md border border-line bg-slate-50 p-3 text-sm text-slate-700">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">What&apos;s needed</p>
                     {action.investigation_summary}
                   </div>
                 )}
               </div>
               <StatusBadge tone={statusTone(action.status)}>
-                {action.status === "in_progress" ? "In Progress" : "Open"}
+                {action.status === "in_progress" ? "In progress" : "Open"}
               </StatusBadge>
             </div>
-            <div className="mt-4 flex gap-2">
-              <a
-                href="/my-evidence"
-                className="inline-flex h-8 items-center rounded-md bg-forest px-3 text-xs font-semibold text-white hover:bg-[#195f4d] transition"
-              >
-                Upload evidence
-              </a>
+            <div className="mt-3">
+              <SupplierResponseForm actionId={action.id} current={action.supplier_response} />
             </div>
           </div>
         ))}
@@ -98,7 +118,7 @@ export async function ActionItemsSection({
           <div className="px-5 py-3">
             <div className="mb-2 flex items-center gap-2">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-              <p className="text-xs font-semibold text-slate-500">Resolved ({resolved.length})</p>
+              <p className="text-xs font-semibold text-slate-500">Closed ({resolved.length})</p>
             </div>
             <div className="space-y-1.5">
               {resolved.map((action) => (

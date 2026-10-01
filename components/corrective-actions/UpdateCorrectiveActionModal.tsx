@@ -17,6 +17,8 @@ export interface ActionRow {
   /** Embedded by the Gaps & Actions page, to say what the action is about. */
   suppliers?: { company_name: string } | null;
   products_verify?: { product_name: string } | null;
+  /** The exporter's answer, written on their dashboard. */
+  supplier_response?: string | null;
   investigation_summary: string | null;
   action_taken: string | null;
   decision: string | null;

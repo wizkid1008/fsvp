@@ -45,7 +45,10 @@ export async function ExporterDashboard({
       ? (supabase.from("documents") as any)
           .select("id, evidence_status, requirement_item_id")
           .eq("supplier_id", supplierId)
-          .eq("link_type", "supplier")
+          // linked_entity_type, not link_type: link_type is the upload form's
+          // field name, not a column, so this query errored and every
+          // exporter's checklist said the company overview was never done.
+          .eq("linked_entity_type", "supplier")
           .is("soft_deleted_at", null)
       : Promise.resolve({ data: [] }),
 
