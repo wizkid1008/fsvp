@@ -5,7 +5,7 @@
 -- THE BUG
 --
 -- fsvp_records.product_id only had to reference SOME product. Nothing tied it
--- to the record's own importer or supplier, so three records pointed at
+-- to the record's own importer or supplier, so three records point at
 -- ThrushCross's products while belonging to someone else:
 --
 --   e5000000-…-0004  Vegan Meats  → ThrushCross's Roasted Coffee Beans, and
@@ -16,14 +16,11 @@
 --
 -- The Nutty Cathy pair were most likely valid when made: the products were
 -- unclaimed (importer_id null) until ThrushCross's ownership was recorded, and
--- nothing stopped a product from being claimed out from under another
--- importer's records. 031 then hid those products from Nutty Cathy, leaving
--- records about food its own product list cannot show.
+-- /api/products/save claims an unclaimed product for whichever importer saves
+-- it, with nothing checking for other importers' records.
 --
--- In the app this surfaced as a record's blockers — "FSVP record from Pacific
--- Valley Foods has no accepted evidence…" — with no product to file them under
--- (lib/setup/fsvp-workflow.ts now ignores such records), and as rows on FSVP
--- Records naming a product the importer does not have.
+-- In the app this surfaced as a record's blockers with no product to file them
+-- under (lib/setup/fsvp-workflow.ts now ignores such records).
 --
 -- THE RULE
 --
@@ -32,20 +29,27 @@
 -- sourced from several facilities legitimately has one record per facility.
 --
 -- Enforced from both sides, because either side can break it:
---   1. fsvp_records insert/update — the record cannot point at a wrong product.
---   2. products_verify update     — a product cannot be claimed by, or moved
---                                   to, an importer or supplier that strands
---                                   another importer's records.
+--   1. fsvp_records  — a record cannot be created, or re-pointed, at a wrong
+--                      product.
+--   2. products_verify — a product cannot be claimed by, or moved to, an
+--                      importer or supplier that strands another importer's
+--                      records.
 --
--- All FSVP data is test data (see project notes), so the three records are
--- deleted rather than repaired. Their attestations, evidence links and the
--- rest cascade or are set null by the existing foreign keys; no trigger blocks
--- a delete.
+-- WHAT THIS DOES NOT DO
 --
--- Run the preview SELECT first if you want to see what step 1 removes.
+-- It does not remove the three records above. They are inside the § 1.510(c)
+-- two-year retention period, and migration 011's guard refuses to delete them
+-- (the service role included, deliberately). Removing them means a decision
+-- about that guard, which is left to whoever runs this — see the preview query
+-- below to list them.
+--
+-- The triggers only fire on CHANGES to the linking columns, so those existing
+-- rows do not block unrelated work: ThrushCross can still edit its own Cocoa
+-- Nibs (the save route re-sends importer_id unchanged), and the stranded
+-- records can still change status.
 -- ============================================================================
 
--- Preview (optional, run on its own):
+-- Records that break the rule (run on its own to list them):
 --
 -- select r.id, i.display_name as record_importer, p.product_name,
 --        pi.display_name as product_owner,
@@ -59,17 +63,7 @@
 
 begin;
 
--- ── 1. Remove the records that break the rule ───────────────────────────────
-
-delete from fsvp_records r
-using products_verify p
-where p.id = r.product_id
-  and (
-    (p.importer_id is not null and p.importer_id <> r.importer_id)
-    or p.supplier_id is distinct from r.supplier_id
-  );
-
--- ── 2. A record must match its product ──────────────────────────────────────
+-- ── 1. A record must match its product ──────────────────────────────────────
 
 -- security definer: the product may be invisible to the writer under
 -- products_read (031) — which is exactly the case this has to catch, so the
@@ -108,12 +102,23 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_fsvp_records_product on fsvp_records;
-create trigger trg_fsvp_records_product
-  before insert or update of product_id, importer_id, supplier_id on fsvp_records
+drop trigger if exists trg_fsvp_records_product_insert on fsvp_records;
+create trigger trg_fsvp_records_product_insert
+  before insert on fsvp_records
   for each row execute function public.enforce_fsvp_record_product();
 
--- ── 3. A product cannot be moved out from under existing records ───────────
+drop trigger if exists trg_fsvp_records_product_update on fsvp_records;
+create trigger trg_fsvp_records_product_update
+  before update of product_id, importer_id, supplier_id on fsvp_records
+  for each row
+  when (
+    new.product_id  is distinct from old.product_id
+    or new.importer_id is distinct from old.importer_id
+    or new.supplier_id is distinct from old.supplier_id
+  )
+  execute function public.enforce_fsvp_record_product();
+
+-- ── 2. A product cannot be moved out from under existing records ───────────
 
 create or replace function public.enforce_product_record_owners()
 returns trigger
@@ -147,6 +152,11 @@ $$;
 drop trigger if exists trg_products_verify_record_owners on products_verify;
 create trigger trg_products_verify_record_owners
   before update of importer_id, supplier_id on products_verify
-  for each row execute function public.enforce_product_record_owners();
+  for each row
+  when (
+    new.importer_id is distinct from old.importer_id
+    or new.supplier_id is distinct from old.supplier_id
+  )
+  execute function public.enforce_product_record_owners();
 
 commit;
