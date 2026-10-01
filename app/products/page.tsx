@@ -1,7 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { ProductTable, type ProductRow } from "@/components/products/ProductTable";
 import {
-  ProductsAccountReasons,
   ProductStandingsProvider,
   ProductStatusCards,
 } from "@/components/products/ProductStandings";
@@ -422,7 +421,6 @@ export default async function ProductsPage({
           document score, labelled as a score. */}
       {!isSupplier && importerId ? (
         <ProductStandingsProvider>
-          <ProductsAccountReasons />
           <ProductStatusCards added={productsAdded} />
           <div className="mt-6">
             {productTable}

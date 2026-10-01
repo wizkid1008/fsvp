@@ -45,7 +45,6 @@ export async function GET() {
       standings,
       approved: summary.approved,
       blocked: summary.blocked,
-      accountReasons: plan.accountReasons.map(toReasonItem),
       stages: plan.steps.map((step) => ({
         id: step.id,
         title: step.title,

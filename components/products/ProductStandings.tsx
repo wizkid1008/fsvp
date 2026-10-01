@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StatusTone } from "@/types/platform";
 import { ChevronDown } from "lucide-react";
-import { AccountReasonsBanner, ReasonList, StageReference, type ReasonItem, type StageSummary } from "@/components/products/ProductReasons";
+import { ReasonList, StageReference, type ReasonItem, type StageSummary } from "@/components/products/ProductReasons";
 
 /**
  * Where each product stands in the FSVP pipeline, for the importer's Products
@@ -23,8 +23,6 @@ export type ProductStandingsResponse = {
   standings: Record<string, { phase: string; label: string; blocked: boolean; reasons: ReasonItem[] }>;
   approved: number;
   blocked: number;
-  /** Blockers about the account itself, which hold up every product. */
-  accountReasons: ReasonItem[];
   /** The eleven stages, for the reference list under the table. */
   stages: StageSummary[];
 };
@@ -76,12 +74,6 @@ export function ProductFsvpStatus({ productId }: { productId: string }) {
   // never-imported product has no standing, and the Imported column says why.
   if (!standing) return <span className="text-xs text-slate-400" title="Not in the FSVP pipeline">—</span>;
   return <StatusBadge tone={toneFor(standing.phase)}>{standing.label}</StatusBadge>;
-}
-
-/** Account-wide blockers, above the Products table. */
-export function ProductsAccountReasons() {
-  const state = useProductStandings();
-  return state?.kind === "ready" ? <AccountReasonsBanner reasons={state.data.accountReasons} /> : null;
 }
 
 /**

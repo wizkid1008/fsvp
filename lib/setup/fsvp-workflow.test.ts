@@ -287,6 +287,8 @@ describe("screening progress note", () => {
     const base = cleanInput();
     return {
       ...base,
+      // Records only count for products in the plan, so product-2 must exist.
+      products: [...base.products, { ...base.products[0], id: "product-2", product_name: "Papaya" }],
       records: [
         { ...base.records[0], id: "record-1", product_id: "product-1" },
         { ...base.records[0], id: "record-2", product_id: "product-2" },
@@ -358,6 +360,22 @@ describe("an approved product without a package", () => {
     const input = cleanInput();
     input.packagesByRecordId = new Set();
     const plan = buildCompleteFsvpSetupPlan(input);
+    expect(plan.productReasons).toEqual({});
+  });
+});
+
+describe("a record for a product no longer imported", () => {
+  it("raises no blockers anywhere — not on a product, not on the account", () => {
+    const input = cleanInput();
+    input.records = [
+      ...input.records,
+      { ...input.records[0], id: "record-gone", product_id: "product-discontinued", status: "draft" },
+    ];
+    input.evidenceByRecordId = new Map([["record-1", 1]]);
+    const plan = buildCompleteFsvpSetupPlan(input);
+
+    expect(plan.steps.flatMap((s) => s.blockers).some((b) => b.id.includes("record-gone"))).toBe(false);
+    expect(plan.accountReasons).toEqual([]);
     expect(plan.productReasons).toEqual({});
   });
 });

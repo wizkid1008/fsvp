@@ -172,7 +172,17 @@ function recordLabel(
   return supplier ? `${product} from ${supplier}` : product;
 }
 
-export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSetupPlan {
+export function buildCompleteFsvpSetupPlan(rawInput: PlannerInput): CompleteFsvpSetupPlan {
+  // Only records for products in the plan — products currently imported (see
+  // the lifecycle filter in loadCompleteFsvpSetupPlan). A record for a product
+  // no longer imported is kept for § 1.510's two years, but it is not work:
+  // left in, it raised blockers with no product to file them under, which
+  // surfaced as "FSVP record from Pacific Valley Foods…" on the account banner.
+  const activeProductIds = new Set(rawInput.products.map((p) => p.id));
+  const input: PlannerInput = {
+    ...rawInput,
+    records: rawInput.records.filter((r) => activeProductIds.has(r.product_id)),
+  };
   const suppliersById = new Map(input.suppliers.map((s) => [s.id, s]));
   const productsById = new Map(input.products.map((p) => [p.id, p]));
   const recordsByProductId = new Map<string, RecordRow[]>();
@@ -696,13 +706,20 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
   // Regroup the stage blockers by product, for the "why isn't X finished?"
   // view. Every per-product or per-record blocker carries that product's or
   // record's id inside its own id (see each push above), and ids are UUIDs, so
-  // a substring match is unambiguous. Blockers that match neither are either
-  // about the account (no QI, an exporter without a facility) or are the
-  // "do the earlier thing first" placeholders an empty account gets, which
-  // say nothing a product-level answer needs.
+  // a substring match is unambiguous.
+  //
+  // The account list is an allowlist, not "whatever matched no product". As a
+  // catch-all it once collected a whole record's blockers whose product had
+  // dropped out of the plan, and product problems belong on the product. The
+  // "do the earlier thing first" placeholders an empty account gets are left
+  // out too — they say nothing the account items do not.
   const productReasons: Record<string, ProductReason[]> = {};
   const accountReasons: ProductReason[] = [];
-  const placeholder = /-needs-(product|record|approval|exporter)$/;
+  const isAccountReason = (id: string) =>
+    id === "exporter-none" ||
+    id === "product-none" ||
+    id === "qi-none" ||
+    input.suppliers.some((s) => id === `facility-${s.id}`);
   steps.forEach((step, index) => {
     // An approved product with no inspection package is finished: the package
     // is built when FDA asks for it (see lib/dashboard/product-journey.ts,
@@ -715,7 +732,7 @@ export function buildCompleteFsvpSetupPlan(input: PlannerInput): CompleteFsvpSet
         ? productsById.get(record.product_id)
         : input.products.find((p) => item.id.includes(p.id));
       if (!product) {
-        if (!placeholder.test(item.id)) accountReasons.push(reason);
+        if (isAccountReason(item.id)) accountReasons.push(reason);
         continue;
       }
       // The messages are written for a list of every product, so most open
